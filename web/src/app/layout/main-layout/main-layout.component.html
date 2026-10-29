@@ -35,7 +35,7 @@
 
     <!-- Navigation -->
     <nav class="sidebar-nav">
-      @for (section of navSections; track section.label) {
+      @for (section of visibleSections(); track section.label) {
         @if (sidebarOpen()) {
           <div class="nav-section-label">{{ section.label }}</div>
         } @else {

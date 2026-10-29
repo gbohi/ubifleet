@@ -14,14 +14,14 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(authReq).pipe(
     catchError((err: HttpErrorResponse) => {
-      if (err.status === 401 && !req.url.includes('/auth/')) {
+      // Login, refresh et logout ne déclenchent pas de rafraîchissement ;
+      // /auth/me/ et les autres routes du compte, si.
+      const routeAuth = /\/auth\/(login|token\/refresh|logout)\//.test(req.url);
+      if (err.status === 401 && !routeAuth && auth.isLoggedIn()) {
         return auth.refreshToken().pipe(
-          switchMap(res => {
-            const retried = req.clone({
-              setHeaders: { Authorization: `Bearer ${res.access}` }
-            });
-            return next(retried);
-          }),
+          switchMap(access => next(
+            req.clone({ setHeaders: { Authorization: `Bearer ${access}` } })
+          )),
           catchError(refreshErr => {
             auth.logout();
             return throwError(() => refreshErr);
