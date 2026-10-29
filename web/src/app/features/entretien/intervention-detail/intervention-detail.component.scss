@@ -1,0 +1,136 @@
+// UbiFleet — Intervention Detail Styles
+.detail-page { animation: fadeInUp var(--transition-base) ease; }
+
+.detail-loading {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; padding: 64px; color: var(--gray-500);
+  i { font-size: 24px; color: var(--green-dark); }
+}
+.error-state {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 64px; gap: 12px; color: var(--danger); text-align: center;
+  i { font-size: 40px; }
+}
+
+.breadcrumb {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--gray-400); margin-bottom: 18px;
+}
+.bc-link { color: var(--green-dark); text-decoration: none; font-weight: 500;
+  display: flex; align-items: center; gap: 5px; &:hover { color: var(--navy); } }
+.bc-sep { font-size: 10px; color: var(--gray-300); }
+.bc-current { color: var(--navy); font-weight: 600; }
+
+.alert {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: var(--radius-lg);
+  margin-bottom: 16px; font-size: 13px; border-left: 4px solid;
+  &.alert-success { background: var(--green-alpha); border-left-color: var(--green-dark); color: var(--green-dark); }
+  &.alert-error   { background: var(--danger-light); border-left-color: var(--danger); color: var(--danger); }
+}
+
+.intervention-header {
+  background: var(--white); border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg); padding: 20px 24px;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; margin-bottom: 16px; box-shadow: var(--shadow-sm);
+  border-top: 4px solid var(--navy); flex-wrap: wrap;
+}
+
+.ih-badges { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.badge-lg  { padding: 6px 14px; font-size: 13px; }
+.ih-title  { font-size: 20px; font-weight: 700; color: var(--navy);
+  font-family: var(--font-display); margin-bottom: 6px; }
+.ih-vehicule, .ih-agence {
+  font-size: 13px; color: var(--gray-500);
+  display: flex; align-items: center; gap: 6px; margin-top: 4px;
+  i { color: var(--gray-300); font-size: 11px; }
+}
+.ih-right  { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.ih-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+// KPI
+.kpi-row {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px; margin-bottom: 16px;
+}
+.kpi-card {
+  background: var(--white); border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg); padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-sm);
+}
+.kpi-icon {
+  width: 38px; height: 38px; border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; flex-shrink: 0;
+  &.navy    { background: var(--navy-alpha); color: var(--navy); }
+  &.blue    { background: var(--info-light); color: var(--info); }
+  &.green   { background: var(--green-alpha); color: var(--green-dark); }
+  &.warning { background: var(--warning-light); color: var(--warning); }
+}
+.kpi-val { font-size: 15px; font-weight: 700; color: var(--navy); line-height: 1.2; }
+.kpi-lbl { font-size: 11px; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.3px; }
+
+// Info grid
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  @media (max-width: 768px) { grid-template-columns: 1fr; } }
+
+.info-table { width: 100%; border-collapse: collapse; font-size: 13px;
+  tr { border-bottom: 1px solid var(--gray-50); }
+  tr:last-child { border-bottom: none; }
+}
+.info-label { padding: 9px 0; color: var(--gray-500); width: 45%; font-weight: 500; }
+.info-value { padding: 9px 0; color: var(--navy); }
+
+.description-text {
+  font-size: 14px; color: var(--gray-600); line-height: 1.6; white-space: pre-wrap;
+}
+.text-empty { font-size: 13px; color: var(--gray-300); font-style: italic; }
+.rapport-section {
+  margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--gray-100);
+}
+.rapport-title { font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 8px; }
+
+// Modal footer
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+// ── Upload documents clôture ───────────────────────────────────────
+.upload-zone-sm {
+  border: 2px dashed var(--gray-200); border-radius: var(--radius-md);
+  padding: 12px; text-align: center; cursor: pointer; position: relative;
+  background: var(--gray-50); transition: all 0.2s;
+  &:hover { border-color: var(--green-dark); background: #f0fdf4; }
+}
+.upload-label-sm {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer; font-size: 12px; color: var(--gray-500);
+  i { color: var(--gray-400); }
+}
+.upload-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.docs-list-sm { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.doc-item-sm {
+  display: flex; align-items: center; gap: 6px;
+  background: white; border: 1px solid var(--gray-100);
+  border-radius: var(--radius-sm); padding: 5px 8px; font-size: 11px;
+}
+.doc-name-sm { flex: 1; color: var(--gray-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn-remove-doc-sm {
+  background: none; border: none; color: var(--gray-400); cursor: pointer;
+  padding: 2px 4px; border-radius: 4px; line-height: 1;
+  &:hover { background: #fef2f2; color: var(--danger); }
+}
+// Documents attachés dans le détail
+.docs-attached { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.doc-attached-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; background: var(--gray-50);
+  border-radius: var(--radius-md); border: 1px solid var(--gray-100);
+  font-size: 12px;
+}
+.doc-link { flex: 1; color: var(--navy); text-decoration: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  &:hover { text-decoration: underline; } }
+.doc-type-badge {
+  font-size: 9px; background: var(--gray-100); color: var(--gray-500);
+  padding: 2px 6px; border-radius: 8px; flex-shrink: 0;
+}

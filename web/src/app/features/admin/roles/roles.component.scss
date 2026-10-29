@@ -1,0 +1,60 @@
+.roles-page { animation: fadeInUp var(--transition-base) ease; }
+
+.alert-success {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--green-alpha); border-left: 4px solid var(--green-dark);
+  padding: 12px 16px; border-radius: var(--radius-lg); margin-bottom: 16px;
+  font-size: 13px; color: var(--green-dark);
+}
+.alert-error-sm {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--danger-light); border-left: 3px solid var(--danger);
+  padding: 8px 12px; border-radius: var(--radius-md); margin-bottom: 12px;
+  font-size: 12px; color: var(--danger);
+}
+
+.loading-state {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 64px; color: var(--gray-500);
+  i { font-size: 24px; color: var(--green-dark); }
+}
+
+.role-name  { font-size: 14px; font-weight: 600; color: var(--navy); }
+.role-desc  { font-size: 11px; color: var(--gray-400); margin-top: 2px; max-width: 280px; }
+.role-code  { background: var(--gray-100); padding: 2px 8px; border-radius: 4px;
+               font-size: 12px; color: var(--navy); }
+.badge-system {
+  display: inline-block; font-size: 10px; padding: 1px 6px;
+  background: var(--navy); color: var(--white); border-radius: 99px;
+  font-weight: 600; text-transform: uppercase; margin-top: 4px;
+}
+
+// Barre niveau
+.niveau-bar {
+  width: 60px; height: 6px; background: var(--gray-100);
+  border-radius: 3px; overflow: hidden; flex-shrink: 0;
+}
+.niveau-fill {
+  height: 100%; background: var(--green-dark);
+  border-radius: 3px; transition: width 0.3s;
+}
+
+// Sélecteur niveau dans le modal
+.niveau-selector {
+  display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+}
+.niveau-btn {
+  width: 40px; height: 40px; border-radius: var(--radius-md);
+  border: 1.5px solid var(--gray-200); background: var(--white);
+  font-size: 14px; font-weight: 600; font-family: var(--font-body);
+  cursor: pointer; color: var(--gray-600);
+  transition: all var(--transition-fast);
+  &:hover { border-color: var(--navy); color: var(--navy); }
+  &.active { background: var(--navy); color: var(--white); border-color: var(--navy); }
+}
+.niveau-hint {
+  font-size: 12px; color: var(--gray-500); margin-top: 8px;
+  strong { color: var(--navy); }
+}
+
+.modal-sm { max-width: 420px; }

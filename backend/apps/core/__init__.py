@@ -1,0 +1,1 @@
+"""UbiFleet — Modèles abstraits partagés"""

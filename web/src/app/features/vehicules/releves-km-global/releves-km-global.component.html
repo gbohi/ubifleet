@@ -1,0 +1,671 @@
+<!-- UbiFleet — Relevés Kilométrage Global (Angular 18) -->
+<div class="releves-global-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-tachometer-alt" style="color:var(--green-dark)"></i>
+        Relevés Kilométrage
+      </h1>
+      <p class="page-subtitle">Historique de tous les relevés — {{ total() }} enregistrement(s)</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a routerLink="/vehicules" class="btn btn-outline btn-sm">
+        <i class="fas fa-car"></i> Véhicules
+      </a>
+      <button class="btn btn-outline btn-sm" [disabled]="relevesExportLoading()" (click)="exportRelevesCsv()">
+        @if (relevesExportLoading()) {
+          <i class="fas fa-circle-notch fa-spin"></i> Export...
+        } @else {
+          <i class="fas fa-file-csv"></i> Exporter CSV
+        }
+      </button>
+      <button class="btn btn-green btn-sm" (click)="ouvrirNouveauReleve()">
+        <i class="fas fa-plus"></i> Nouveau relevé
+      </button>
+    </div>
+  </div>
+
+  <!-- Onglets -->
+  <div class="tab-bar">
+    <button class="tab" [class.active]="activeTab()==='releves'"
+            (click)="activeTab.set('releves')">
+      <i class="fas fa-list"></i> Relevés
+      @if (total() > 0) { <span class="tab-badge">{{ total() }}</span> }
+    </button>
+    <button class="tab" [class.active]="activeTab()==='consommation'"
+            (click)="activeTab.set('consommation')">
+      <i class="fas fa-tachometer-alt"></i> Consommation L/100
+    </button>
+  </div>
+
+  @if (activeTab() === 'releves') {
+
+  <!-- Filtres -->
+  <div class="card filters-card">
+    <div class="filters-grid">
+
+      <div class="filter-group">
+        <label class="filter-label"><i class="fas fa-search"></i> Immatriculation / Tournée</label>
+        <div class="search-box">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="ex: AB-1234 ou Bouaké..."
+                 [value]="searchImmat()" (input)="onSearch($event)" />
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label"><i class="fas fa-tag"></i> Type de mouvement</label>
+        <select class="form-control" [value]="filterType()" (change)="onType($event)">
+          @for (t of typesMouvement; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label"><i class="fas fa-id-badge"></i> Chauffeur</label>
+        <select class="form-control" [value]="filterChauffeur()" (change)="onChauffeur($event)">
+          <option value="">Tous les chauffeurs</option>
+          @for (c of chauffeurs(); track c.id) {
+            <option [value]="c.id">{{ c.nom_complet }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label"><i class="fas fa-calendar"></i> Date de</label>
+        <input type="date" class="form-control"
+               [value]="filterDateDe()" (input)="onDateDe($event)" />
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label"><i class="fas fa-calendar-alt"></i> Date à</label>
+        <input type="date" class="form-control"
+               [value]="filterDateA()" (input)="onDateA($event)" />
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label"><i class="fas fa-arrow-down"></i> Km min</label>
+        <input type="number" class="form-control" placeholder="0"
+               [value]="filterKmMin()" (input)="onKmMin($event)" min="0" step="100" />
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label"><i class="fas fa-arrow-up"></i> Km max</label>
+        <input type="number" class="form-control" placeholder="∞"
+               [value]="filterKmMax()" (input)="onKmMax($event)" min="0" step="100" />
+      </div>
+
+      @if (hasFilters) {
+        <div class="filter-group filter-reset">
+          <label class="filter-label">&nbsp;</label>
+          <button class="btn btn-outline btn-sm" (click)="resetFilters()">
+            <i class="fas fa-times"></i> Réinitialiser
+          </button>
+        </div>
+      }
+
+    </div>
+  </div>
+
+  <!-- Chargement -->
+  @if (loading()) {
+    <div class="loading-state">
+      <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+    </div>
+  }
+
+  <!-- Tableau -->
+  @if (!loading()) {
+    @if (releves().length === 0) {
+      <div class="empty-state">
+        <i class="fas fa-tachometer-alt"></i>
+        <h3>Aucun relevé trouvé</h3>
+        <p>Modifiez vos critères de recherche.</p>
+      </div>
+    } @else {
+      <div class="card">
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Véhicule</th>
+                <th>Kilométrage</th>
+                <th>Type</th>
+                <th>Chauffeur</th>
+                <th>Tournée / Destination</th>
+                <th>Notes</th>
+                <th>Saisi par</th>
+                <th style="text-align:center;width:70px">Photo</th>
+                <th style="width:60px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of releves(); track r.id) {
+                <tr>
+                  <td>
+                    <strong>{{ r.date_releve | date:'dd/MM/yyyy' }}</strong>
+                  </td>
+                  <td>
+                    <a [routerLink]="['/vehicules', r.vehicule]"
+                       class="vehicule-link">
+                      {{ r.vehicule_immat }}
+                    </a>
+                    <div class="td-sub">{{ r.vehicule_designation }}</div>
+                  </td>
+                  <td>
+                    <strong class="km-val">{{ r.kilometrage | number:'1.0-0' }} km</strong>
+                  </td>
+                  <td>
+                    <span class="badge" [class]="typeMouvementClass(r.type_mouvement)">
+                      {{ r.type_display }}
+                    </span>
+                  </td>
+                  <td>{{ r.chauffeur_nom || '—' }}</td>
+                  <td>{{ r.tournee || '—' }}</td>
+                  <td>
+                    <div class="td-notes">{{ r.notes || '—' }}</div>
+                  </td>
+                  <td>
+                    <div class="td-sub">{{ r.created_by_nom || '—' }}</div>
+                  </td>
+                  <td style="text-align:center">
+                    @if (r.photo_tableau_bord_url) {
+                      <button class="btn-photo-thumb"
+                              (click)="ouvrirPhoto($event, r.photo_tableau_bord_url!)"
+                              title="Voir la photo du tableau de bord">
+                        <img [src]="r.photo_tableau_bord_url" alt="Tableau de bord" />
+                      </button>
+                    } @else {
+                      <span style="color:var(--gray-300);font-size:11px">—</span>
+                    }
+                  </td>
+                  <td>
+                    <button class="btn btn-icon" (click)="ouvrirDetail(r)" title="Voir le détail">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      @if (total() > 20) {
+        <div class="pagination">
+          <button class="page-btn" [disabled]="page() === 1"
+                  (click)="onPageChange(page() - 1)">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          @for (p of pages; track p) {
+            <button class="page-btn" [class.active]="p === page()"
+                    (click)="onPageChange(p)">{{ p }}</button>
+          }
+          <button class="page-btn" [disabled]="page() === totalPages"
+                  (click)="onPageChange(page() + 1)">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+          <span class="pagination-info">{{ total() }} relevé(s)</span>
+        </div>
+      }
+    }
+  }
+
+  } <!-- fin @if releves -->
+
+  <!-- ── ONGLET CONSOMMATION L/100 ── -->
+  @if (activeTab() === 'consommation') {
+    <div class="conso-tab">
+
+      <div class="analyse-header">
+        <div class="analyse-title">
+          <i class="fas fa-tachometer-alt" style="color:var(--green-dark)"></i>
+          Consommation aux 100 km — Relevés km × Transactions Total
+        </div>
+        <p class="analyse-subtitle">
+          La distance est calculée à partir des relevés kilométriques (min/max sur la période).
+          Le volume de carburant est extrait des transactions TotalEnergies importées sur la même période.
+        </p>
+      </div>
+
+      <div class="card analyse-filters">
+        <div class="filters-grid-4">
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date début *</label>
+            <input type="date" class="form-control" [value]="consoDateDebut()"
+                   (input)="onConsoInput('debut',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin *</label>
+            <input type="date" class="form-control" [value]="consoDateFin()"
+                   (input)="onConsoInput('fin',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-building"></i> Agence</label>
+            <select class="form-control" (change)="onConsoInput('agence',$event)">
+              <option value="">Toutes les agences</option>
+              @for (a of agences(); track a.id) {
+                <option [value]="a.id">{{ a.nom }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-car"></i> Véhicule</label>
+            <input type="text" class="form-control" placeholder="ex: AA-940-NG"
+                   [value]="consoVehicule()" (input)="onConsoInput('vehicule',$event)" />
+          </div>
+        </div>
+
+        @if (consoError()) {
+          <div class="alert-error-sm">
+            <i class="fas fa-exclamation-triangle"></i> {{ consoError() }}
+          </div>
+        }
+
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-green" [disabled]="consoLoading()" (click)="calculerConso()">
+            @if (consoLoading()) { <i class="fas fa-circle-notch fa-spin"></i> Calcul... }
+            @else { <i class="fas fa-calculator"></i> Calculer }
+          </button>
+          @if (consoData().length > 0) {
+            <button class="btn btn-excel" (click)="exportConsoCsv()">
+              <i class="fas fa-file-excel"></i> Exporter CSV
+            </button>
+          }
+        </div>
+      </div>
+
+      @if (consoData().length > 0) {
+        <div class="card" style="margin-top:16px">
+          <div class="card-header">
+            <div class="card-title">
+              {{ consoData().length }} véhicule(s) — du {{ consoDateDebut() }} au {{ consoDateFin() }}
+            </div>
+          </div>
+          <div class="table-container">
+            <table class="ubi-table">
+              <thead>
+                <tr>
+                  <th (click)="sortConso('immatriculation')" class="sortable">
+                    Immatriculation <i class="fas fa-sort"></i>
+                  </th>
+                  <th (click)="sortConso('distance')" class="sortable">
+                    Distance km (Relevés) <i class="fas fa-sort"></i>
+                  </th>
+                  <th style="text-align:right">Km début</th>
+                  <th style="text-align:right">Km fin</th>
+                  <th style="text-align:right">Volume (L)</th>
+                  <th style="text-align:center">Nb trans.</th>
+                  <th (click)="sortConso('conso_100')" class="sortable" style="text-align:center">
+                    <span title="Distance depuis relevés km × Volume Total">Conso Relevés×Total</span>
+                    <i class="fas fa-sort"></i>
+                  </th>
+                  <th (click)="sortConso('distance_total')" class="sortable" style="text-align:right">
+                    Distance km (Total) <i class="fas fa-sort"></i>
+                  </th>
+                  <th (click)="sortConso('conso_total')" class="sortable" style="text-align:center">
+                    <span title="Distance issue des km précédent/actuel de Total">Conso Directe Total</span>
+                    <i class="fas fa-sort"></i>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of consoSorted(); track r.immatriculation) {
+                  <tr>
+                    <td>
+                      <span class="immat-badge">{{ r.immatriculation }}</span>
+                      @if (r.marque || r.modele) {
+                        <div style="font-size:11px;color:var(--gray-400)">{{ r.marque }} {{ r.modele }}</div>
+                      }
+                    </td>
+                    <td style="text-align:right;font-weight:700;color:var(--navy)">
+                      @if (r.distance > 0) { {{ r.distance | number:'1.0-0' }} km }
+                      @else { <span style="color:var(--gray-400)">—</span> }
+                    </td>
+                    <td style="text-align:right;font-family:monospace;font-size:12px">
+                      @if (r.km_debut) { {{ r.km_debut | number:'1.0-0' }} }
+                      @else { — }
+                    </td>
+                    <td style="text-align:right;font-family:monospace;font-size:12px">
+                      @if (r.km_fin) { {{ r.km_fin | number:'1.0-0' }} }
+                      @else { — }
+                    </td>
+                    <td style="text-align:right;font-weight:600">
+                      @if (r.volume_total > 0) {
+                        {{ r.volume_total | number:'1.2-2' }} L
+                      } @else {
+                        <span style="color:var(--gray-400)">—</span>
+                      }
+                    </td>
+                    <td style="text-align:center;color:var(--gray-400)">{{ r.nb_transactions }}</td>
+                    <td style="text-align:center">
+                      @if (r.conso_100 !== null) {
+                        <span class="badge" [class]="consoBadge(r.conso_100)">
+                          {{ r.conso_100 | number:'1.1-1' }} L/100
+                        </span>
+                      } @else {
+                        <span class="badge badge-gray">N/A</span>
+                      }
+                    </td>
+                    <td style="text-align:right;font-weight:700;color:var(--navy)">
+                      @if (r.km_total_fin && r.km_total_debut) {
+                        {{ (r.km_total_fin - r.km_total_debut) | number:'1.0-0' }} km
+                      } @else { <span style="color:var(--gray-400)">—</span> }
+                    </td>
+                    <td style="text-align:center">
+                      @if (r.conso_total !== null) {
+                        <span class="badge" [class]="consoBadge(r.conso_total)">
+                          {{ r.conso_total | number:'1.1-1' }} L/100
+                        </span>
+                      } @else {
+                        <span class="badge badge-gray">N/A</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Légende -->
+          <div class="conso-legend">
+            <strong style="margin-right:8px">Niveaux :</strong>
+            <span class="badge badge-green">≤ 8 L</span>&nbsp;Bonne
+            <span class="badge badge-warning" style="margin-left:10px">≤ 12 L</span>&nbsp;Modérée
+            <span class="badge badge-danger" style="margin-left:10px">&gt; 12 L</span>&nbsp;Élevée
+            <span style="margin-left:16px;border-left:1px solid var(--gray-200);padding-left:16px;color:var(--gray-500)">
+              <strong>Relevés×Total</strong> = Distance (relevés km) ÷ Volume Total ·
+              <strong>Directe Total</strong> = Distance (km préc./actuel Total) ÷ Volume Total
+            </span>
+          </div>
+        </div>
+      }
+
+    </div>
+  }
+
+</div>
+
+<!-- MODAL Nouveau relevé kilométrique -->
+@if (showNewModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-container modal-releve" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-tachometer-alt" style="color:var(--green-dark)"></i>
+          Nouveau relevé kilométrique
+        </div>
+        <button class="modal-close" (click)="fermerNouveauReleve()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      @if (nrError()) {
+        <div class="alert-error-inline" style="background:#fef2f2;color:var(--danger);border-left:3px solid var(--danger);padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px">
+          <i class="fas fa-exclamation-triangle"></i> {{ nrError() }}
+        </div>
+      }
+
+      <div class="releve-form">
+        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group" style="position:relative">
+            <label class="form-label"><i class="fas fa-car"></i> Véhicule *</label>
+            <input type="text" class="form-control form-control-lg"
+                   [value]="nrVehiculeSearch()"
+                   (input)="onNrVehiculeSearchInput($event)"
+                   (focus)="nrVehiculeOpen.set(true)"
+                   (blur)="fermerCombobox()"
+                   placeholder="Saisir l'immatriculation..."
+                   autocomplete="off" />
+            @if (nrVehiculeOpen() && nrVehiculesFiltres().length > 0) {
+              <div class="combobox-list">
+                @for (v of nrVehiculesFiltres(); track v.id) {
+                  <div class="combobox-item" (mousedown)="selectNrVehicule(v)">
+                    <strong>{{ v.immatriculation }}</strong>
+                    <span class="combobox-meta">{{ v.kilometrage_actuel | number:'1.0-0' }} km</span>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-road"></i> Kilométrage actuel</label>
+            <div class="km-actuel-display">
+              @if (nrVehiculeKmActuel() !== null) {
+                <i class="fas fa-tachometer-alt"></i>
+                {{ nrVehiculeKmActuel() | number:'1.0-0' }} km
+              } @else {
+                <span style="color:var(--gray-300)">— Sélectionner un véhicule —</span>
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-tachometer-alt"></i> Kilométrage relevé (km) *</label>
+            <input type="number" class="form-control form-control-lg"
+                   [value]="nrKm() || ''" min="0" step="1"
+                   (input)="nrKm.set(+$any($event.target).value || 0)"
+                   placeholder="Saisir le kilométrage relevé" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date du relevé *</label>
+            <input type="date" class="form-control form-control-lg"
+                   [value]="nrDate()" (input)="nrDate.set($any($event.target).value)" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label"><i class="fas fa-exchange-alt"></i> Type de mouvement *</label>
+          <select class="form-control"
+                  [value]="nrType()" (change)="nrType.set($any($event.target).value)">
+            <option value="releve">Relevé simple</option>
+            <option value="sortie">Sortie véhicule</option>
+            <option value="entree">Retour véhicule</option>
+            <option value="tournee">Tournée</option>
+          </select>
+        </div>
+
+        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group" style="position:relative">
+            <label class="form-label"><i class="fas fa-id-badge"></i> Chauffeur</label>
+            <div style="position:relative">
+              <input type="text" class="form-control"
+                     [value]="nrChauffeurSearch()"
+                     (input)="onNrChauffeurSearchInput($event)"
+                     (focus)="nrChauffeurOpen.set(true)"
+                     (blur)="fermerCombobox()"
+                     placeholder="Rechercher un chauffeur..."
+                     autocomplete="off" />
+              @if (nrChauffeurSearch()) {
+                <button type="button" class="combobox-clear" (mousedown)="clearNrChauffeur()" title="Effacer">
+                  <i class="fas fa-times"></i>
+                </button>
+              }
+            </div>
+            @if (nrChauffeurOpen() && nrChauffeursFiltres().length > 0) {
+              <div class="combobox-list">
+                @for (ch of nrChauffeursFiltres(); track ch.id) {
+                  <div class="combobox-item" (mousedown)="selectNrChauffeur(ch)">
+                    {{ ch.nom_complet }}
+                  </div>
+                }
+              </div>
+            }
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-route"></i> Tournée / Destination</label>
+            <input type="text" class="form-control"
+                   [value]="nrTournee()" (input)="nrTournee.set($any($event.target).value)"
+                   placeholder="ex : Livraison Bouaké..." />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label"><i class="fas fa-sticky-note"></i> Notes / Observations</label>
+          <textarea class="form-control" rows="2"
+                    [value]="nrNotes()" (input)="nrNotes.set($any($event.target).value)"
+                    placeholder="Observations, état du véhicule..."></textarea>
+        </div>
+
+        <!-- Photo tableau de bord -->
+        <div class="form-group">
+          <label class="form-label">
+            <i class="fas fa-camera"></i> Photo tableau de bord
+            <span style="font-size:11px;color:var(--gray-400);font-weight:400;margin-left:6px">(optionnel)</span>
+          </label>
+          @if (nrPhotoPreview()) {
+            <div style="margin-bottom:8px;position:relative;display:inline-block">
+              <img [src]="nrPhotoPreview()!" alt="Aperçu"
+                   style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--gray-200)" />
+              <button type="button"
+                      style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:11px"
+                      (click)="nrPhoto.set(null); nrPhotoPreview.set(null)">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          }
+          <div style="border:2px dashed var(--gray-200);border-radius:8px;padding:12px;text-align:center;position:relative;background:var(--gray-50)">
+            <label for="nr-photo" style="cursor:pointer;font-size:12px;color:var(--gray-500);display:flex;align-items:center;justify-content:center;gap:8px">
+              <i class="fas fa-camera"></i>
+              {{ nrPhotoPreview() ? 'Changer la photo' : 'Sélectionner une photo' }}
+            </label>
+            <input type="file" id="nr-photo"
+                   style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%"
+                   accept="image/*" (change)="onNrPhotoChange($event)" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button type="button" class="btn btn-outline" (click)="fermerNouveauReleve()">
+            <i class="fas fa-times"></i> Annuler
+          </button>
+          <button type="button" class="btn btn-green" [disabled]="nrSaving()" (click)="saveNouveauReleve()">
+            @if (nrSaving()) {
+              <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
+            } @else {
+              <i class="fas fa-check"></i> Enregistrer le relevé
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- MODAL Détail du relevé -->
+@if (detailReleve(); as r) {
+  <div class="modal-backdrop">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-tachometer-alt" style="color:var(--green-dark)"></i>
+          Détail du relevé
+        </div>
+        <button class="modal-close" (click)="fermerDetail()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Bandeau véhicule -->
+      <div class="detail-banner">
+        <div>
+          <div class="detail-banner-immat">{{ r.vehicule_immat }}</div>
+          <div class="detail-banner-sub">{{ r.vehicule_designation }}</div>
+        </div>
+        <div class="detail-banner-km">
+          <i class="fas fa-road"></i>
+          {{ r.kilometrage | number:'1.0-0' }} km
+        </div>
+      </div>
+
+      <!-- Informations -->
+      <div class="detail-grid">
+        <div class="detail-item">
+          <div class="detail-label"><i class="fas fa-calendar-alt"></i> Date du relevé</div>
+          <div class="detail-value">{{ r.date_releve | date:'dd/MM/yyyy' }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label"><i class="fas fa-exchange-alt"></i> Type de mouvement</div>
+          <div class="detail-value">
+            <span class="badge" [class]="typeMouvementClass(r.type_mouvement)">
+              {{ r.type_display }}
+            </span>
+          </div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label"><i class="fas fa-id-badge"></i> Chauffeur</div>
+          <div class="detail-value">{{ r.chauffeur_nom || '—' }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label"><i class="fas fa-route"></i> Tournée / Destination</div>
+          <div class="detail-value">{{ r.tournee || '—' }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label"><i class="fas fa-user-edit"></i> Saisi par</div>
+          <div class="detail-value">{{ r.created_by_nom || '—' }}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label"><i class="fas fa-clock"></i> Date de saisie</div>
+          <div class="detail-value">{{ r.created_at | date:'dd/MM/yyyy HH:mm' }}</div>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="detail-item" style="margin-top:4px">
+        <div class="detail-label"><i class="fas fa-sticky-note"></i> Notes / Observations</div>
+        <div class="detail-value detail-notes">{{ r.notes || 'Aucune note' }}</div>
+      </div>
+
+      <!-- Photo tableau de bord -->
+      <div class="detail-item" style="margin-top:12px">
+        <div class="detail-label"><i class="fas fa-camera"></i> Photo tableau de bord</div>
+        @if (r.photo_tableau_bord_url) {
+          <img [src]="r.photo_tableau_bord_url" alt="Tableau de bord"
+               class="detail-photo"
+               (click)="ouvrirPhoto($event, r.photo_tableau_bord_url!)" />
+        } @else {
+          <div class="detail-value" style="color:var(--gray-400)">Aucune photo</div>
+        }
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+        <a [routerLink]="['/vehicules', r.vehicule]" class="btn btn-outline">
+          <i class="fas fa-car"></i> Voir le véhicule
+        </a>
+        <button class="btn btn-green" (click)="fermerDetail()">
+          <i class="fas fa-check"></i> Fermer
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- LIGHTBOX Photo tableau de bord -->
+@if (photoLightbox()) {
+  <div class="lightbox-backdrop" (click)="fermerPhoto()">
+    <div class="lightbox-container" (click)="$event.stopPropagation()">
+      <div class="lightbox-header">
+        <div class="lightbox-title">
+          <i class="fas fa-tachometer-alt"></i> Photo tableau de bord
+        </div>
+        <button class="lightbox-close" (click)="fermerPhoto()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="lightbox-body">
+        <img [src]="photoLightbox()!" alt="Tableau de bord" class="lightbox-img" />
+      </div>
+      <div class="lightbox-footer">
+        <a [href]="photoLightbox()!" target="_blank" class="btn btn-outline btn-sm">
+          <i class="fas fa-external-link-alt"></i> Ouvrir en plein écran
+        </a>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,545 @@
+<!-- UbiFleet — Grand Livre Comptable (Angular 18) -->
+<div class="gl-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-book" style="color:var(--green-dark)"></i>
+        Grand Livre Comptable
+      </h1>
+      <p class="page-subtitle">Importation, consultation et analyse des écritures comptables</p>
+    </div>
+    <a routerLink="/budget" class="btn btn-outline btn-sm">
+      <i class="fas fa-arrow-left"></i> Budget
+    </a>
+  </div>
+
+  <!-- ONGLETS -->
+  <div class="tab-bar">
+    <button class="tab" [class.active]="activeTab()==='import'"       (click)="onTabChange('import')">
+      <i class="fas fa-upload"></i> Importer
+    </button>
+    <button class="tab" [class.active]="activeTab()==='historique'"   (click)="onTabChange('historique')">
+      <i class="fas fa-history"></i> Historique
+    </button>
+    <button class="tab" [class.active]="activeTab()==='lignes'"       (click)="onTabChange('lignes')">
+      <i class="fas fa-list"></i> Écritures
+      @if (lignesTotal() > 0) { <span class="tab-badge">{{ lignesTotal() | number }}</span> }
+    </button>
+    <button class="tab" [class.active]="activeTab()==='totaux'"       (click)="onTabChange('totaux')">
+      <i class="fas fa-table"></i> Totaux
+    </button>
+    <button class="tab" [class.active]="activeTab()==='statistiques'" (click)="onTabChange('statistiques')">
+      <i class="fas fa-chart-bar"></i> Statistiques
+    </button>
+  </div>
+
+  <!-- ═══ IMPORT ═══ -->
+  @if (activeTab() === 'import') {
+    <div class="import-tab">
+      @if (!result()) {
+        <div class="dropzone-card">
+          <div class="dropzone" [class.drag-over]="isDragOver()" [class.has-file]="selectedFile()"
+               (dragover)="onDragOver($event)" (dragleave)="onDragLeave()" (drop)="onDrop($event)">
+            @if (!selectedFile()) {
+              <div class="dropzone-empty">
+                <div class="dropzone-icon"><i class="fas fa-file-invoice"></i></div>
+                <div class="dropzone-text">
+                  <strong>Glissez votre fichier de grand livre</strong>
+                  <span>ou cliquez pour sélectionner</span>
+                  <span class="dropzone-hint">XLS, XLSX, CSV — extrait du logiciel comptable</span>
+                </div>
+                <label class="btn btn-outline btn-sm" style="cursor:pointer">
+                  <i class="fas fa-folder-open"></i> Parcourir
+                  <input type="file" accept=".xls,.xlsx,.csv" style="display:none" (change)="onFileInput($event)" />
+                </label>
+              </div>
+            } @else {
+              <div class="file-selected">
+                <div class="file-icon"><i class="fas fa-file-excel"></i></div>
+                <div class="file-info">
+                  <div class="file-name">{{ selectedFile()!.name }}</div>
+                  <div class="file-size">{{ formatSize(selectedFile()!.size) }}</div>
+                </div>
+                <button class="btn btn-icon" (click)="clearFile()"><i class="fas fa-times"></i></button>
+              </div>
+            }
+          </div>
+          @if (importError()) {
+            <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ importError() }}</div>
+          }
+          @if (uploading()) {
+            <div class="progress-wrap">
+              <div class="progress-bar"><div class="progress-fill" [style.width.%]="uploadPct()"></div></div>
+              <span class="progress-label">{{ uploadPct() }}%</span>
+            </div>
+          }
+          <div style="display:flex;justify-content:flex-end;margin-top:16px">
+            <button class="btn btn-green" [disabled]="!selectedFile() || uploading()" (click)="startImport()">
+              @if (uploading()) { <i class="fas fa-circle-notch fa-spin"></i> Import en cours... }
+              @else { <i class="fas fa-play"></i> Lancer l'importation }
+            </button>
+          </div>
+        </div>
+        <div class="format-guide">
+          <div class="format-guide-title"><i class="fas fa-info-circle"></i> Structure attendue</div>
+          <div class="format-cols">
+            <div class="format-col-group">
+              <div class="format-col-title">Ligne 1 — En-tête</div>
+              <ul><li>Compte, Libellé compte</li><li>Analytique (date), Comptable (date)</li><li>Origine, Pièce, N° ligne, N° analytique</li><li>Libellé écriture, Débit, Crédit</li></ul>
+            </div>
+            <div class="format-col-group">
+              <div class="format-col-title">Ligne 2 — Agence</div>
+              <ul><li>Col. A : Code agence (ex: ABJ)</li><li>Col. B : Libellé (ex: CENTRALE)</li></ul>
+              <div class="format-col-title" style="margin-top:10px">Lignes suivantes</div>
+              <ul><li>Écritures comptables</li><li>Lignes "Solde du compte" ignorées</li></ul>
+            </div>
+            <div class="format-col-group">
+              <div class="format-col-title">Règles d'import</div>
+              <ul><li>Colonne Solde ignorée</li><li>Dates Excel converties automatiquement</li><li>Doublons détectés (compte + pièce + n° ligne + date)</li><li>Multi-agences supporté</li></ul>
+            </div>
+          </div>
+        </div>
+      }
+      @if (result(); as r) {
+        <div class="result-card">
+          <div class="result-header">
+            <i class="fas fa-check-circle" style="color:var(--green-dark);font-size:28px"></i>
+            <div>
+              <div class="result-title">Import terminé — {{ r.fichier }}</div>
+              <div class="result-sub">Agence : <strong>{{ r.code_agence }}</strong> {{ r.libelle_agence }} — {{ r.nb_lignes }} ligne(s) traitée(s)</div>
+            </div>
+          </div>
+          <div class="result-stats">
+            <div class="result-stat result-stat-green">
+              <div class="result-stat-val">{{ r.importees }}</div>
+              <div class="result-stat-label"><i class="fas fa-check"></i> Importées</div>
+            </div>
+            <div class="result-stat result-stat-warn">
+              <div class="result-stat-val">{{ r.doublons }}</div>
+              <div class="result-stat-label"><i class="fas fa-copy"></i> Doublons</div>
+            </div>
+            <div class="result-stat" [class.result-stat-danger]="r.erreurs>0" [class.result-stat-gray]="r.erreurs===0">
+              <div class="result-stat-val">{{ r.erreurs }}</div>
+              <div class="result-stat-label"><i class="fas fa-times"></i> Erreurs</div>
+            </div>
+          </div>
+          @if (r.lignes_erreur.length > 0) {
+            <div class="error-lines">
+              <div class="error-lines-title"><i class="fas fa-exclamation-triangle"></i> Erreurs</div>
+              <table class="ubi-table" style="margin-top:8px">
+                <thead><tr><th>Ligne</th><th>Compte</th><th>Erreur</th></tr></thead>
+                <tbody>
+                  @for (e of r.lignes_erreur; track e.ligne) {
+                    <tr><td><code>{{ e.ligne }}</code></td><td>{{ e.compte }}</td><td style="color:var(--danger);font-size:12px">{{ e.erreur }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+          <div style="display:flex;gap:8px;margin-top:20px">
+            <button class="btn btn-outline" (click)="result.set(null)"><i class="fas fa-upload"></i> Nouvel import</button>
+            <button class="btn btn-navy"    (click)="onTabChange('lignes')"><i class="fas fa-list"></i> Voir les écritures</button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ═══ HISTORIQUE ═══ -->
+  @if (activeTab() === 'historique') {
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Historique des imports</div>
+        <button class="btn btn-outline btn-sm" (click)="loadHistorique()"><i class="fas fa-sync-alt"></i> Actualiser</button>
+      </div>
+      @if (historiqueLoad()) { <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div> }
+      @else if (historique().length === 0) { <div class="empty-state"><i class="fas fa-inbox"></i><p>Aucun import.</p></div> }
+      @else {
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead><tr><th>Fichier</th><th>Date import</th><th>Importé par</th><th>Total</th><th>Importées</th><th>Doublons</th><th>Erreurs</th><th>Taux</th></tr></thead>
+            <tbody>
+              @for (h of historique(); track h.id) {
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:8px;font-weight:500;font-size:13px"><i class="fas fa-file-excel" style="color:#1d6f42"></i>{{ h.fichier_nom }}</div></td>
+                  <td>{{ h.date_import | date:'dd/MM/yyyy HH:mm' }}</td>
+                  <td>{{ h.importe_par_nom || '—' }}</td>
+                  <td><strong>{{ h.nb_lignes }}</strong></td>
+                  <td><span class="badge badge-green">{{ h.nb_importees }}</span></td>
+                  <td>@if (h.nb_doublons>0) { <span class="badge badge-warning">{{ h.nb_doublons }}</span> } @else { <span style="color:var(--gray-400)">0</span> }</td>
+                  <td>@if (h.nb_erreurs>0)  { <span class="badge badge-danger">{{ h.nb_erreurs }}</span>  } @else { <span style="color:var(--gray-400)">0</span> }</td>
+                  <td>
+                    @if (h.nb_lignes > 0) {
+                      <div class="taux-bar"><div class="taux-fill" [style.width.%]="(h.nb_importees/h.nb_lignes)*100"></div><span>{{ ((h.nb_importees/h.nb_lignes)*100) | number:'1.0-0' }}%</span></div>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ═══ ÉCRITURES ═══ -->
+  @if (activeTab() === 'lignes') {
+    <div>
+      <div class="filters-toolbar">
+        <div class="filters-left">
+          <div class="filter-item filter-search">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="Compte, pièce, libellé..." (input)="onLignes('search',$event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-map-marker-alt" style="font-size:11px"></i>
+            <input type="text" placeholder="Agence" style="width:80px" (input)="onLignes('agence',$event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-hashtag" style="font-size:11px"></i>
+            <input type="text" placeholder="Compte" style="width:90px" (input)="onLignes('compte',$event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-tag" style="font-size:11px"></i>
+            <input type="text" placeholder="Origine" style="width:75px" (input)="onLignes('origine',$event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-calendar" style="font-size:11px"></i>
+            <input type="date" (change)="onLignes('debut',$event)" />
+          </div>
+          <div class="filter-item">
+            <span style="font-size:11px;color:var(--gray-400)">au</span>
+            <input type="date" (change)="onLignes('fin',$event)" />
+          </div>
+        </div>
+        <div class="filters-right">
+          <span class="filter-count">{{ lignesTotal() | number }} écriture(s)</span>
+          <button class="btn btn-excel" [disabled]="exporting()" (click)="exportCsv()">
+            @if (exporting()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-file-excel"></i> } Exporter
+          </button>
+        </div>
+      </div>
+      @if (lignesLoad()) { <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div> }
+      @else if (lignes().length === 0) { <div class="empty-state"><i class="fas fa-inbox"></i><p>Aucune écriture.</p></div> }
+      @else {
+        <div class="card">
+          <div class="table-container table-scroll-x">
+            <table class="ubi-table gl-table">
+              <thead>
+                <tr>
+                  <th>Agence</th><th>Compte</th><th>Libellé compte</th>
+                  <th>Date anal.</th><th>Date compt.</th><th>Origine</th>
+                  <th>Pièce</th><th>N° ligne</th><th>Libellé écriture</th>
+                  <th style="text-align:right">Débit</th><th style="text-align:right">Crédit</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (l of lignes(); track l.id) {
+                  <tr>
+                    <td><span class="agence-code">{{ l.code_agence }}</span></td>
+                    <td><code class="compte-code">{{ l.compte }}</code></td>
+                    <td style="font-size:12px">{{ l.libelle_compte }}</td>
+                    <td>{{ l.date_analytique | date:'dd/MM/yyyy' }}</td>
+                    <td>{{ l.date_comptable  | date:'dd/MM/yyyy' }}</td>
+                    <td><span class="badge badge-gray" style="font-size:10px">{{ l.origine }}</span></td>
+                    <td style="font-family:monospace;font-size:11px">{{ l.piece }}</td>
+                    <td style="text-align:center;color:var(--gray-400)">{{ l.no_ligne }}</td>
+                    <td style="font-size:12px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" [title]="l.libelle_ecriture">{{ l.libelle_ecriture }}</td>
+                    <td style="text-align:right;font-weight:600;color:var(--navy)">
+                      @if (l.debit > 0) { {{ l.debit | number:'1.0-0' }} } @else { <span style="color:var(--gray-200)">—</span> }
+                    </td>
+                    <td style="text-align:right;font-weight:600;color:var(--danger)">
+                      @if (l.credit > 0) { {{ l.credit | number:'1.0-0' }} } @else { <span style="color:var(--gray-200)">—</span> }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (lignesPages > 1) {
+            <div class="pagination">
+              <button class="page-btn" [disabled]="lignesPage()===1" (click)="onLignesPage(lignesPage()-1)"><i class="fas fa-chevron-left"></i></button>
+              @if (lignesPage() > 3) { <button class="page-btn" (click)="onLignesPage(1)">1</button> @if (lignesPage() > 4) { <span class="page-ellipsis">…</span> } }
+              @for (p of lignesPagesArr; track p) { <button class="page-btn" [class.active]="p===lignesPage()" (click)="onLignesPage(p)">{{ p }}</button> }
+              @if (lignesPage() < lignesPages-2) { @if (lignesPage() < lignesPages-3) { <span class="page-ellipsis">…</span> } <button class="page-btn" (click)="onLignesPage(lignesPages)">{{ lignesPages }}</button> }
+              <button class="page-btn" [disabled]="lignesPage()===lignesPages" (click)="onLignesPage(lignesPage()+1)"><i class="fas fa-chevron-right"></i></button>
+              <span class="page-info">Page {{ lignesPage() }}/{{ lignesPages }} — {{ lignesTotal() | number }} résultats</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ═══ TOTAUX ═══ -->
+  @if (activeTab() === 'totaux') {
+    <div>
+      <!-- Filtres -->
+      <div class="filters-toolbar">
+        <div class="filters-left">
+          <div class="filter-item">
+            <i class="fas fa-map-marker-alt" style="font-size:11px"></i>
+            <input type="text" placeholder="Agence" style="width:80px" (input)="onTotaux('agence',$event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-hashtag" style="font-size:11px"></i>
+            <input type="text" placeholder="Compte" style="width:90px" (input)="onTotaux('compte',$event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-tag" style="font-size:11px"></i>
+            <input type="text" placeholder="Origine" style="width:75px" (input)="onTotaux('origine',$event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-calendar" style="font-size:11px"></i>
+            <input type="date" (change)="onTotaux('debut',$event)" />
+          </div>
+          <div class="filter-item">
+            <span style="font-size:11px;color:var(--gray-400)">au</span>
+            <input type="date" (change)="onTotaux('fin',$event)" />
+          </div>
+        </div>
+        <div class="filters-right">
+          <!-- Vue selector -->
+          <div class="vue-selector">
+            <button class="vue-btn" [class.active]="totauxVue()==='agence'"        (click)="totauxVue.set('agence')">
+              <i class="fas fa-building"></i> Par agence
+            </button>
+            <button class="vue-btn" [class.active]="totauxVue()==='compte'"        (click)="totauxVue.set('compte')">
+              <i class="fas fa-hashtag"></i> Par compte
+            </button>
+            <button class="vue-btn" [class.active]="totauxVue()==='agence_compte'" (click)="totauxVue.set('agence_compte')">
+              <i class="fas fa-table"></i> Agence × Compte
+            </button>
+          </div>
+          @if (totauxData()) {
+            <button class="btn btn-excel" (click)="exportTotauxCsv()">
+              <i class="fas fa-file-excel"></i> Exporter
+            </button>
+          }
+        </div>
+      </div>
+
+      @if (totauxLoad()) { <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i> Calcul...</div> }
+      @else if (!totauxData()) { <div class="empty-state"><i class="fas fa-calculator"></i><p>Appliquez des filtres pour afficher les totaux.</p></div> }
+      @else {
+        <!-- KPIs globaux -->
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <div class="kpi-label"><i class="fas fa-list-ol"></i> Nb écritures</div>
+            <div class="kpi-val">{{ totauxData()!.nb_lignes | number }}</div>
+          </div>
+          <div class="kpi-card kpi-debit">
+            <div class="kpi-label"><i class="fas fa-arrow-up"></i> Total Débit</div>
+            <div class="kpi-val">{{ totauxData()!.total_debit | number:'1.0-0' }}</div>
+            <div class="kpi-sub">FCFA</div>
+          </div>
+          <div class="kpi-card kpi-credit">
+            <div class="kpi-label"><i class="fas fa-arrow-down"></i> Total Crédit</div>
+            <div class="kpi-val">{{ totauxData()!.total_credit | number:'1.0-0' }}</div>
+            <div class="kpi-sub">FCFA</div>
+          </div>
+          <div class="kpi-card" [class.kpi-positif]="totauxData()!.solde >= 0" [class.kpi-negatif]="totauxData()!.solde < 0">
+            <div class="kpi-label"><i class="fas fa-balance-scale"></i> Solde</div>
+            <div class="kpi-val">{{ totauxData()!.solde | number:'1.0-0' }}</div>
+            <div class="kpi-sub">FCFA</div>
+          </div>
+        </div>
+
+        <!-- Tableau totaux -->
+        <div class="card">
+          <div class="table-container table-scroll-x">
+            <table class="ubi-table totaux-table">
+              <thead>
+                <tr>
+                  @if (totauxVue()==='agence' || totauxVue()==='agence_compte') {
+                    <th class="sortable" (click)="sortTotaux('code_agence')">
+                      Agence <i class="fas fa-sort"></i>
+                    </th>
+                    <th>Libellé agence</th>
+                  }
+                  @if (totauxVue()==='compte' || totauxVue()==='agence_compte') {
+                    <th class="sortable" (click)="sortTotaux('compte')">
+                      Compte <i class="fas fa-sort"></i>
+                    </th>
+                    <th>Libellé compte</th>
+                  }
+                  <th class="sortable" (click)="sortTotaux('nb')" style="text-align:right">
+                    Nb écritures <i class="fas fa-sort"></i>
+                  </th>
+                  <th class="sortable" (click)="sortTotaux('debit')" style="text-align:right">
+                    Débit (FCFA) <i class="fas fa-sort"></i>
+                  </th>
+                  <th class="sortable" (click)="sortTotaux('credit')" style="text-align:right">
+                    Crédit (FCFA) <i class="fas fa-sort"></i>
+                  </th>
+                  <th class="sortable" (click)="sortTotaux('solde')" style="text-align:right">
+                    Solde <i class="fas fa-sort"></i>
+                  </th>
+                  <th style="width:120px">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of totauxRows(); track $index) {
+                  <tr>
+                    @if (totauxVue()==='agence' || totauxVue()==='agence_compte') {
+                      <td><span class="agence-code">{{ r.code_agence }}</span></td>
+                      <td style="font-size:12px">{{ r.libelle_agence }}</td>
+                    }
+                    @if (totauxVue()==='compte' || totauxVue()==='agence_compte') {
+                      <td><code class="compte-code">{{ r.compte }}</code></td>
+                      <td style="font-size:12px">{{ r.libelle_compte }}</td>
+                    }
+                    <td style="text-align:right;color:var(--gray-500)">{{ r.nb | number }}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--navy)">{{ r.debit | number:'1.0-0' }}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--danger)">{{ r.credit | number:'1.0-0' }}</td>
+                    <td style="text-align:right;font-weight:700"
+                        [class.text-success]="r.solde >= 0"
+                        [class.text-danger-cell]="r.solde < 0">
+                      {{ r.solde | number:'1.0-0' }}
+                    </td>
+                    <td>
+                      <div class="balance-bar-wrap">
+                        @if (r.debit > 0) {
+                          <div class="balance-bar-debit"
+                               [style.width.%]="(r.debit / (r.debit + r.credit)) * 100"
+                               title="Débit {{ r.debit | number:'1.0-0' }} FCFA">
+                          </div>
+                        }
+                        @if (r.credit > 0) {
+                          <div class="balance-bar-credit"
+                               [style.width.%]="(r.credit / (r.debit + r.credit)) * 100"
+                               title="Crédit {{ r.credit | number:'1.0-0' }} FCFA">
+                          </div>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ═══ STATISTIQUES ═══ -->
+  @if (activeTab() === 'statistiques') {
+    <div>
+      <!-- Filtres -->
+      <div class="filters-toolbar" style="margin-bottom:20px">
+        <div class="filters-left">
+          <div class="filter-item">
+            <i class="fas fa-building" style="font-size:11px"></i>
+            <input type="text" placeholder="Agence" style="width:80px" (input)="onStats('agence',$event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-calendar" style="font-size:11px"></i>
+            <input type="date" (change)="onStats('debut',$event)" />
+          </div>
+          <div class="filter-item">
+            <span style="font-size:11px;color:var(--gray-400)">au</span>
+            <input type="date" (change)="onStats('fin',$event)" />
+          </div>
+        </div>
+        <div class="filters-right">
+          <button class="btn btn-green btn-sm" [disabled]="statsLoad()" (click)="loadStats()">
+            @if (statsLoad()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-chart-bar"></i> }
+            Actualiser
+          </button>
+        </div>
+      </div>
+
+      @if (statsLoad()) { <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i> Calcul...</div> }
+      @else if (!statsData()) { <div class="empty-state"><i class="fas fa-chart-bar"></i><p>Chargement des statistiques...</p></div> }
+      @else {
+        <!-- KPIs -->
+        <div class="kpi-row" style="margin-bottom:24px">
+          <div class="kpi-card">
+            <div class="kpi-label"><i class="fas fa-list-ol"></i> Nb écritures</div>
+            <div class="kpi-val">{{ statsData()!.nb_lignes | number }}</div>
+          </div>
+          <div class="kpi-card kpi-debit">
+            <div class="kpi-label"><i class="fas fa-arrow-up"></i> Total Débit</div>
+            <div class="kpi-val">{{ statsData()!.total_debit | number:'1.0-0' }}</div>
+            <div class="kpi-sub">FCFA</div>
+          </div>
+          <div class="kpi-card kpi-credit">
+            <div class="kpi-label"><i class="fas fa-arrow-down"></i> Total Crédit</div>
+            <div class="kpi-val">{{ statsData()!.total_credit | number:'1.0-0' }}</div>
+            <div class="kpi-sub">FCFA</div>
+          </div>
+          <div class="kpi-card" [class.kpi-positif]="statsData()!.solde>=0" [class.kpi-negatif]="statsData()!.solde<0">
+            <div class="kpi-label"><i class="fas fa-balance-scale"></i> Solde net</div>
+            <div class="kpi-val">{{ statsData()!.solde | number:'1.0-0' }}</div>
+            <div class="kpi-sub">FCFA</div>
+          </div>
+        </div>
+
+        <!-- Graphiques 2×2 -->
+        <div class="charts-grid">
+
+          <!-- Graphique 1 : Barres Débit/Crédit par agence -->
+          <div class="chart-card">
+            <div class="chart-title">
+              <i class="fas fa-chart-bar" style="color:var(--navy)"></i>
+              Débit / Crédit par agence
+            </div>
+            <div class="chart-container">
+              <canvas #chartDebCreCanvas></canvas>
+            </div>
+          </div>
+
+          <!-- Graphique 2 : Camembert agences -->
+          <div class="chart-card">
+            <div class="chart-title">
+              <i class="fas fa-chart-pie" style="color:var(--green-dark)"></i>
+              Répartition des débits par agence
+            </div>
+            <div class="chart-container">
+              <canvas #chartAgenceCanvas></canvas>
+            </div>
+          </div>
+
+          <!-- Graphique 3 : Barres horizontales Top 10 comptes -->
+          <div class="chart-card chart-wide">
+            <div class="chart-title">
+              <i class="fas fa-chart-bar fa-rotate-90" style="color:#3b82f6"></i>
+              Top 10 comptes par débit
+            </div>
+            <div class="chart-container chart-container-tall">
+              <canvas #chartOrigineCanvas></canvas>
+            </div>
+          </div>
+
+          <!-- Résumé par origine -->
+          <div class="chart-card">
+            <div class="chart-title">
+              <i class="fas fa-tag" style="color:#f59e0b"></i>
+              Répartition par origine
+            </div>
+            <div class="origine-list">
+              @for (o of statsData()!.par_origine; track o.origine; let i = $index) {
+                <div class="origine-row">
+                  <div class="origine-dot" [style.background]="getColor(i)"></div>
+                  <div class="origine-label">{{ o.origine || '—' }}</div>
+                  <div class="origine-nb">{{ o.nb | number }} écr.</div>
+                  <div class="origine-debit">{{ o.debit | number:'1.0-0' }}</div>
+                  <div class="origine-bar-wrap">
+                    <div class="origine-bar-fill"
+                         [style.background]="getColor(i)"
+                         [style.width.%]="statsData()!.total_debit > 0 ? (o.debit / statsData()!.total_debit) * 100 : 0">
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+        </div>
+      }
+    </div>
+  }
+
+</div>

@@ -1,0 +1,207 @@
+<!-- UbiFleet — Mon Profil (Angular 18) -->
+<div class="profil-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Mon Profil</h1>
+      <p class="page-subtitle">Gérez vos informations personnelles et votre sécurité</p>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="loading-state">
+      <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+    </div>
+  }
+
+  @if (!loading() && user(); as u) {
+
+    <!-- Carte identité -->
+    <div class="profile-card">
+      <div class="profile-avatar">
+        {{ u.first_name ? u.first_name[0] : u.email[0] }}{{ u.last_name ? u.last_name[0] : '' }}
+      </div>
+      <div class="profile-info">
+        <div class="profile-name">{{ u.first_name }} {{ u.last_name }}</div>
+        <div class="profile-email">{{ u.email }}</div>
+        <div class="profile-meta">
+          <span class="badge badge-navy">{{ u.role_detail?.nom ?? u.role_display ?? 'Sans rôle' }}</span>
+          @if (u.agence_detail) {
+            <span class="profile-agence">
+              <i class="fas fa-map-marker-alt"></i> {{ u.agence_detail.nom }}
+            </span>
+          }
+          @if (u.telephone) {
+            <span class="profile-agence">
+              <i class="fas fa-phone"></i> {{ u.telephone }}
+            </span>
+          }
+        </div>
+      </div>
+      <div class="profile-since">
+        Membre depuis {{ u.date_joined | date:'MMMM yyyy' }}
+      </div>
+    </div>
+
+    <!-- Onglets -->
+    <div class="tabs">
+      <button class="tab" [class.active]="activeTab() === 'infos'"
+              (click)="activeTab.set('infos')">
+        <i class="fas fa-user-edit"></i> Mes informations
+      </button>
+      <button class="tab" [class.active]="activeTab() === 'securite'"
+              (click)="activeTab.set('securite')">
+        <i class="fas fa-lock"></i> Sécurité
+      </button>
+    </div>
+
+    <!-- ── Onglet Infos ── -->
+    @if (activeTab() === 'infos') {
+      <div class="tab-content">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Informations personnelles</div>
+            <div class="card-subtitle">
+              Vous pouvez modifier votre nom, prénom et téléphone.
+              Le rôle et l'agence sont gérés par l'administrateur.
+            </div>
+          </div>
+          <div class="card-body">
+
+            @if (infoSuccess()) {
+              <div class="alert-success">
+                <i class="fas fa-check-circle"></i> {{ infoSuccess() }}
+              </div>
+            }
+            @if (infoError()) {
+              <div class="alert-error">
+                <i class="fas fa-exclamation-triangle"></i> {{ infoError() }}
+              </div>
+            }
+
+            <form [formGroup]="infoForm" (ngSubmit)="saveInfo()" novalidate>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Prénom *</label>
+                  <input formControlName="first_name" class="form-control"
+                         [class.is-invalid]="inf['first_name'].invalid && inf['first_name'].touched"
+                         placeholder="Votre prénom" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Nom *</label>
+                  <input formControlName="last_name" class="form-control"
+                         [class.is-invalid]="inf['last_name'].invalid && inf['last_name'].touched"
+                         placeholder="Votre nom de famille" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Nom d'utilisateur *</label>
+                  <input formControlName="username" class="form-control"
+                         placeholder="Identifiant de connexion" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Téléphone</label>
+                  <input formControlName="telephone" class="form-control"
+                         placeholder="+225 XX XX XX XX XX" />
+                </div>
+              </div>
+
+              <!-- Champs en lecture seule -->
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Email</label>
+                  <input type="text" class="form-control readonly"
+                         [value]="u.email" readonly />
+                  <small style="font-size:11px;color:var(--gray-400)">
+                    Contactez un administrateur pour changer l'email.
+                  </small>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Rôle</label>
+                  <input type="text" class="form-control readonly"
+                         [value]="u.role_detail?.nom ?? u.role_display ?? 'Sans rôle'" readonly />
+                </div>
+              </div>
+
+              <div style="display:flex;justify-content:flex-end;margin-top:8px">
+                <button type="submit" class="btn btn-green"
+                        [disabled]="infoForm.invalid || infoSaving()">
+                  @if (infoSaving()) { <i class="fas fa-circle-notch fa-spin"></i> }
+                  @else { <i class="fas fa-save"></i> }
+                  Enregistrer les modifications
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Onglet Sécurité ── -->
+    @if (activeTab() === 'securite') {
+      <div class="tab-content">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Changer le mot de passe</div>
+            <div class="card-subtitle">
+              Choisissez un mot de passe fort d'au moins 8 caractères.
+            </div>
+          </div>
+          <div class="card-body">
+
+            @if (pwdSuccess()) {
+              <div class="alert-success">
+                <i class="fas fa-check-circle"></i> {{ pwdSuccess() }}
+              </div>
+            }
+            @if (pwdError()) {
+              <div class="alert-error">
+                <i class="fas fa-exclamation-triangle"></i> {{ pwdError() }}
+              </div>
+            }
+
+            <form [formGroup]="pwdForm" (ngSubmit)="changePassword()" novalidate>
+              <div class="form-group">
+                <label class="form-label">Mot de passe actuel *</label>
+                <input type="password" formControlName="old_password" class="form-control"
+                       [class.is-invalid]="pwf['old_password'].invalid && pwf['old_password'].touched"
+                       placeholder="Votre mot de passe actuel" />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Nouveau mot de passe *</label>
+                  <input type="password" formControlName="new_password" class="form-control"
+                         [class.is-invalid]="pwf['new_password'].invalid && pwf['new_password'].touched"
+                         placeholder="Min. 8 caractères" />
+                  @if (pwf['new_password'].invalid && pwf['new_password'].touched) {
+                    <div class="form-error">
+                      <i class="fas fa-times-circle"></i> Min. 8 caractères requis.
+                    </div>
+                  }
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Confirmer *</label>
+                  <input type="password" formControlName="confirm_password" class="form-control"
+                         placeholder="Répéter le nouveau mot de passe" />
+                </div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;margin-top:8px">
+                <button type="submit" class="btn btn-green"
+                        [disabled]="pwdForm.invalid || pwdSaving()">
+                  @if (pwdSaving()) { <i class="fas fa-circle-notch fa-spin"></i> }
+                  @else { <i class="fas fa-lock"></i> }
+                  Changer le mot de passe
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      </div>
+    }
+
+  }
+</div>

@@ -1,0 +1,283 @@
+<!-- UbiFleet — Chauffeur Formulaire (Angular 18) -->
+<div class="form-page">
+
+  <div class="breadcrumb">
+    <a routerLink="/chauffeurs" class="bc-link">
+      <i class="fas fa-id-badge"></i> Chauffeurs
+    </a>
+    <i class="fas fa-chevron-right bc-sep"></i>
+    <span class="bc-current">
+      {{ isEditMode() ? 'Modifier le chauffeur' : 'Nouveau chauffeur' }}
+    </span>
+  </div>
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        {{ isEditMode() ? 'Modifier le chauffeur' : 'Nouveau chauffeur' }}
+      </h1>
+      <p class="page-subtitle">
+        {{ isEditMode() ? 'Mettez à jour les informations du chauffeur' : 'Enregistrer un nouveau chauffeur' }}
+      </p>
+    </div>
+    <button class="btn btn-outline btn-sm" (click)="cancel()">
+      <i class="fas fa-times"></i> Annuler
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="form-loading">
+      <i class="fas fa-circle-notch fa-spin"></i>
+      <span>Chargement...</span>
+    </div>
+  }
+
+  @if (!loading()) {
+
+    @if (error()) {
+      <div class="alert alert-error">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    @if (success()) {
+      <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i>
+        <span>{{ success() }}</span>
+      </div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <div class="form-sections">
+
+        <!-- Section Identité -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-user"></i></div>
+            <div>
+              <div class="section-title">Identité</div>
+              <div class="section-sub">Informations personnelles du chauffeur</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Nom *</label>
+                <input
+                  formControlName="nom"
+                  class="form-control"
+                  [class.is-invalid]="f['nom'].invalid && f['nom'].touched"
+                  placeholder="Nom de famille"
+                />
+                @if (f['nom'].invalid && f['nom'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Le nom est requis.
+                  </div>
+                }
+              </div>
+              <div class="form-group">
+                <label class="form-label">Prénom *</label>
+                <input
+                  formControlName="prenom"
+                  class="form-control"
+                  [class.is-invalid]="f['prenom'].invalid && f['prenom'].touched"
+                  placeholder="Prénom"
+                />
+                @if (f['prenom'].invalid && f['prenom'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Le prénom est requis.
+                  </div>
+                }
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Matricule *</label>
+                <input
+                  formControlName="matricule"
+                  class="form-control"
+                  [class.is-invalid]="f['matricule'].invalid && f['matricule'].touched"
+                  placeholder="ex: CHF-001"
+                />
+                @if (f['matricule'].invalid && f['matricule'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Le matricule est requis.
+                  </div>
+                }
+              </div>
+              <div class="form-group">
+                <label class="form-label">Date de naissance</label>
+                <input type="date" formControlName="date_naissance" class="form-control"/>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Téléphone</label>
+                <input
+                  formControlName="telephone"
+                  class="form-control"
+                  placeholder="+225 0X XX XX XX XX"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input
+                  type="email"
+                  formControlName="email"
+                  class="form-control"
+                  [class.is-invalid]="f['email'].invalid && f['email'].touched"
+                  placeholder="chauffeur@ubipharm.ci"
+                />
+                @if (f['email'].invalid && f['email'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Format d'email invalide.
+                  </div>
+                }
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Adresse</label>
+              <textarea formControlName="adresse" class="form-control"
+                        rows="2" placeholder="Adresse complète"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Permis -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-id-card"></i></div>
+            <div>
+              <div class="section-title">Permis de conduire</div>
+              <div class="section-sub">Informations du permis de conduire</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">N° chauffeur Total</label>
+                <input
+                  formControlName="numero_chauffeur_total"
+                  class="form-control"
+                  placeholder="Identifiant dans la plateforme TotalEnergies"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">N° Permis *</label>
+                <input
+                  formControlName="numero_permis"
+                  class="form-control"
+                  [class.is-invalid]="f['numero_permis'].invalid && f['numero_permis'].touched"
+                  placeholder="Numéro du permis"
+                />
+                @if (f['numero_permis'].invalid && f['numero_permis'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Le numéro de permis est requis.
+                  </div>
+                }
+              </div>
+              <div class="form-group">
+                <label class="form-label">Catégorie(s) *</label>
+                <select formControlName="categories_permis" class="form-control">
+                  @for (cat of categoriesPermis; track cat) {
+                    <option [value]="cat">{{ cat }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Date d'obtention</label>
+                <input type="date" formControlName="date_obtention_permis" class="form-control"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Date d'expiration *</label>
+                <input
+                  type="date"
+                  formControlName="date_expiration_permis"
+                  class="form-control"
+                  [class.is-invalid]="f['date_expiration_permis'].invalid && f['date_expiration_permis'].touched"
+                />
+                @if (f['date_expiration_permis'].invalid && f['date_expiration_permis'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> La date d'expiration est requise.
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Affectation -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-map-marker-alt"></i></div>
+            <div>
+              <div class="section-title">Affectation</div>
+              <div class="section-sub">Agence et statut du chauffeur</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Agence *</label>
+                <select
+                  formControlName="agence"
+                  class="form-control"
+                  [class.is-invalid]="f['agence'].invalid && f['agence'].touched"
+                >
+                  <option value="">-- Sélectionner une agence --</option>
+                  @for (a of agences(); track a.id) {
+                    <option [value]="a.id">{{ a.nom }}</option>
+                  }
+                </select>
+                @if (f['agence'].invalid && f['agence'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> L'agence est requise.
+                  </div>
+                }
+              </div>
+              <div class="form-group">
+                <label class="form-label">Statut</label>
+                <select formControlName="statut" class="form-control">
+                  @for (s of statutsDisponibles; track s.value) {
+                    <option [value]="s.value">{{ s.label }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <textarea formControlName="notes" class="form-control"
+                        rows="2" placeholder="Observations..."></textarea>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Boutons -->
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" (click)="cancel()">
+          <i class="fas fa-times"></i> Annuler
+        </button>
+        <button type="submit" class="btn btn-green" [disabled]="form.invalid || saving()">
+          @if (saving()) {
+            <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
+          } @else if (isEditMode()) {
+            <i class="fas fa-save"></i> Enregistrer les modifications
+          } @else {
+            <i class="fas fa-plus"></i> Créer le chauffeur
+          }
+        </button>
+      </div>
+
+    </form>
+  }
+</div>

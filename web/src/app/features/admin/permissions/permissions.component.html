@@ -1,0 +1,175 @@
+<!-- UbiFleet — Permissions par rôle (Angular 18) -->
+<div class="perms-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-shield-alt" style="color:var(--green-dark)"></i>
+        Permissions par rôle
+      </h1>
+      <p class="page-subtitle">
+        Cliquez sur une permission pour l'activer ou la désactiver, puis sauvegardez.
+      </p>
+    </div>
+    <a routerLink="/admin/users" class="btn btn-outline btn-sm">
+      <i class="fas fa-users-cog"></i> Utilisateurs
+    </a>
+  </div>
+
+  <!-- Erreur d'accès -->
+  @if (metaError()) {
+    <div class="alert-error">
+      <i class="fas fa-lock"></i> {{ metaError() }}
+    </div>
+  }
+
+  <!-- Chargement -->
+  @if (loading()) {
+    <div class="loading-state">
+      <i class="fas fa-circle-notch fa-spin"></i>
+      <span>Chargement des permissions...</span>
+    </div>
+  }
+
+  @if (!loading() && meta() && !metaError()) {
+
+    <!-- Sélecteur de rôle -->
+    <div class="role-tabs">
+      @for (r of roles; track r.value) {
+        <button class="role-tab"
+                [class.active]="selectedRole() === r.value"
+                (click)="selectRole(r.value)">
+          {{ r.label }}
+        </button>
+      }
+    </div>
+
+    <!-- Barre de sauvegarde flottante -->
+    @if (hasPending) {
+      <div class="save-bar">
+        <span class="save-bar-info">
+          <i class="fas fa-edit"></i>
+          {{ countPending() }} modification(s) en attente
+        </span>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" (click)="cancelPending()">
+            <i class="fas fa-undo"></i> Annuler
+          </button>
+          <button class="btn btn-green btn-sm"
+                  [disabled]="saving()" (click)="saveAll()">
+            @if (saving()) {
+              <i class="fas fa-circle-notch fa-spin"></i> Sauvegarde...
+            } @else {
+              <i class="fas fa-save"></i> Sauvegarder tout
+            }
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (success()) {
+      <div class="alert-success">
+        <i class="fas fa-check-circle"></i> {{ success() }}
+      </div>
+    }
+    @if (error()) {
+      <div class="alert-error">
+        <i class="fas fa-exclamation-triangle"></i> {{ error() }}
+      </div>
+    }
+
+    <!-- Rôle sélectionné — titre -->
+    <div class="role-title">
+      <i class="fas fa-user-tag"></i>
+      Permissions du rôle :
+      <strong>{{ getRoleLabel(selectedRole()) }}</strong>
+    </div>
+
+    <!-- Grille par module -->
+    <div class="modules-grid">
+      @for (moduleKey of moduleKeys(); track moduleKey) {
+        <div class="module-card">
+
+          <!-- En-tête module avec toggle global -->
+          <div class="module-header">
+            <span>
+              <i class="fas fa-cube"></i>
+              {{ getModuleLabel(moduleKey) }}
+            </span>
+            <div class="module-header-actions">
+              <button class="mini-btn mini-btn-green"
+                      title="Tout autoriser"
+                      (click)="toggleModule(moduleKey, true)">
+                <i class="fas fa-check-double"></i>
+              </button>
+              <button class="mini-btn mini-btn-danger"
+                      title="Tout interdire"
+                      (click)="toggleModule(moduleKey, false)">
+                <i class="fas fa-ban"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="module-body">
+            @for (action of getActionsForModule(moduleKey); track action.value) {
+              <div class="perm-row"
+                   [class.allowed]="isAllowed(selectedRole(), moduleKey, action.value)"
+                   [class.pending]="pending().has(selectedRole() + '::' + moduleKey + '::' + action.value)"
+                   (click)="toggle(moduleKey, action.value)">
+
+                <span class="perm-toggle">
+                  @if (isAllowed(selectedRole(), moduleKey, action.value)) {
+                    <i class="fas fa-toggle-on toggle-on"></i>
+                  } @else {
+                    <i class="fas fa-toggle-off toggle-off"></i>
+                  }
+                </span>
+
+                <span class="perm-action">{{ action.label }}</span>
+
+                @if (pending().has(selectedRole() + '::' + moduleKey + '::' + action.value)) {
+                  <span class="pending-dot" title="Modification non sauvegardée"></span>
+                }
+
+              </div>
+            }
+          </div>
+
+        </div>
+      }
+    </div>
+
+    <!-- Légende -->
+    <div class="legend">
+      <div class="legend-item">
+        <i class="fas fa-toggle-on toggle-on" style="font-size:18px"></i>
+        Autorisé
+      </div>
+      <div class="legend-item">
+        <i class="fas fa-toggle-off toggle-off" style="font-size:18px"></i>
+        Interdit
+      </div>
+      <div class="legend-item">
+        <span class="pending-dot"></span>
+        Modification non sauvegardée
+      </div>
+      <div class="legend-item" style="margin-left:auto;font-size:11px;color:var(--gray-400)">
+        <i class="fas fa-check-double" style="color:var(--green-dark)"></i> = tout autoriser •
+        <i class="fas fa-ban" style="color:var(--danger)"></i> = tout interdire
+      </div>
+    </div>
+
+    <!-- Aucune permission en DB -->
+    @if (rules().length === 0) {
+      <div class="init-hint">
+        <i class="fas fa-info-circle"></i>
+        Aucune permission n'est encore configurée en base de données.
+        Lancez <code>python manage.py init_permissions</code> pour initialiser
+        les permissions par défaut, puis rechargez la page.
+      </div>
+    }
+
+  }
+
+</div>

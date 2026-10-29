@@ -1,0 +1,377 @@
+<!-- UbiFleet — Intervention Détail (Angular 18) -->
+<div class="detail-page">
+
+  @if (loading()) {
+    <div class="detail-loading">
+      <i class="fas fa-circle-notch fa-spin"></i>
+      <span>Chargement...</span>
+    </div>
+  }
+
+  @if (error() && !loading()) {
+    <div class="error-state">
+      <i class="fas fa-exclamation-triangle"></i>
+      <p>{{ error() }}</p>
+      <button class="btn btn-outline btn-sm" (click)="goBack()">
+        <i class="fas fa-arrow-left"></i> Retour
+      </button>
+    </div>
+  }
+
+  @if (intervention(); as i) {
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      <a routerLink="/entretien" class="bc-link">
+        <i class="fas fa-wrench"></i> Entretiens
+      </a>
+      <i class="fas fa-chevron-right bc-sep"></i>
+      <span class="bc-current">{{ i.vehicule_immat }} — {{ i.type_nom }}</span>
+    </div>
+
+    <!-- Alertes actions -->
+    @if (actionSuccess()) {
+      <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i> {{ actionSuccess() }}
+      </div>
+    }
+    @if (actionError()) {
+      <div class="alert alert-error">
+        <i class="fas fa-exclamation-triangle"></i> {{ actionError() }}
+      </div>
+    }
+
+    <!-- En-tête -->
+    <div class="intervention-header">
+      <div class="ih-left">
+        <div class="ih-badges">
+          <span class="badge badge-lg" [class]="statutBadgeClass(i.statut)">
+            {{ i.statut_display }}
+          </span>
+          <span class="badge" [class]="prioriteBadgeClass(i.priorite)">
+            {{ i.priorite_display }}
+          </span>
+        </div>
+        <div class="ih-title">{{ i.type_nom }}</div>
+        <div class="ih-vehicule">
+          <i class="fas fa-car"></i>
+          {{ i.vehicule_immat }} — {{ i.vehicule_designation }}
+        </div>
+        @if (i.agence_nom) {
+          <div class="ih-agence">
+            <i class="fas fa-map-marker-alt"></i> {{ i.agence_nom }}
+          </div>
+        }
+      </div>
+      <div class="ih-right">
+        <div class="ih-actions">
+          @if (canDemarrer(i.statut)) {
+            <button
+              class="btn btn-primary btn-sm"
+              [disabled]="actionLoading()"
+              (click)="demarrer()"
+            >
+              @if (actionLoading()) {
+                <i class="fas fa-circle-notch fa-spin"></i>
+              } @else {
+                <i class="fas fa-play"></i>
+              }
+              Démarrer
+            </button>
+          }
+          @if (canTerminer(i.statut)) {
+            <button
+              class="btn btn-green btn-sm"
+              [disabled]="actionLoading()"
+              (click)="openCloture()"
+            >
+              <i class="fas fa-check"></i> Clôturer
+            </button>
+          }
+          @if (i.statut !== 'termine' && i.statut !== 'annule') {
+            <button class="btn btn-outline btn-sm" (click)="goToEdit()">
+              <i class="fas fa-edit"></i> Modifier
+            </button>
+          }
+          <button class="btn btn-outline btn-sm" (click)="goBack()">
+            <i class="fas fa-arrow-left"></i> Retour
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-icon navy"><i class="fas fa-calendar"></i></div>
+        <div>
+          <div class="kpi-val">{{ i.date_planifiee | date:'dd/MM/yyyy' }}</div>
+          <div class="kpi-lbl">Date planifiée</div>
+        </div>
+      </div>
+      @if (i.date_debut) {
+        <div class="kpi-card">
+          <div class="kpi-icon blue"><i class="fas fa-play"></i></div>
+          <div>
+            <div class="kpi-val">{{ i.date_debut | date:'dd/MM/yyyy' }}</div>
+            <div class="kpi-lbl">Date de début</div>
+          </div>
+        </div>
+      }
+      @if (i.date_fin) {
+        <div class="kpi-card">
+          <div class="kpi-icon green"><i class="fas fa-check"></i></div>
+          <div>
+            <div class="kpi-val">{{ i.date_fin | date:'dd/MM/yyyy' }}</div>
+            <div class="kpi-lbl">Date de fin</div>
+          </div>
+        </div>
+      }
+      <div class="kpi-card">
+        <div class="kpi-icon warning"><i class="fas fa-coins"></i></div>
+        <div>
+          <div class="kpi-val">{{ i.cout_estime | number:'1.0-0' }} FCFA</div>
+          <div class="kpi-lbl">Coût estimé</div>
+        </div>
+      </div>
+      @if (i.cout_reel !== null) {
+        <div class="kpi-card">
+          <div class="kpi-icon green"><i class="fas fa-receipt"></i></div>
+          <div>
+            <div class="kpi-val">{{ i.cout_reel | number:'1.0-0' }} FCFA</div>
+            <div class="kpi-lbl">Coût réel</div>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Détails -->
+    <div class="info-grid">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Informations</div></div>
+        <div class="card-body">
+          <table class="info-table">
+            <tr>
+              <td class="info-label">Type</td>
+              <td class="info-value">{{ i.type_nom }}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Catégorie</td>
+              <td class="info-value">{{ i.type_categorie }}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Prestataire</td>
+              <td class="info-value">{{ i.prestataire_nom ?? '—' }}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Km à l'intervention</td>
+              <td class="info-value">
+                @if (i.kilometrage_intervention !== null) {
+                  {{ i.kilometrage_intervention | number:'1.0-0' }} km
+                } @else {
+                  —
+                }
+              </td>
+            </tr>
+            <tr>
+              <td class="info-label">Prochain entretien</td>
+              <td class="info-value">
+                @if (i.prochain_km !== null) {
+                  {{ i.prochain_km | number:'1.0-0' }} km
+                } @else {
+                  —
+                }
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Description</div></div>
+        <div class="card-body">
+          @if (i.description) {
+            <p class="description-text">{{ i.description }}</p>
+          } @else {
+            <p class="text-empty">Aucune description renseignée.</p>
+          }
+
+          @if (i.rapport_intervention) {
+            <div class="rapport-section">
+              <div class="rapport-title">Rapport technique</div>
+              <p class="description-text">{{ i.rapport_intervention }}</p>
+            </div>
+          }
+
+          <!-- Documents attachés -->
+          @if (documents().length > 0) {
+            <div class="rapport-section">
+              <div class="rapport-title">
+                <i class="fas fa-paperclip"></i> Documents ({{ documents().length }})
+              </div>
+              <div class="docs-attached">
+                @for (doc of documents(); track doc.id) {
+                  <div class="doc-attached-item">
+                    <i [class]="iconDoc(doc.fichier_nom)"></i>
+                    <a [href]="doc.fichier_url" target="_blank" class="doc-link">
+                      {{ doc.nom || doc.fichier_nom }}
+                    </a>
+                    <span class="doc-type-badge">
+                      {{ doc.type_doc === 'planification' ? 'Planif.' : doc.type_doc === 'cloture' ? 'Clôture' : 'Autre' }}
+                    </span>
+                    <button class="btn-remove-doc-sm" (click)="deleteDocument(doc.id)" title="Supprimer">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+  }
+</div>
+
+<!-- MODAL CLÔTURE -->
+@if (showCloture()) {
+  <div class="modal-backdrop" (click)="closeCloture()">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Clôturer l'intervention</div>
+        <button class="modal-close" (click)="closeCloture()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <form [formGroup]="clotureForm" (ngSubmit)="submitCloture()" novalidate>
+
+        <div class="form-group">
+          <label class="form-label">Coût réel (FCFA) *</label>
+          <input
+            type="number"
+            formControlName="cout_reel"
+            class="form-control"
+            [class.is-invalid]="cf['cout_reel'].invalid && cf['cout_reel'].touched"
+            min="0"
+            placeholder="0"
+          />
+          @if (cf['cout_reel'].invalid && cf['cout_reel'].touched) {
+            <div class="form-error">
+              <i class="fas fa-times-circle"></i> Le coût réel est requis.
+            </div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Prochain entretien (km)</label>
+          <input
+            type="number"
+            formControlName="prochain_km"
+            class="form-control"
+            min="0"
+            placeholder="Kilométrage du prochain entretien"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Rapport technique</label>
+          <textarea
+            formControlName="rapport"
+            class="form-control"
+            rows="3"
+            placeholder="Travaux effectués, observations..."
+          ></textarea>
+        </div>
+
+        <!-- Documents de clôture -->
+        <div class="form-group">
+          <label class="form-label">
+            <i class="fas fa-paperclip"></i> Documents de clôture
+            <span style="font-size:11px;color:var(--gray-400);font-weight:400;margin-left:6px">
+              PDF, Word, Excel, Images
+            </span>
+          </label>
+          <div class="upload-zone upload-zone-sm">
+            <label class="upload-label-sm" for="docs-cloture">
+              <i class="fas fa-cloud-upload-alt"></i>
+              Sélectionner des fichiers
+            </label>
+            <input type="file" id="docs-cloture" class="upload-input"
+                   multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                   (change)="onDocsClotureChange($event)" />
+          </div>
+          @if (docsCloture().length > 0) {
+            <div class="docs-list-sm">
+              @for (f of docsCloture(); track f.name; let i = $index) {
+                <div class="doc-item-sm">
+                  <i class="fas fa-file" style="color:var(--gray-400)"></i>
+                  <span class="doc-name-sm">{{ f.name }}</span>
+                  <button type="button" class="btn-remove-doc-sm" (click)="removeDocCloture(i)">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" (click)="closeCloture()">
+            Annuler
+          </button>
+          <button
+            type="submit"
+            class="btn btn-green"
+            [disabled]="clotureForm.invalid || actionLoading()"
+          >
+            @if (actionLoading()) {
+              <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
+            } @else {
+              <i class="fas fa-check"></i> Clôturer
+            }
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+}
+
+<!-- MODAL DÉMARRAGE INTERVENTION -->
+@if (showDemarrer()) {
+  <div class="modal-backdrop" (click)="closeDemarrer()">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Démarrer l'intervention</div>
+        <button class="modal-close" (click)="closeDemarrer()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <p style="font-size:13px;color:var(--gray-600);margin-bottom:16px">
+        Confirmez la date de début de l'intervention.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Date de début *</label>
+        <input
+          type="date"
+          class="form-control"
+          [value]="dateDemarrage()"
+          (input)="onDateDemarrage($event)"
+        />
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-outline" (click)="closeDemarrer()">Annuler</button>
+        <button class="btn btn-primary" [disabled]="actionLoading()" (click)="submitDemarrer()">
+          @if (actionLoading()) {
+            <i class="fas fa-circle-notch fa-spin"></i>
+          } @else {
+            <i class="fas fa-play"></i>
+          }
+          Démarrer
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,293 @@
+<!-- UbiFleet — Intervention Formulaire (Angular 18) -->
+<div class="form-page">
+
+  <div class="breadcrumb">
+    <a routerLink="/entretien" class="bc-link">
+      <i class="fas fa-wrench"></i> Entretiens
+    </a>
+    <i class="fas fa-chevron-right bc-sep"></i>
+    <span class="bc-current">
+      {{ isEditMode() ? 'Modifier' : 'Planifier une intervention' }}
+    </span>
+  </div>
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        {{ isEditMode() ? 'Modifier l\'intervention' : 'Planifier une intervention' }}
+      </h1>
+      <p class="page-subtitle">
+        {{ isEditMode() ? 'Mettre à jour les informations' : 'Programmer un entretien ou une réparation' }}
+      </p>
+    </div>
+    <button class="btn btn-outline btn-sm" (click)="cancel()">
+      <i class="fas fa-times"></i> Annuler
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="form-loading">
+      <i class="fas fa-circle-notch fa-spin"></i>
+      <span>Chargement...</span>
+    </div>
+  }
+
+  @if (!loading()) {
+
+    @if (error()) {
+      <div class="alert alert-error">
+        <i class="fas fa-exclamation-triangle"></i> {{ error() }}
+      </div>
+    }
+    @if (success()) {
+      <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i> {{ success() }}
+      </div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <div class="form-sections">
+
+        <!-- Section Identification -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-car"></i></div>
+            <div>
+              <div class="section-title">Véhicule & Type</div>
+              <div class="section-sub">Sélectionner le véhicule et le type d'intervention</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Véhicule *</label>
+                <select
+                  formControlName="vehicule"
+                  class="form-control"
+                  [class.is-invalid]="f['vehicule'].invalid && f['vehicule'].touched"
+                  (change)="onVehiculeChange($event)"
+                >
+                  <option value="">-- Sélectionner un véhicule --</option>
+                  @for (v of vehicules(); track v.id) {
+                    <option [value]="v.id">
+                      {{ v.immatriculation }} — {{ v.designation }}
+                    </option>
+                  }
+                </select>
+                @if (f['vehicule'].invalid && f['vehicule'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Le véhicule est requis.
+                  </div>
+                }
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Type d'intervention *</label>
+                <select
+                  formControlName="type_intervention"
+                  class="form-control"
+                  [class.is-invalid]="f['type_intervention'].invalid && f['type_intervention'].touched"
+                >
+                  <option value="">-- Sélectionner un type --</option>
+                  @for (t of types(); track t.id) {
+                    <option [value]="t.id">{{ t.nom }}</option>
+                  }
+                </select>
+                @if (f['type_intervention'].invalid && f['type_intervention'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Le type est requis.
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Planification -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-calendar-alt"></i></div>
+            <div>
+              <div class="section-title">Planification</div>
+              <div class="section-sub">Date, agence et prestataire</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Date planifiée *</label>
+                <input
+                  type="date"
+                  formControlName="date_planifiee"
+                  class="form-control"
+                  [class.is-invalid]="f['date_planifiee'].invalid && f['date_planifiee'].touched"
+                />
+                @if (f['date_planifiee'].invalid && f['date_planifiee'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> La date est requise.
+                  </div>
+                }
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Agence</label>
+                <select formControlName="agence" class="form-control">
+                  <option value="">-- Rempli automatiquement --</option>
+                  @for (a of agences(); track a.id) {
+                    <option [value]="a.id">{{ a.nom }}</option>
+                  }
+                </select>
+                <small style="color:var(--gray-400);font-size:11px">
+                  <i class="fas fa-info-circle"></i>
+                  L'agence est automatiquement déduite du véhicule sélectionné.
+                </small>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Prestataire / Garage</label>
+                <select formControlName="prestataire" class="form-control">
+                  <option [value]="null">-- Aucun --</option>
+                  @for (p of prestataires(); track p.id) {
+                    <option [value]="p.id">{{ p.nom }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Kilométrage à l'intervention</label>
+                <input
+                  type="number"
+                  formControlName="kilometrage_intervention"
+                  class="form-control"
+                  min="0"
+                  placeholder="km relevé"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Paramètres -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-sliders-h"></i></div>
+            <div>
+              <div class="section-title">Paramètres</div>
+              <div class="section-sub">Coût, priorité et statut</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-row-3">
+              <div class="form-group">
+                <label class="form-label">Coût estimé (FCFA) *</label>
+                <input
+                  type="number"
+                  formControlName="cout_estime"
+                  class="form-control"
+                  [class.is-invalid]="f['cout_estime'].invalid && f['cout_estime'].touched"
+                  min="0"
+                  placeholder="0"
+                />
+                @if (f['cout_estime'].invalid && f['cout_estime'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Le coût est requis.
+                  </div>
+                }
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Priorité *</label>
+                <select formControlName="priorite" class="form-control">
+                  @for (p of priorites; track p.value) {
+                    <option [value]="p.value">{{ p.label }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Statut</label>
+                <select formControlName="statut" class="form-control">
+                  @for (s of statuts; track s.value) {
+                    <option [value]="s.value">{{ s.label }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Description des travaux</label>
+              <textarea
+                formControlName="description"
+                class="form-control"
+                rows="3"
+                placeholder="Décrire les travaux à effectuer..."
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Documents de planification -->
+      <div class="form-section">
+        <div class="section-header">
+          <div class="section-title">
+            <i class="fas fa-paperclip"></i> Documents (optionnel)
+          </div>
+          <p class="section-desc" style="font-size:12px;color:var(--gray-400);margin:0">
+            PDF, Word, Excel, images — Plusieurs fichiers autorisés
+          </p>
+        </div>
+        <div class="section-body">
+          <div class="upload-zone">
+            <label class="upload-label" for="docs-planif">
+              <i class="fas fa-cloud-upload-alt"></i>
+              <span>Cliquer pour sélectionner des fichiers</span>
+              <span class="upload-types">PDF · Word · Excel · Images</span>
+            </label>
+            <input type="file" id="docs-planif" class="upload-input"
+                   multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                   (change)="onDocsPlanifChange($event)" />
+          </div>
+          @if (docsPlanif().length > 0) {
+            <div class="docs-list">
+              @for (f of docsPlanif(); track f.name; let i = $index) {
+                <div class="doc-item">
+                  <i class="fas fa-file" style="color:var(--gray-400)"></i>
+                  <span class="doc-name">{{ f.name }}</span>
+                  <span class="doc-size">{{ (f.size / 1024).toFixed(0) }} Ko</span>
+                  <button type="button" class="btn-remove-doc" (click)="removeDocPlanif(i)">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Boutons -->
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" (click)="cancel()">
+          <i class="fas fa-times"></i> Annuler
+        </button>
+        <button
+          type="submit"
+          class="btn btn-green"
+          [disabled]="form.invalid || saving()"
+        >
+          @if (saving()) {
+            <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
+          } @else if (isEditMode()) {
+            <i class="fas fa-save"></i> Enregistrer
+          } @else {
+            <i class="fas fa-calendar-plus"></i> Planifier
+          }
+        </button>
+      </div>
+
+    </form>
+  }
+</div>

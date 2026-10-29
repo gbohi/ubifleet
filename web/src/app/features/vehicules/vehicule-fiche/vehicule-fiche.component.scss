@@ -1,0 +1,194 @@
+// ── UbiFleet Fiche Véhicule A4 ────────────────────────────────────
+
+.fiche-page {
+  background: #f0f2f5;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.fiche-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 850px; margin: 0 auto 16px;
+  padding: 12px 16px; background: white;
+  border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+.fiche-loading, .fiche-error {
+  text-align: center; padding: 80px; font-size: 20px; color: #6b7280;
+}
+
+// ── A4 ────────────────────────────────────────────────────────────
+.fiche-a4 {
+  max-width: 850px; margin: 0 auto;
+  background: white;
+  box-shadow: 0 4px 20px rgba(0,0,0,.15);
+  border-radius: 4px;
+  padding: 30px 35px;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 11px;
+  color: #1a1a2e;
+}
+
+// ── En-tête ────────────────────────────────────────────────────────
+.fiche-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 14px; margin-bottom: 16px;
+  border-bottom: 3px solid #1a2e4a;
+}
+
+.fiche-logo-text {
+  font-size: 22px; font-weight: 900;
+  color: #1a2e4a; letter-spacing: 1px;
+}
+.fiche-subtitle { font-size: 10px; color: #6b7280; margin-top: 2px; }
+
+.fiche-header-center { text-align: center; }
+.fiche-immat {
+  font-size: 26px; font-weight: 900; letter-spacing: 3px;
+  font-family: monospace; color: #1a2e4a;
+  border: 2.5px solid #1a2e4a; padding: 4px 14px; border-radius: 6px;
+  display: inline-block; margin-bottom: 4px;
+}
+.fiche-designation { font-size: 12px; font-weight: 600; color: #374151; }
+
+.fiche-header-right { text-align: right; font-size: 10px; color: #6b7280; }
+.fiche-num  { font-weight: 700; color: #1a2e4a; font-size: 11px; }
+.fiche-date { margin-top: 2px; }
+.fiche-agence { margin-top: 4px; font-weight: 600; color: #374151; }
+
+// ── Sections ────────────────────────────────────────────────────────
+.fiche-section {
+  margin-bottom: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.fiche-section-title {
+  display: flex; align-items: center; gap: 8px;
+  background: #1a2e4a; color: white;
+  font-size: 11px; font-weight: 700;
+  padding: 7px 12px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+.fiche-section-num {
+  background: white; color: #1a2e4a;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 11px; flex-shrink: 0;
+}
+
+.fiche-section-stats {
+  margin-left: auto; font-size: 10px;
+  font-weight: 400; text-transform: none; color: rgba(255,255,255,.8);
+}
+
+// ── Grille infos ────────────────────────────────────────────────────
+.fiche-info-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+}
+.fiche-info-block {
+  padding: 8px 12px;
+  border-right: 1px solid #f3f4f6;
+  border-bottom: 1px solid #f3f4f6;
+  &:nth-child(4n) { border-right: none; }
+}
+.fiche-info-label {
+  font-size: 9px; color: #9ca3af;
+  text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 2px;
+}
+.fiche-info-value {
+  font-size: 12px; font-weight: 600; color: #111827;
+  &.immat { font-family: monospace; font-size: 13px; letter-spacing: 1px; }
+  &.mono  { font-family: monospace; font-size: 10px; }
+}
+
+.fiche-notes {
+  padding: 8px 12px; font-size: 10px; color: #6b7280;
+  border-top: 1px solid #f3f4f6; background: #fafafa;
+}
+
+// ── Tableaux ────────────────────────────────────────────────────────
+.fiche-table {
+  width: 100%; border-collapse: collapse; font-size: 10px;
+
+  thead tr {
+    background: #f8fafc;
+    th {
+      padding: 6px 8px; text-align: left;
+      font-weight: 700; font-size: 9px;
+      text-transform: uppercase; color: #6b7280;
+      border-bottom: 1px solid #e5e7eb;
+    }
+  }
+
+  tbody tr {
+    &:nth-child(even) { background: #fafafa; }
+    &:hover { background: #f0f9ff; }
+    &.tr-expire { background: #fff5f5; }
+    &.tr-more td { text-align: center; color: #9ca3af; font-style: italic; padding: 6px; }
+
+    td {
+      padding: 5px 8px; border-bottom: 1px solid #f3f4f6;
+      &.num { text-align: right; font-family: monospace; font-variant-numeric: tabular-nums; }
+      &.text-danger { color: #dc2626; font-weight: 600; }
+    }
+  }
+}
+
+.fiche-empty {
+  padding: 16px 12px; text-align: center;
+  color: #9ca3af; font-style: italic; font-size: 10px;
+}
+
+// ── Badges ────────────────────────────────────────────────────────
+.badge-sm {
+  display: inline-block; padding: 2px 6px;
+  border-radius: 10px; font-size: 9px; font-weight: 600;
+  &.badge-green  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+  &.badge-danger { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+  &.badge-warning{ background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+  &.badge-navy   { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  &.badge-info   { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+  &.badge-gray   { background: #f9fafb; color: #6b7280; border: 1px solid #e5e7eb; }
+  &.badge-blue   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+}
+
+// ── Pied de page ────────────────────────────────────────────────────
+.fiche-footer {
+  margin-top: 20px; padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+  display: flex; justify-content: space-between;
+  font-size: 9px; color: #9ca3af;
+}
+
+// ══ PRINT ═══════════════════════════════════════════════════════════
+@media print {
+  .no-print { display: none !important; }
+  .fiche-page { background: white !important; padding: 0 !important; }
+  .fiche-toolbar { display: none !important; }
+
+  .fiche-a4 {
+    max-width: 100% !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    font-size: 10px !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 14mm 12mm;
+    @bottom-center {
+      content: "UbiFleet — " attr(data-fiche) " — Page " counter(page) " / " counter(pages);
+      font-size: 8px; color: #999;
+    }
+  }
+
+  .fiche-section { break-inside: avoid; margin-bottom: 10px !important; }
+  .fiche-table tbody tr:nth-child(even) { background: #f8f8f8 !important; -webkit-print-color-adjust: exact; }
+  .fiche-header { border-bottom: 2px solid #1a2e4a !important; -webkit-print-color-adjust: exact; }
+  .fiche-section-title { -webkit-print-color-adjust: exact; background: #1a2e4a !important; }
+}

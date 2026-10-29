@@ -1,0 +1,138 @@
+.perms-page { animation: fadeInUp var(--transition-base) ease; }
+
+// Alertes
+.alert-success, .alert-error {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; border-radius: var(--radius-lg); margin-bottom: 16px;
+  font-size: 13px; border-left: 4px solid;
+}
+.alert-success { background: var(--green-alpha); border-left-color: var(--green-dark); color: var(--green-dark); }
+.alert-error   { background: var(--danger-light); border-left-color: var(--danger); color: var(--danger); }
+
+// Loading
+.loading-state {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; padding: 80px; color: var(--gray-500);
+  i { font-size: 24px; color: var(--green-dark); }
+}
+
+// Sélecteur de rôle
+.role-tabs {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-bottom: 16px; padding: 8px;
+  background: var(--white); border-radius: var(--radius-lg);
+  border: 1px solid var(--gray-100); box-shadow: var(--shadow-sm);
+}
+.role-tab {
+  padding: 8px 16px; border-radius: var(--radius-md);
+  border: 1.5px solid transparent; background: transparent;
+  font-size: 13px; font-family: var(--font-body); font-weight: 500;
+  color: var(--gray-600); cursor: pointer;
+  transition: all var(--transition-fast);
+  &:hover { background: var(--gray-50); color: var(--navy); }
+  &.active { background: var(--navy); color: var(--white); border-color: var(--navy); }
+}
+
+// Titre rôle
+.role-title {
+  font-size: 15px; color: var(--navy); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px;
+  i { color: var(--green-dark); }
+  strong { font-size: 16px; }
+}
+
+// Barre de sauvegarde
+.save-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #fffbeb; border: 1.5px solid #f59e0b;
+  border-radius: var(--radius-lg); padding: 12px 16px; margin-bottom: 16px;
+}
+.save-bar-info {
+  font-size: 13px; color: #92400e; font-weight: 500;
+  display: flex; align-items: center; gap: 8px;
+  i { color: #f59e0b; }
+}
+
+// Grille modules
+.modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.module-card {
+  background: var(--white); border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow var(--transition-fast);
+  &:hover { box-shadow: var(--shadow-md); }
+}
+
+.module-header {
+  background: var(--navy); color: var(--white);
+  padding: 10px 14px; font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; justify-content: space-between;
+  i { font-size: 11px; opacity: 0.7; }
+}
+.module-header-actions { display: flex; gap: 4px; }
+
+.mini-btn {
+  width: 24px; height: 24px; border-radius: 4px;
+  border: none; cursor: pointer; font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition-fast);
+}
+.mini-btn-green { background: rgba(91,217,136,.25); color: #5bd988;
+  &:hover { background: rgba(91,217,136,.5); } }
+.mini-btn-danger { background: rgba(239,68,68,.2); color: #fca5a5;
+  &:hover { background: rgba(239,68,68,.4); } }
+
+.module-body { padding: 6px; }
+
+// Ligne permission
+.perm-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--radius-md);
+  cursor: pointer; transition: all var(--transition-fast);
+  border: 1px solid transparent; margin-bottom: 2px;
+
+  &:hover { background: var(--gray-50); }
+  &.allowed { background: rgba(91,217,136,.07); }
+  &.pending { border-color: #f59e0b !important; background: #fffbeb !important; }
+}
+
+.perm-toggle { flex-shrink: 0; font-size: 20px; line-height: 1; }
+.toggle-on  { color: var(--green-dark); }
+.toggle-off { color: var(--gray-300); }
+
+.perm-action {
+  flex: 1; font-size: 12px; color: var(--gray-700);
+}
+
+.pending-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #f59e0b; flex-shrink: 0;
+}
+
+// Légende
+.legend {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 10px 16px; background: var(--gray-50);
+  border-radius: var(--radius-lg); font-size: 12px; color: var(--gray-500);
+}
+.legend-item {
+  display: flex; align-items: center; gap: 6px;
+}
+
+// Hint initialisation
+.init-hint {
+  margin-top: 16px; padding: 16px;
+  background: #eff6ff; border: 1px solid #bfdbfe;
+  border-radius: var(--radius-lg); font-size: 13px; color: #1e40af;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  code {
+    background: #dbeafe; padding: 2px 8px; border-radius: 4px;
+    font-size: 12px; font-weight: 600;
+  }
+}

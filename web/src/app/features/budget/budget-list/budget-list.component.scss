@@ -1,0 +1,217 @@
+// UbiFleet — Budget Styles
+.budget-page { animation: fadeInUp var(--transition-base) ease; }
+.header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.filter-select { width: auto; min-width: 130px; padding: 8px 10px; font-size: 13px; }
+
+// Quick stats
+.quick-stats {
+  display: flex; align-items: center; background: var(--white);
+  border: 1px solid var(--gray-100); border-radius: var(--radius-lg);
+  padding: 14px 20px; margin-bottom: 16px; box-shadow: var(--shadow-sm); flex-wrap: wrap;
+}
+.qs-item { display: flex; align-items: center; gap: 8px; padding: 0 20px;
+  &:first-child { padding-left: 0; } }
+.qs-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  &.navy  { background: var(--navy); }
+  &.orange{ background: var(--warning); }
+  &.green { background: var(--green-dark); }
+  &.red   { background: var(--danger); }
+  &.blue  { background: var(--info); }
+}
+.qs-val { font-size: 18px; font-weight: 700; color: var(--navy); font-family: var(--font-display); }
+.qs-lbl { font-size: 12px; color: var(--gray-400); }
+.qs-sep { width: 1px; height: 28px; background: var(--gray-200); flex-shrink: 0; }
+
+// Tab content
+.tab-content { animation: fadeInUp 0.2s ease; }
+.filters-bar { display: flex; gap: 10px; margin-bottom: 14px; }
+
+// Loading / empty
+.loading-state {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 48px; color: var(--gray-500);
+  i { color: var(--green-dark); }
+}
+.empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 64px; gap: 12px; color: var(--gray-400); text-align: center;
+  i { font-size: 48px; }
+  h3 { font-size: 18px; color: var(--gray-600); font-weight: 600; margin: 0; }
+  p  { font-size: 14px; margin: 0; }
+}
+
+// Catégories tableau de bord
+.categorie-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;
+}
+.cat-item { }
+.cat-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 6px;
+}
+.cat-name   { font-size: 13px; font-weight: 600; color: var(--navy); }
+.cat-amount { font-size: 13px; font-weight: 700; color: var(--navy); }
+.cat-pct    { font-size: 11px; color: var(--gray-400); margin-top: 4px; }
+
+// Dépenses table
+.td-desc { font-size: 13px; color: var(--gray-700); max-width: 200px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-empty { text-align: center; padding: 48px !important; color: var(--gray-400);
+  i { font-size: 24px; display: block; margin-bottom: 8px; } }
+
+.cat-badge {
+  padding: 2px 10px; border-radius: var(--radius-full); font-size: 11px; font-weight: 600;
+  &.cat-carburant    { background: rgba(91,217,136,0.15); color: var(--green-dark); }
+  &.cat-entretien    { background: var(--navy-alpha); color: var(--navy); }
+  &.cat-reparation   { background: var(--danger-light); color: var(--danger); }
+  &.cat-assurance    { background: rgba(59,130,246,0.1); color: #2563eb; }
+  &.cat-pneumatiques { background: var(--warning-light); color: #b45309; }
+  &.cat-divers       { background: var(--gray-100); color: var(--gray-600); }
+}
+
+// Budget cards
+.budgets-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px;
+}
+.budget-card {
+  background: var(--white); border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow-sm);
+  border-top: 4px solid var(--navy);
+}
+.budget-card-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.budget-agence { font-size: 16px; font-weight: 700; color: var(--navy); flex: 1;
+  font-family: var(--font-display); }
+.budget-annee  { background: var(--navy); color: var(--white); font-size: 12px;
+  font-weight: 600; padding: 2px 10px; border-radius: var(--radius-full); }
+
+.budget-total  { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--gray-100); }
+.budget-total-label { font-size: 12px; color: var(--gray-400); display: block; margin-bottom: 2px; }
+.budget-total-val { font-size: 18px; font-weight: 700; color: var(--navy); }
+
+.budget-lines { display: flex; flex-direction: column; gap: 10px; }
+.budget-line  {
+  display: grid; grid-template-columns: 90px 1fr 100px; align-items: center; gap: 8px;
+}
+.bl-name    { font-size: 12px; color: var(--gray-600); }
+.bl-progress{ flex: 1; }
+.bl-amounts { font-size: 11px; color: var(--gray-400); text-align: right; white-space: nowrap; }
+
+// Modal
+.modal-lg { max-width: 640px; width: 100%; }
+.modal-sm { max-width: 420px; width: 100%; }
+
+.budget-form-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px;
+  @media (max-width: 580px) { grid-template-columns: 1fr; }
+}
+
+.alert-error-sm {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--danger-light); border-left: 3px solid var(--danger);
+  padding: 8px 12px; border-radius: var(--radius-md); margin-bottom: 12px;
+  font-size: 12px; color: var(--danger);
+}
+
+// Pagination
+.pagination {
+  display: flex; align-items: center; gap: 4px; justify-content: center; margin-top: 20px;
+}
+.page-btn {
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200); background: var(--white);
+  color: var(--gray-600); font-size: 13px; font-family: var(--font-body);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition-fast);
+  &:hover:not(:disabled) { background: var(--gray-50); color: var(--navy); }
+  &.active { background: var(--navy); color: var(--white); border-color: var(--navy); font-weight: 600; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+.pagination-info { font-size: 12px; color: var(--gray-400); margin-left: 8px; }
+
+// Btn icon danger
+.btn-icon-danger:hover {
+  background: var(--danger-light) !important;
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+
+// ── Filtres ────────────────────────────────────────────────────────────
+.filters-card { padding: 14px 18px; margin-bottom: 12px; }
+.filters-grid-5 {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+  @media (max-width: 1100px) { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 700px)  { grid-template-columns: repeat(2, 1fr); }
+}
+.filter-group { display: flex; flex-direction: column; gap: 4px; }
+.filter-label {
+  font-size: 11px; font-weight: 600; color: var(--gray-500);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  display: flex; align-items: center; gap: 5px;
+  i { font-size: 10px; color: var(--gray-400); }
+}
+.form-control {
+  width: 100%; height: 34px; padding: 0 10px;
+  background: var(--white); border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-md); font-size: 12px;
+  font-family: var(--font-body); color: var(--gray-700); outline: none;
+  box-sizing: border-box;
+  &:focus { border-color: var(--green-dark); box-shadow: 0 0 0 3px rgba(91,217,136,.12); }
+}
+select.form-control {
+  appearance: none; cursor: pointer; padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+}
+
+// ── Boutons export ────────────────────────────────────────────────────
+.btn-excel {
+  display: flex; align-items: center; gap: 6px;
+  background: #1d6f42; color: white; border: none;
+  padding: 6px 12px; border-radius: var(--radius-md);
+  font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font-body);
+  &:hover { opacity: .85; }
+}
+.btn-pdf {
+  display: flex; align-items: center; gap: 6px;
+  background: #c0392b; color: white; border: none;
+  padding: 6px 12px; border-radius: var(--radius-md);
+  font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font-body);
+  &:hover { opacity: .85; }
+}
+
+// ── Facture modal ─────────────────────────────────────────────────────
+.modal-lg { width: min(90vw, 680px); }
+.facture-modal .modal-header { padding: 16px 20px; }
+.facture-body { padding: 24px; }
+.facture-header-row {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 24px;
+}
+.facture-logo {
+  font-size: 24px; font-weight: 900; color: var(--navy);
+  span { color: var(--green-dark); }
+}
+.facture-ref { font-size: 18px; font-weight: 700; color: var(--navy); }
+.facture-section {
+  background: var(--gray-50); border-radius: var(--radius-lg);
+  padding: 14px 16px; margin-bottom: 16px;
+}
+.facture-section-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  color: var(--gray-400); letter-spacing: 0.5px; margin-bottom: 10px;
+}
+.facture-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.facture-field {
+  margin-bottom: 8px;
+  label { font-size: 11px; color: var(--gray-400); display: block; }
+  span { font-weight: 600; font-size: 13px; color: var(--navy); }
+}
+.facture-montant-box {
+  background: var(--navy); color: white; border-radius: var(--radius-xl);
+  padding: 20px; text-align: center; margin-top: 8px;
+}
+.facture-montant-label { font-size: 12px; opacity: 0.6; margin-bottom: 4px; }
+.facture-montant-val { font-size: 28px; font-weight: 900; }

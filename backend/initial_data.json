@@ -1,0 +1,142 @@
+[
+  {
+    "model": "accounts.agence",
+    "pk": "11111111-1111-1111-1111-111111111111",
+    "fields": {
+      "nom": "Ubipharm Abidjan",
+      "code": "ABJ",
+      "ville": "Abidjan",
+      "adresse": "Zone Industrielle, Yopougon, Abidjan",
+      "telephone": "+225 27 21 35 00 00",
+      "responsable_nom": "M. Kouamé N'Guessan",
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "accounts.agence",
+    "pk": "22222222-2222-2222-2222-222222222222",
+    "fields": {
+      "nom": "Ubipharm Bouaké",
+      "code": "BKE",
+      "ville": "Bouaké",
+      "adresse": "Quartier Commerce, Bouaké",
+      "telephone": "+225 27 31 63 00 00",
+      "responsable_nom": "M. Traoré Mamadou",
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "accounts.agence",
+    "pk": "33333333-3333-3333-3333-333333333333",
+    "fields": {
+      "nom": "Ubipharm San-Pédro",
+      "code": "SPD",
+      "ville": "San-Pédro",
+      "adresse": "Rue du Port, San-Pédro",
+      "telephone": "+225 27 34 71 00 00",
+      "responsable_nom": "M. Gnagbo Désiré",
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "entretien.typeintervention",
+    "pk": "a1111111-1111-1111-1111-111111111111",
+    "fields": {
+      "nom": "Vidange + filtre à huile",
+      "categorie": "preventif",
+      "periodicite_km": 5000,
+      "periodicite_mois": 6,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "created_by": null
+    }
+  },
+  {
+    "model": "entretien.typeintervention",
+    "pk": "a2222222-2222-2222-2222-222222222222",
+    "fields": {
+      "nom": "Vidange + filtres complets",
+      "categorie": "preventif",
+      "periodicite_km": 10000,
+      "periodicite_mois": 12,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "created_by": null
+    }
+  },
+  {
+    "model": "entretien.typeintervention",
+    "pk": "a3333333-3333-3333-3333-333333333333",
+    "fields": {
+      "nom": "Remplacement courroie de distribution",
+      "categorie": "preventif",
+      "periodicite_km": 60000,
+      "periodicite_mois": 48,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "created_by": null
+    }
+  },
+  {
+    "model": "entretien.typeintervention",
+    "pk": "a4444444-4444-4444-4444-444444444444",
+    "fields": {
+      "nom": "Révision freins (plaquettes + disques)",
+      "categorie": "preventif",
+      "periodicite_km": 30000,
+      "periodicite_mois": 24,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "created_by": null
+    }
+  },
+  {
+    "model": "entretien.typeintervention",
+    "pk": "a5555555-5555-5555-5555-555555555555",
+    "fields": {
+      "nom": "Remplacement pneus (x4)",
+      "categorie": "pneus",
+      "periodicite_km": 40000,
+      "periodicite_mois": 0,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "created_by": null
+    }
+  },
+  {
+    "model": "entretien.typeintervention",
+    "pk": "a6666666-6666-6666-6666-666666666666",
+    "fields": {
+      "nom": "Contrôle technique",
+      "categorie": "controle",
+      "periodicite_km": 0,
+      "periodicite_mois": 24,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "created_by": null
+    }
+  },
+  {
+    "model": "entretien.typeintervention",
+    "pk": "a7777777-7777-7777-7777-777777777777",
+    "fields": {
+      "nom": "Réparation moteur",
+      "categorie": "curatif",
+      "periodicite_km": 0,
+      "periodicite_mois": 0,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "created_by": null
+    }
+  }
+]

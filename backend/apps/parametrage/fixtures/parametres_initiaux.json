@@ -1,0 +1,7 @@
+[
+  {"model":"parametrage.parametre","pk":1,"fields":{"cle":"alerte_permis_jours","valeur":"60","description":"Nombre de jours avant expiration du permis pour déclencher l'alerte","categorie":"alertes","type_valeur":"int","updated_at":"2025-01-01T00:00:00Z"}},
+  {"model":"parametrage.parametre","pk":2,"fields":{"cle":"alerte_assurance_jours","valeur":"30","description":"Nombre de jours avant expiration de l'assurance pour déclencher l'alerte","categorie":"alertes","type_valeur":"int","updated_at":"2025-01-01T00:00:00Z"}},
+  {"model":"parametrage.parametre","pk":3,"fields":{"cle":"alerte_conso_seuil_pct","valeur":"30","description":"Pourcentage au-dessus de la moyenne pour déclencher une alerte consommation","categorie":"alertes","type_valeur":"int","updated_at":"2025-01-01T00:00:00Z"}},
+  {"model":"parametrage.parametre","pk":4,"fields":{"cle":"alerte_ct_jours","valeur":"30","description":"Nombre de jours avant expiration du contrôle technique","categorie":"alertes","type_valeur":"int","updated_at":"2025-01-01T00:00:00Z"}},
+  {"model":"parametrage.parametre","pk":5,"fields":{"cle":"carburant_dotation_defaut","valeur":"200","description":"Dotation carburant mensuelle par défaut en litres","categorie":"carburant","type_valeur":"int","updated_at":"2025-01-01T00:00:00Z"}}
+]

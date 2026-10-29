@@ -1,0 +1,377 @@
+<!-- UbiFleet — Chauffeur Détail (Angular 18) -->
+<div class="detail-page">
+
+  @if (loading()) {
+    <div class="detail-loading">
+      <i class="fas fa-circle-notch fa-spin"></i>
+      <span>Chargement du chauffeur...</span>
+    </div>
+  }
+
+  @if (error() && !loading()) {
+    <div class="error-state">
+      <i class="fas fa-exclamation-triangle"></i>
+      <p>{{ error() }}</p>
+      <button class="btn btn-outline btn-sm" (click)="goBack()">
+        <i class="fas fa-arrow-left"></i> Retour
+      </button>
+    </div>
+  }
+
+  @if (chauffeur(); as c) {
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      <a routerLink="/chauffeurs" class="bc-link">
+        <i class="fas fa-id-badge"></i> Chauffeurs
+      </a>
+      <i class="fas fa-chevron-right bc-sep"></i>
+      <span class="bc-current">{{ c.prenom }} {{ c.nom }}</span>
+    </div>
+
+    <!-- En-tête -->
+    <div class="chauffeur-header">
+      <div class="ch-left">
+        <div class="ch-avatar">{{ c.nom[0] }}{{ c.prenom[0] }}</div>
+        <div class="ch-info">
+          <div class="ch-name">{{ c.prenom }} {{ c.nom }}</div>
+          <div class="ch-meta">
+            {{ c.matricule }} &bull; {{ c.agence_nom }}
+          </div>
+          @if (c.email) {
+            <div class="ch-email">
+              <i class="fas fa-envelope"></i> {{ c.email }}
+            </div>
+          }
+          @if (c.telephone) {
+            <div class="ch-tel">
+              <i class="fas fa-phone"></i> {{ c.telephone }}
+            </div>
+          }
+        </div>
+      </div>
+      <div class="ch-right">
+        <span class="badge badge-lg" [class]="statutBadgeClass(c.statut)">
+          {{ c.statut_display }}
+        </span>
+        <div class="ch-actions">
+          <button class="btn btn-primary btn-sm" (click)="goToEdit()">
+            <i class="fas fa-edit"></i> Modifier
+          </button>
+          <button class="btn btn-outline btn-sm" (click)="goBack()">
+            <i class="fas fa-arrow-left"></i> Retour
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpi-row">
+      <!-- Permis -->
+      <div class="kpi-card" [class]="'permis-' + permisUrgenceClass(c)">
+        <div class="kpi-icon">
+          <i class="fas fa-id-card"></i>
+        </div>
+        <div>
+          <div class="kpi-val">Permis {{ c.categories_permis }}</div>
+          <div class="kpi-lbl">N° {{ c.numero_permis }}</div>
+          @if (c.permis_expire) {
+            <span class="kpi-badge-permis expired">EXPIRÉ</span>
+          } @else if (c.jours_expiration_permis !== null && c.jours_expiration_permis <= 60) {
+            <span class="kpi-badge-permis"
+                  [class.urgent]="c.jours_expiration_permis <= 30">
+              Expire J-{{ c.jours_expiration_permis }}
+            </span>
+          } @else if (c.date_expiration_permis) {
+            <span class="kpi-date">
+              Expire le {{ c.date_expiration_permis | date:'dd/MM/yyyy' }}
+            </span>
+          }
+        </div>
+      </div>
+
+      <!-- Véhicule -->
+      <div class="kpi-card">
+        <div class="kpi-icon green">
+          <i class="fas fa-car"></i>
+        </div>
+        <div>
+          @if (c.vehicule_actuel) {
+            <div class="kpi-val">{{ c.vehicule_actuel.immatriculation }}</div>
+            <div class="kpi-lbl">{{ c.vehicule_actuel.designation }}</div>
+          } @else {
+            <div class="kpi-val" style="color:var(--gray-400)">Non assigné</div>
+            <div class="kpi-lbl">Aucun véhicule attitré</div>
+          }
+        </div>
+      </div>
+
+      <!-- Pleins (historique) -->
+      @if (historique()) {
+        <div class="kpi-card">
+          <div class="kpi-icon navy">
+            <i class="fas fa-gas-pump"></i>
+          </div>
+          <div>
+            <div class="kpi-val">{{ historique().pleins?.nb || 0 }} pleins</div>
+            <div class="kpi-lbl">
+              {{ historique().pleins?.total_litres | number:'1.0-0' }} L total
+            </div>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon" [class]="historique().nb_sinistres > 0 ? 'danger' : 'green'">
+            <i class="fas fa-car-crash"></i>
+          </div>
+          <div>
+            <div class="kpi-val">{{ historique().nb_sinistres }}</div>
+            <div class="kpi-lbl">Sinistre(s) déclaré(s)</div>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Onglets -->
+    <div class="tabs">
+      <button class="tab" [class.active]="activeTab() === 'infos'"
+              (click)="activeTab.set('infos')">
+        <i class="fas fa-user"></i> Informations
+      </button>
+      <button class="tab" [class.active]="activeTab() === 'historique'"
+              (click)="activeTab.set('historique')">
+        <i class="fas fa-history"></i> Historique
+      </button>
+      <button class="tab" [class.active]="activeTab() === 'vehicules'"
+              (click)="onTabChange('vehicules')">
+        <i class="fas fa-car"></i> Véhicules rattachés
+        @if (affectations().length > 0) {
+          <span class="tab-count">{{ affectations().length }}</span>
+        }
+      </button>
+    </div>
+
+    <!-- Onglet Infos -->
+    @if (activeTab() === 'infos') {
+      <div class="tab-content">
+        <div class="info-grid">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Identité</div></div>
+            <div class="card-body">
+              <table class="info-table">
+                <tr>
+                  <td class="info-label">Nom complet</td>
+                  <td class="info-value"><strong>{{ c.prenom }} {{ c.nom }}</strong></td>
+                </tr>
+                <tr>
+                  <td class="info-label">Matricule</td>
+                  <td class="info-value">{{ c.matricule }}</td>
+                </tr>
+                <tr>
+                  <td class="info-label">Téléphone</td>
+                  <td class="info-value">{{ c.telephone || '—' }}</td>
+                </tr>
+                <tr>
+                  <td class="info-label">Email</td>
+                  <td class="info-value">{{ c.email || '—' }}</td>
+                </tr>
+                <tr>
+                  <td class="info-label">Agence</td>
+                  <td class="info-value">{{ c.agence_nom }}</td>
+                </tr>
+                <tr>
+                  <td class="info-label">Date de naissance</td>
+                  <td class="info-value">
+                    {{ c.date_naissance ? (c.date_naissance | date:'dd/MM/yyyy') : '—' }}
+                  </td>
+                </tr>
+                <tr>
+                  <td class="info-label">Adresse</td>
+                  <td class="info-value">{{ c.adresse || '—' }}</td>
+                </tr>
+                <tr>
+                  <td class="info-label">Statut</td>
+                  <td class="info-value">
+                    <span class="badge" [class]="statutBadgeClass(c.statut)">
+                      {{ c.statut_display }}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="info-label">Notes</td>
+                  <td class="info-value">{{ c.notes || '—' }}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">Permis de conduire</div></div>
+            <div class="card-body">
+              <table class="info-table">
+                <tr>
+                  <td class="info-label">N° Permis</td>
+                  <td class="info-value"><strong>{{ c.numero_permis }}</strong></td>
+                </tr>
+                <tr>
+                  <td class="info-label">Catégories</td>
+                  <td class="info-value">
+                    <span class="categories-permis">{{ c.categories_permis }}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="info-label">Date d'obtention</td>
+                  <td class="info-value">
+                    {{ c.date_obtention_permis ? (c.date_obtention_permis | date:'dd/MM/yyyy') : '—' }}
+                  </td>
+                </tr>
+                <tr>
+                  <td class="info-label">Expiration</td>
+                  <td class="info-value" [class.text-danger]="c.permis_expire">
+                    @if (c.date_expiration_permis) {
+                      {{ c.date_expiration_permis | date:'dd/MM/yyyy' }}
+                      @if (c.permis_expire) {
+                        <span class="badge badge-danger">EXPIRÉ</span>
+                      } @else if (c.jours_expiration_permis !== null && c.jours_expiration_permis <= 60) {
+                        <span class="badge badge-warning">J-{{ c.jours_expiration_permis }}</span>
+                      }
+                    } @else {
+                      —
+                    }
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Onglet Historique -->
+    @if (activeTab() === 'historique') {
+      <div class="tab-content">
+        @if (!historique()) {
+          <div class="placeholder-tab">
+            <i class="fas fa-circle-notch fa-spin" style="color:var(--green-dark)"></i>
+            <p>Chargement de l'historique...</p>
+          </div>
+        } @else {
+          <div class="histo-grid">
+            <div class="card">
+              <div class="card-header"><div class="card-title">Carburant</div></div>
+              <div class="card-body">
+                <div class="histo-stat">
+                  <span class="histo-val">{{ historique().pleins?.nb || 0 }}</span>
+                  <span class="histo-lbl">Pleins effectués</span>
+                </div>
+                <div class="histo-stat">
+                  <span class="histo-val">
+                    {{ (historique().pleins?.total_litres || 0) | number:'1.0-0' }} L
+                  </span>
+                  <span class="histo-lbl">Volume total consommé</span>
+                </div>
+                <div class="histo-stat">
+                  <span class="histo-val">
+                    {{ (historique().pleins?.total_montant || 0) | number:'1.0-0' }} FCFA
+                  </span>
+                  <span class="histo-lbl">Montant total carburant</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><div class="card-title">Sinistres</div></div>
+              <div class="card-body">
+                @if (historique().sinistres && historique().sinistres.length > 0) {
+                  <div class="sinistres-list">
+                    @for (s of historique().sinistres; track s.numero_dossier) {
+                      <div class="sinistre-row">
+                        <span class="sinistre-ref">{{ s.numero_dossier }}</span>
+                        <span class="sinistre-type">{{ s.type_sinistre }}</span>
+                        <span class="sinistre-date">
+                          {{ s.date_sinistre | date:'dd/MM/yyyy' }}
+                        </span>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="histo-empty">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Aucun sinistre déclaré</span>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+  <!-- ── Onglet Véhicules rattachés ── -->
+  @if (activeTab() === 'vehicules') {
+    <div class="tab-content">
+
+      @if (affectationsLoad()) {
+        <div class="tab-loading">
+          <i class="fas fa-circle-notch fa-spin"></i> Chargement...
+        </div>
+      } @else if (affectations().length === 0) {
+        <div class="placeholder-tab">
+          <i class="fas fa-car"></i>
+          <h3>Aucun véhicule rattaché</h3>
+          <p>Les affectations apparaîtront ici dès qu'un véhicule sera assigné.</p>
+        </div>
+      } @else {
+        <div class="card">
+          <div class="table-container">
+            <table class="ubi-table">
+              <thead>
+                <tr>
+                  <th>Immatriculation</th>
+                  <th>Désignation</th>
+                  <th>Date début</th>
+                  <th>Date fin</th>
+                  <th>Statut</th>
+                  <th>Notes</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (a of affectations(); track a.id) {
+                  <tr>
+                    <td>
+                      <strong style="color:var(--navy)">{{ a.vehicule_immat }}</strong>
+                    </td>
+                    <td>{{ a.vehicule_designation }}</td>
+                    <td>{{ a.date_debut | date:'dd/MM/yyyy' }}</td>
+                    <td>
+                      {{ a.date_fin ? (a.date_fin | date:'dd/MM/yyyy') : '—' }}
+                    </td>
+                    <td>
+                      @if (a.est_active) {
+                        <span class="badge badge-green">En cours</span>
+                      } @else {
+                        <span class="badge badge-gray">Terminée</span>
+                      }
+                    </td>
+                    <td>{{ a.notes || '—' }}</td>
+                    <td>
+                      <a [routerLink]="['/vehicules', a.vehicule]"
+                         class="btn btn-icon" title="Voir le véhicule">
+                        <i class="fas fa-external-link-alt"></i>
+                      </a>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+
+    </div>
+  }
+
+
+  }
+</div>

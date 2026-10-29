@@ -1,0 +1,306 @@
+<!-- UbiFleet — Détail Fiche de Contrôle -->
+<div class="detail-page">
+
+  <!-- En-tête -->
+  <div class="page-header no-print">
+    <div>
+      <a routerLink="/controle" class="back-link">
+        <i class="fas fa-arrow-left"></i> Retour aux fiches
+      </a>
+      @if (fiche()) {
+        <h1 class="page-title">
+          <i class="fas fa-clipboard-check" style="color:var(--green-dark)"></i>
+          Fiche de contrôle — {{ fiche().vehicule_immat }}
+        </h1>
+        <p class="page-subtitle">
+          {{ fiche().type_controle_display }} · {{ fiche().date_heure | date:'dd/MM/yyyy HH:mm' }}
+        </p>
+      }
+    </div>
+    @if (fiche()) {
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-outline btn-sm no-print" (click)="imprimer()">
+          <i class="fas fa-file-pdf"></i> Enregistrer PDF
+        </button>
+        @if (isValidee) {
+          <span class="badge badge-green" style="padding:6px 12px">
+            <i class="fas fa-lock"></i> Fiche validée — lecture seule
+          </span>
+        } @else {
+          @if (editMode()) {
+            <button class="btn btn-outline btn-sm" (click)="toggleEditMode()">
+              <i class="fas fa-times"></i> Annuler
+            </button>
+            <button class="btn btn-green btn-sm" [disabled]="saving()" (click)="sauvegarderPoints()">
+              @if (saving()) { <i class="fas fa-circle-notch fa-spin"></i> }
+              @else { <i class="fas fa-save"></i> }
+              Enregistrer
+            </button>
+          } @else {
+            <button class="btn btn-outline btn-sm" (click)="toggleEditMode()">
+              <i class="fas fa-edit"></i> Modifier les points
+            </button>
+            <button class="btn btn-green" (click)="validerFiche()">
+              <i class="fas fa-check-circle"></i> Valider la fiche
+            </button>
+          }
+        }
+      </div>
+    }
+  </div>
+
+  @if (loading()) {
+    <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+  } @else if (error()) {
+    <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ error() }}</div>
+  } @else if (fiche()) {
+
+    @if (saveSuccess()) {
+      <div class="alert-success no-print"><i class="fas fa-check-circle"></i> {{ saveSuccess() }}</div>
+    }
+    @if (saveError()) {
+      <div class="alert-error no-print"><i class="fas fa-exclamation-triangle"></i> {{ saveError() }}</div>
+    }
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-icon" [class]="'kpi-' + fiche().statut_global">
+          <i class="fas fa-clipboard-check"></i>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-val">
+            <span class="badge" [class]="statutClass(fiche().statut_global)">
+              {{ fiche().statut_global_display }}
+            </span>
+          </div>
+          <div class="kpi-label">Statut global</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon kpi-blue"><i class="fas fa-list-check"></i></div>
+        <div class="kpi-info">
+          <div class="kpi-val">{{ statsFiche.total }}</div>
+          <div class="kpi-label">Points contrôlés</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon kpi-green"><i class="fas fa-check"></i></div>
+        <div class="kpi-info">
+          <div class="kpi-val">{{ statsFiche.conformes }}</div>
+          <div class="kpi-label">Conformes</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon kpi-red"><i class="fas fa-times"></i></div>
+        <div class="kpi-info">
+          <div class="kpi-val">{{ statsFiche.nc }}</div>
+          <div class="kpi-label">Non conformes</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon kpi-blue"><i class="fas fa-percent"></i></div>
+        <div class="kpi-info">
+          <div class="kpi-val">{{ statsFiche.taux }}%</div>
+          <div class="kpi-label">Taux de conformité</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Infos + Photos -->
+    <div class="section-grid-2">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="fas fa-info-circle"></i> Informations générales</div>
+        </div>
+        <div class="info-grid">
+          <div class="info-row">
+            <span class="info-label">Véhicule</span>
+            <span class="immat-badge">{{ fiche().vehicule_immat }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Type</span>
+            <span>{{ fiche().type_controle_display }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Date / heure</span>
+            <span>{{ fiche().date_heure | date:'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Kilométrage</span>
+            <span style="font-family:monospace">{{ fiche().kilometrage | number:'1.0-0' }} km</span>
+          </div>
+          @if (fiche().chauffeur_nom) {
+            <div class="info-row">
+              <span class="info-label">Chauffeur</span>
+              <span>{{ fiche().chauffeur_nom }}</span>
+            </div>
+          }
+          @if (fiche().agence_nom) {
+            <div class="info-row">
+              <span class="info-label">Agence</span>
+              <span>{{ fiche().agence_nom }}</span>
+            </div>
+          }
+          @if (fiche().notes_generales) {
+            <div class="info-row">
+              <span class="info-label">Notes</span>
+              <span>{{ fiche().notes_generales }}</span>
+            </div>
+          }
+        </div>
+      </div>
+
+      @if (fiche().photos && fiche().photos.length > 0) {
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <i class="fas fa-camera"></i> Photos ({{ fiche().photos.length }})
+            </div>
+          </div>
+          <div class="photos-grid">
+            @for (p of fiche().photos; track p.id) {
+              <div class="photo-item" (click)="openPhoto(p.image, p.type_photo_display)"
+                   title="Cliquer pour agrandir">
+                <img [src]="p.image" [alt]="p.type_photo_display" />
+                <div class="photo-label">{{ p.type_photo_display }}</div>
+                <div class="photo-zoom-icon"><i class="fas fa-search-plus"></i></div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Points par catégorie -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-header">
+        <div class="card-title"><i class="fas fa-clipboard-list"></i> Points de contrôle</div>
+      </div>
+
+      @for (entry of categoriesGroupes | keyvalue; track entry.key) {
+        <div class="cat-section">
+          <div class="cat-header">{{ entry.key | titlecase }}</div>
+          <table class="ubi-table">
+            <thead>
+              <tr>
+                <th>Point de contrôle</th>
+                <th style="width:150px;text-align:center">Statut</th>
+                <th style="width:120px;text-align:center">Gravité</th>
+                <th>Remarque</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of entry.value; track p.id) {
+                <tr [class.row-nc]="(editMode() ? getPointEdit(p.element).statut : p.statut) === 'non_conforme'">
+                  <td>
+                    {{ p.element_nom }}
+                    @if (p.element_obligatoire) {
+                      <span class="oblig-dot" title="Point obligatoire"> *</span>
+                    }
+                  </td>
+                  <td style="text-align:center">
+                    @if (editMode() && !isValidee) {
+                      <select class="point-select"
+                              [value]="getPointEdit(p.element).statut"
+                              (change)="setPoint(p.element, 'statut', $any($event.target).value)">
+                        <option value="conforme">✅ Conforme</option>
+                        <option value="non_conforme">❌ Non conforme</option>
+                        <option value="na">➖ N/A</option>
+                      </select>
+                    } @else {
+                      <span class="badge" [class]="statutClass(p.statut)">{{ p.statut_display }}</span>
+                    }
+                  </td>
+                  <td style="text-align:center">
+                    @if (editMode() && !isValidee && getPointEdit(p.element).statut === 'non_conforme') {
+                      <select class="point-select"
+                              [value]="getPointEdit(p.element).gravite"
+                              (change)="setPoint(p.element, 'gravite', $any($event.target).value)">
+                        <option value="">—</option>
+                        <option value="mineur">Mineur</option>
+                        <option value="majeur">Majeur</option>
+                        <option value="bloquant">🚨 Bloquant</option>
+                      </select>
+                    } @else if (p.gravite) {
+                      <span class="badge" [class]="graviteClass(p.gravite)">
+                        {{ p.gravite_display ?? p.gravite }}
+                      </span>
+                    } @else {
+                      <span style="color:var(--gray-300)">—</span>
+                    }
+                  </td>
+                  <td>
+                    @if (editMode() && !isValidee) {
+                      <input type="text" class="point-input"
+                             [value]="getPointEdit(p.element).remarque"
+                             placeholder="Remarque..."
+                             (input)="setPoint(p.element, 'remarque', $any($event.target).value)" />
+                    } @else {
+                      {{ p.remarque || '—' }}
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
+    <!-- Résumé non-conformités -->
+    @if (pointsNonConformes.length > 0) {
+      <div class="card nc-card" style="margin-top:16px">
+        <div class="card-header">
+          <div class="card-title" style="color:var(--danger)">
+            <i class="fas fa-exclamation-triangle"></i>
+            Résumé des non-conformités ({{ pointsNonConformes.length }})
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead>
+              <tr>
+                <th>Point de contrôle</th>
+                <th>Catégorie</th>
+                <th style="text-align:center">Gravité</th>
+                <th>Remarque</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of pointsNonConformes; track p.id) {
+                <tr>
+                  <td><strong>{{ p.element_nom }}</strong></td>
+                  <td style="font-size:11px;color:var(--gray-400)">{{ p.element_categorie }}</td>
+                  <td style="text-align:center">
+                    @if (p.gravite) {
+                      <span class="badge" [class]="graviteClass(p.gravite)">
+                        {{ p.gravite_display ?? p.gravite }}
+                      </span>
+                    } @else { — }
+                  </td>
+                  <td>{{ p.remarque || '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+
+</div>
+
+
+<!-- Lightbox aperçu photo -->
+@if (lightboxPhoto(); as photo) {
+  <div class="lightbox-backdrop no-print" (click)="closeLightbox()">
+    <div class="lightbox-container" (click)="$event.stopPropagation()">
+      <button class="lightbox-close" (click)="closeLightbox()">
+        <i class="fas fa-times"></i>
+      </button>
+      <img [src]="photo.src" [alt]="photo.alt" class="lightbox-img" />
+      <div class="lightbox-caption">{{ photo.alt }}</div>
+    </div>
+  </div>
+}

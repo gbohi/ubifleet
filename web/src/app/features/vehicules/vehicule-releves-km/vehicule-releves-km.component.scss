@@ -1,0 +1,137 @@
+// UbiFleet — Historique Kilométrage Styles
+.releves-page { animation: fadeInUp var(--transition-base) ease; }
+
+.breadcrumb {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--gray-400); margin-bottom: 18px;
+}
+.bc-link { color: var(--green-dark); text-decoration: none; font-weight: 500;
+  display: flex; align-items: center; gap: 5px; &:hover { color: var(--navy); } }
+.bc-sep     { font-size: 10px; color: var(--gray-300); }
+.bc-current { color: var(--navy); font-weight: 600; }
+
+.header-actions { display: flex; align-items: center; gap: 8px; }
+
+.total-info {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--gray-400); margin-bottom: 14px;
+  i { color: var(--green-dark); }
+}
+
+// Alerts
+.alert-success, .alert-error {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: var(--radius-lg); margin-bottom: 16px;
+  font-size: 13px; border-left: 4px solid;
+}
+.alert-success { background: var(--green-alpha); border-left-color: var(--green-dark); color: var(--green-dark); }
+.alert-error   { background: var(--danger-light); border-left-color: var(--danger); color: var(--danger); }
+
+// States
+.loading-state {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 64px; color: var(--gray-500);
+  i { color: var(--green-dark); font-size: 24px; }
+}
+.empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 64px; gap: 12px; color: var(--gray-400); text-align: center;
+  i { font-size: 48px; } h3 { margin: 0; font-size: 18px; color: var(--gray-600); }
+  p { margin: 0; font-size: 14px; }
+}
+
+// Table
+.td-sub   { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+.td-notes { font-size: 12px; color: var(--gray-500); max-width: 200px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.km-value { font-size: 13px; font-weight: 700; color: var(--navy);
+  display: flex; align-items: center; gap: 6px; }
+
+.btn-icon-danger:hover {
+  background: var(--danger-light) !important;
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+
+// Type mouvement grid
+.type-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  @media (max-width: 600px) { grid-template-columns: 1fr 1fr; }
+}
+.type-option {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; padding: 12px 8px; border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-md); cursor: pointer; font-size: 12px;
+  color: var(--gray-500); transition: all var(--transition-fast);
+  i { font-size: 18px; }
+  &:hover { border-color: var(--green-dark); color: var(--navy); }
+  &.active {
+    border-color: var(--navy); background: var(--navy-alpha);
+    color: var(--navy); font-weight: 600;
+    i { color: var(--navy); }
+  }
+}
+
+// Pagination
+.pagination {
+  display: flex; align-items: center; gap: 4px; justify-content: center; margin-top: 20px;
+}
+.page-btn {
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200); background: var(--white);
+  color: var(--gray-600); font-size: 13px; font-family: var(--font-body);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition-fast);
+  &:hover:not(:disabled) { background: var(--gray-50); color: var(--navy); }
+  &.active { background: var(--navy); color: var(--white); border-color: var(--navy); font-weight: 600; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+.pagination-info { font-size: 12px; color: var(--gray-400); margin-left: 8px; }
+.modal-sm { max-width: 420px; width: 100%; }
+
+// ── Bouton close modale ───────────────────────────────────────────
+.modal-close,
+.btn-close-modal {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: none; background: var(--gray-100);
+  color: var(--gray-500); cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; padding: 0;
+  transition: background 0.2s, color 0.2s;
+  &:hover { background: var(--danger); color: white; }
+}
+
+// ── Lightbox ─────────────────────────────────────────────────────
+.lightbox-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.85);
+  z-index: 9999; display: flex; align-items: center; justify-content: center;
+}
+.lightbox-container {
+  background: white; border-radius: 12px; overflow: hidden;
+  max-width: 90vw; max-height: 90vh;
+  display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+.lightbox-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--gray-100);
+}
+.lightbox-title {
+  font-weight: 700; color: var(--navy); font-size: 15px;
+  display: flex; align-items: center; gap: 8px;
+}
+.lightbox-close {
+  width: 32px; height: 32px; border-radius: 50%; border: none;
+  background: var(--gray-100); color: var(--gray-500);
+  cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  &:hover { background: var(--danger); color: white; }
+}
+.lightbox-body {
+  padding: 16px; overflow: auto; flex: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.lightbox-img { max-width: 100%; max-height: 70vh; border-radius: 8px; }
+.lightbox-footer {
+  padding: 12px 20px; border-top: 1px solid var(--gray-100);
+  display: flex; justify-content: flex-end;
+}

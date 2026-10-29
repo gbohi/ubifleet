@@ -1,0 +1,117 @@
+.alertes-page { animation: fadeInUp var(--transition-base) ease; }
+
+// ── KPIs ──────────────────────────────────────────────────────────────
+.kpi-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;
+  @media (max-width: 700px) { grid-template-columns: repeat(2, 1fr); }
+}
+.kpi-card {
+  display: flex; align-items: center; gap: 14px; padding: 16px 18px;
+  background: var(--white); border-radius: var(--radius-xl); border: 1px solid var(--gray-100);
+  box-shadow: var(--shadow-sm); cursor: pointer; transition: all var(--transition-fast);
+  &:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .kpi-icon { width: 42px; height: 42px; border-radius: var(--radius-lg);
+    display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .kpi-val   { font-size: 24px; font-weight: 800; color: var(--navy); line-height: 1; }
+  .kpi-label { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+  &.kpi-total    { border-left: 3px solid var(--navy);   .kpi-icon { background:#eff6ff; color:var(--navy); } }
+  &.kpi-critique { border-left: 3px solid #dc2626;       .kpi-icon { background:#fef2f2; color:#dc2626; } }
+  &.kpi-haute    { border-left: 3px solid #d97706;       .kpi-icon { background:#fffbeb; color:#d97706; } }
+  &.kpi-normale  { border-left: 3px solid var(--green-dark); .kpi-icon { background:#f0fdf4; color:var(--green-dark); } }
+}
+
+// ── Filtres ───────────────────────────────────────────────────────────
+.filters-bar { padding: 14px 18px; margin-bottom: 12px; }
+.filters-grid-4 {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  @media (max-width: 800px) { grid-template-columns: repeat(2, 1fr); }
+}
+.filter-item {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--gray-50); border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md); padding: 0 10px; height: 34px;
+  i { color: var(--gray-400); }
+  select, input { border: none; outline: none; background: transparent;
+    font-size: 12px; font-family: var(--font-body); color: var(--gray-700);
+    width: 100%; height: 100%; }
+}
+
+// ── Liste alertes ─────────────────────────────────────────────────────
+.alertes-list { display: flex; flex-direction: column; gap: 8px; }
+.alerte-card {
+  display: flex; align-items: flex-start; gap: 14px;
+  background: var(--white); border-radius: var(--radius-xl); border: 1px solid var(--gray-100);
+  padding: 16px; box-shadow: var(--shadow-sm);
+  border-left: 4px solid transparent; transition: box-shadow var(--transition-fast);
+  &:hover { box-shadow: var(--shadow-md); }
+  &.alerte-critique { border-left-color: #dc2626; background: #fff8f8; }
+  &.alerte-haute    { border-left-color: #d97706; background: #fffdf5; }
+  &.alerte-normale  { border-left-color: var(--navy); }
+  &.alerte-basse    { border-left-color: var(--gray-300); }
+}
+.alerte-icon {
+  width: 40px; height: 40px; border-radius: var(--radius-lg); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+  &.icon-critique { background: #fef2f2; color: #dc2626; }
+  &.icon-haute    { background: #fffbeb; color: #d97706; }
+  &.icon-normale  { background: #eff6ff; color: var(--navy); }
+  &.icon-basse    { background: var(--gray-100); color: var(--gray-500); }
+}
+.alerte-body { flex: 1; min-width: 0; }
+.alerte-header-row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 10px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.alerte-titre   { font-size: 14px; font-weight: 700; color: var(--navy); }
+.alerte-badges  { display: flex; gap: 6px; flex-shrink: 0; }
+.alerte-message { font-size: 12px; color: var(--gray-600); line-height: 1.5; margin-bottom: 8px; }
+.alerte-meta    {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  .meta-item { display: flex; align-items: center; gap: 4px;
+    font-size: 11px; color: var(--gray-400);
+    i { font-size: 10px; }
+  }
+  .meta-echeance { color: #dc2626; font-weight: 600; }
+}
+.alerte-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+
+// Badges priorité
+.badge-critique { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.badge-haute    { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+.badge-normale  { background: #eff6ff; color: var(--navy); border: 1px solid #bfdbfe; }
+.badge-basse    { background: var(--gray-50); color: var(--gray-500); border: 1px solid var(--gray-200); }
+
+// ── Modale ────────────────────────────────────────────────────────────
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; animation: fadeIn .15s ease;
+}
+.modal-box {
+  background: var(--white); border-radius: var(--radius-xl);
+  width: min(90vw,500px); box-shadow: 0 20px 60px rgba(0,0,0,.25);
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--gray-100);
+}
+.modal-title { font-size: 16px; font-weight: 700; color: var(--navy);
+  display: flex; align-items: center; gap: 8px;
+  i { color: var(--green-dark); } }
+.modal-close {
+  width: 30px; height: 30px; border-radius: 50%; border: none;
+  background: var(--gray-100); cursor: pointer; font-size: 13px; color: var(--gray-500);
+  &:hover { background: var(--danger); color: white; } }
+.modal-body { padding: 20px; }
+.modal-alerte-titre { font-size: 14px; font-weight: 600; color: var(--navy);
+  padding: 10px 14px; background: var(--gray-50); border-radius: var(--radius-md); }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end;
+  padding: 14px 20px; border-top: 1px solid var(--gray-100); }
+
+// ── États ─────────────────────────────────────────────────────────────
+.loading-state, .empty-state {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 80px; color: var(--gray-400); font-size: 14px;
+  i { font-size: 24px; }
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

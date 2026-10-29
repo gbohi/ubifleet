@@ -1,0 +1,857 @@
+<!-- UbiFleet — Demandes & Workflow -->
+<div class="demandes-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><i class="fas fa-file-alt" style="color:var(--green-dark)"></i> Demandes</h1>
+      <p class="page-subtitle">Gestion des demandes avec workflow de validation</p>
+    </div>
+    <button class="btn btn-green" (click)="activeTab.set('nouvelle')">
+      <i class="fas fa-plus"></i> Nouvelle demande
+    </button>
+  </div>
+
+  <!-- KPIs -->
+  @if (stats(); as s) {
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-icon blue"><i class="fas fa-file-alt"></i></div>
+        <div class="kpi-info"><div class="kpi-val">{{ s.total }}</div><div class="kpi-label">Total</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-hourglass-half"></i></div>
+        <div class="kpi-info"><div class="kpi-val">{{ s.en_attente }}</div><div class="kpi-label">En attente</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon green"><i class="fas fa-check-circle"></i></div>
+        <div class="kpi-info"><div class="kpi-val">{{ s.approuvees }}</div><div class="kpi-label">Approuvées</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon red"><i class="fas fa-times-circle"></i></div>
+        <div class="kpi-info"><div class="kpi-val">{{ s.rejetees }}</div><div class="kpi-label">Rejetées</div></div></div>
+    </div>
+  }
+
+  <!-- Onglets -->
+  <div class="tab-bar">
+    <button class="tab" [class.active]="activeTab()==='liste'"     (click)="activeTab.set('liste');loadDemandes()">
+      <i class="fas fa-list"></i> Mes demandes
+    </button>
+    <button class="tab" [class.active]="activeTab()==='a_valider'" (click)="activeTab.set('a_valider');loadAValider()">
+      <i class="fas fa-stamp"></i> À valider
+      @if (aValider().length > 0) { <span class="tab-badge">{{ aValider().length }}</span> }
+    </button>
+    <button class="tab" [class.active]="activeTab()==='nouvelle'"  (click)="activeTab.set('nouvelle')">
+      <i class="fas fa-plus-circle"></i> Nouvelle
+    </button>
+    <button class="tab" [class.active]="activeTab()==='types'"     (click)="activeTab.set('types')">
+      <i class="fas fa-cogs"></i> Types / Workflow
+    </button>
+  </div>
+
+  <!-- ══ LISTE ══ -->
+  @if (activeTab() === 'liste') {
+    <div class="vue-bar">
+      @for (v of [
+        {key:'mes_demandes',    label:'Mes demandes'},
+        {key:'validees_par_moi',label:'Validées par moi'},
+        {key:'agence',          label:'Mon agence'},
+        {key:'toutes',          label:'Toutes'}
+      ]; track v.key) {
+        <button class="vue-btn" [class.active]="vue()===v.key" (click)="onVueChange(v.key)">{{ v.label }}</button>
+      }
+    </div>
+
+    <div class="card filters-card">
+      <div class="filters-grid-5">
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-circle"></i> Statut</label>
+          <select class="form-control" (change)="onFiltreChange('statut',$event)">
+            <option value="">Tous statuts</option>
+            <option value="brouillon">Brouillon</option>
+            <option value="soumise">Soumise</option>
+            <option value="en_validation">En validation</option>
+            <option value="approuvee">Approuvée</option>
+            <option value="rejetee">Rejetée</option>
+            <option value="annulee">Annulée</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-flag"></i> Priorité</label>
+          <select class="form-control" (change)="onFiltreChange('prio',$event)">
+            <option value="">Toutes</option>
+            <option value="urgente">Urgente</option>
+            <option value="haute">Haute</option>
+            <option value="normale">Normale</option>
+            <option value="basse">Basse</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-tag"></i> Type</label>
+          <select class="form-control" (change)="onFiltreChange('type',$event)">
+            <option value="">Tous types</option>
+            @for (t of typesDemande(); track t.id) { <option [value]="t.id">{{ t.nom }}</option> }
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-calendar"></i> Du</label>
+          <input type="date" class="form-control" (input)="onFiltreChange('debut',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-calendar-alt"></i> Au</label>
+          <input type="date" class="form-control" (input)="onFiltreChange('fin',$event)" />
+        </div>
+      </div>
+    </div>
+
+    @if (demandesLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (demandes().length === 0) {
+      <div class="empty-state"><i class="fas fa-file-alt"></i><p>Aucune demande.</p></div>
+    } @else {
+      <div class="demandes-list">
+        @for (d of demandes(); track d.id) {
+          <div class="demande-card">
+            <div class="demande-icon"><i [class]="typeIcon(d.type_code)" style="font-size:20px;color:var(--navy)"></i></div>
+            <div class="demande-body">
+              <div class="demande-header-row">
+                <div>
+                  <span class="demande-num">{{ d.numero }}</span>
+                  <span class="demande-titre">{{ d.titre }}</span>
+                </div>
+                <div class="demande-badges">
+                  <span class="badge" [class]="prioriteClass(d.priorite)">{{ d.priorite_display }}</span>
+                  <span class="badge" [class]="statutClass(d.statut)">{{ d.statut_display }}</span>
+                </div>
+              </div>
+              <div class="demande-meta">
+                <span><i class="fas fa-tag"></i> {{ d.type_nom }}</span>
+                <span><i class="fas fa-user"></i> {{ d.demandeur_nom }}</span>
+                @if (d.agence_nom) { <span><i class="fas fa-building"></i> {{ d.agence_nom }}</span> }
+                <span><i class="fas fa-clock"></i> {{ d.created_at | date:'dd/MM/yyyy' }}</span>
+                @if (d.date_souhaitee) { <span><i class="fas fa-calendar-alt"></i> Souhaité : {{ d.date_souhaitee | date:'dd/MM/yyyy' }}</span> }
+              </div>
+              @if (d.statut === 'en_validation' || d.statut === 'approuvee') {
+                <div class="workflow-bar"><div class="workflow-fill" [style.width.%]="d.progression_pct"></div></div>
+                <div style="font-size:11px;color:var(--gray-400);margin-top:2px">Niveau {{ d.niveau_actuel }} / {{ d.nb_niveaux_total }}</div>
+              }
+            </div>
+            <div class="demande-actions">
+              <button class="btn btn-icon" title="Voir le détail" (click)="voirDetail(d)">
+                <i class="fas fa-eye"></i>
+              </button>
+              @if (d.statut === 'brouillon') {
+                <button class="btn btn-green btn-sm" (click)="soumettreDemande(d.id)">
+                  <i class="fas fa-paper-plane"></i> Soumettre
+                </button>
+              }
+              @if (d.statut === 'brouillon' || d.statut === 'soumise' || d.statut === 'en_validation') {
+                <button class="btn btn-outline btn-sm" (click)="demanderAnnulation(d.id)" title="Annuler">
+                  <i class="fas fa-times"></i>
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+      @if (demandesTotal() > pageSize) {
+        <div class="pagination">
+          <button class="page-btn" [disabled]="filtrePage()===1" (click)="filtrePage.set(filtrePage()-1);loadDemandes()"><i class="fas fa-chevron-left"></i></button>
+          @for (p of pages; track p) {
+            <button class="page-btn" [class.active]="p===filtrePage()" (click)="filtrePage.set(p);loadDemandes()">{{ p }}</button>
+          }
+          <button class="page-btn" [disabled]="filtrePage()===totalPages" (click)="filtrePage.set(filtrePage()+1);loadDemandes()"><i class="fas fa-chevron-right"></i></button>
+        </div>
+      }
+    }
+  }
+
+  <!-- ══ À VALIDER ══ -->
+  @if (activeTab() === 'a_valider') {
+    <div class="card filters-card">
+      <div class="filters-grid-5">
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-flag"></i> Priorité</label>
+          <select class="form-control" (change)="onFiltreAValiderChange('prio',$event)">
+            <option value="">Toutes</option>
+            <option value="urgente">Urgente</option>
+            <option value="haute">Haute</option>
+            <option value="normale">Normale</option>
+            <option value="basse">Basse</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-tag"></i> Type</label>
+          <select class="form-control" (change)="onFiltreAValiderChange('type',$event)">
+            <option value="">Tous types</option>
+            @for (t of typesDemande(); track t.id) { <option [value]="t.id">{{ t.nom }}</option> }
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-circle"></i> Statut</label>
+          <select class="form-control" (change)="onFiltreAValiderChange('statut',$event)">
+            <option value="">Tous</option>
+            <option value="soumise">Soumise</option>
+            <option value="en_validation">En validation</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-calendar"></i> Du</label>
+          <input type="date" class="form-control" (input)="onFiltreAValiderChange('debut',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-calendar-alt"></i> Au</label>
+          <input type="date" class="form-control" (input)="onFiltreAValiderChange('fin',$event)" />
+        </div>
+      </div>
+    </div>
+
+    @if (aValiderLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (aValider().length === 0) {
+      <div class="empty-state"><i class="fas fa-check-double" style="color:var(--green-dark)"></i><p>Aucune demande en attente de votre validation.</p></div>
+    } @else {
+      <div class="demandes-list">
+        @for (d of aValider(); track d.id) {
+          <div class="demande-card demande-card-urgent">
+            <div class="demande-icon"><i [class]="typeIcon(d.type_code)" style="font-size:20px;color:var(--navy)"></i></div>
+            <div class="demande-body">
+              <div class="demande-header-row">
+                <div>
+                  <span class="demande-num">{{ d.numero }}</span>
+                  <span class="demande-titre">{{ d.titre }}</span>
+                </div>
+                <span class="badge" [class]="prioriteClass(d.priorite)">{{ d.priorite_display }}</span>
+              </div>
+              <div class="demande-meta">
+                <span><i class="fas fa-tag"></i> {{ d.type_nom }}</span>
+                <span><i class="fas fa-user"></i> {{ d.demandeur_nom }}</span>
+                <span><i class="fas fa-layer-group"></i> Niveau {{ d.niveau_actuel }}</span>
+                <span><i class="fas fa-clock"></i> {{ d.created_at | date:'dd/MM/yyyy' }}</span>
+              </div>
+            </div>
+            <div class="demande-actions">
+              <button class="btn btn-icon" title="Voir le détail" (click)="voirDetail(d)">
+                <i class="fas fa-eye"></i>
+              </button>
+              <button class="btn btn-green btn-sm" (click)="ouvrirValidation(d,false)">
+                <i class="fas fa-check"></i> Approuver
+              </button>
+              <button class="btn btn-danger btn-sm" (click)="ouvrirValidation(d,true)">
+                <i class="fas fa-times"></i> Rejeter
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- ══ NOUVELLE DEMANDE ══ -->
+  @if (activeTab() === 'nouvelle') {
+    <div class="card" style="max-width:700px">
+      <div class="card-header"><div class="card-title">Nouvelle demande</div></div>
+      <div class="card-body">
+        @if (newSuccess()) { <div class="alert-success"><i class="fas fa-check-circle"></i> {{ newSuccess() }}</div> }
+        @if (newError())   { <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ newError() }}</div> }
+        <form [formGroup]="demandeForm" novalidate>
+          <div class="form-group">
+            <label class="form-label">Type de demande *</label>
+            <select class="form-control" formControlName="type_demande">
+              <option value="">Sélectionner...</option>
+              @for (t of typesDemande(); track t.id) {
+                <option [value]="t.id">{{ t.nom }} ({{ t.nb_niveaux }} niveau(x))</option>
+              }
+            </select>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Titre *</label>
+              <input type="text" class="form-control" formControlName="titre" placeholder="Résumé de la demande" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Priorité</label>
+              <select class="form-control" formControlName="priorite">
+                <option value="basse">Basse</option>
+                <option value="normale">Normale</option>
+                <option value="haute">Haute</option>
+                <option value="urgente">Urgente</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description *</label>
+            <textarea class="form-control" rows="3" formControlName="description" placeholder="Détails de la demande..."></textarea>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Date souhaitée</label>
+              <input type="date" class="form-control" formControlName="date_souhaitee" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Agence</label>
+              <select class="form-control" formControlName="agence">
+                <option value="">Sélectionner...</option>
+                @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
+              </select>
+            </div>
+          </div>
+          @if (showVehicule()) {
+            <div class="form-group">
+              <label class="form-label"><i class="fas fa-car"></i> Véhicule concerné (ID)</label>
+              <input type="text" class="form-control" formControlName="vehicule" placeholder="UUID du véhicule" />
+            </div>
+          }
+          @if (showMateriel()) {
+            <!-- Tableau multi-lignes pour les demandes d'achat -->
+            <div class="lignes-section">
+              <div class="lignes-header">
+                <div class="lignes-title">
+                  <i class="fas fa-list" style="color:var(--green-dark)"></i>
+                  Lignes de matériel
+                  <span class="lignes-count">{{ lignesAchat().length }} ligne(s)</span>
+                </div>
+                <button type="button" class="btn btn-green btn-sm" (click)="ajouterLigne()">
+                  <i class="fas fa-plus"></i> Ajouter une ligne
+                </button>
+              </div>
+
+              @if (lignesAchat().length === 0) {
+                <div class="lignes-empty">
+                  <i class="fas fa-inbox"></i>
+                  Aucune ligne — cliquez sur "Ajouter une ligne"
+                </div>
+              } @else {
+                <div class="lignes-table-wrapper">
+                  <table class="lignes-table">
+                    <thead>
+                      <tr>
+                        <th style="min-width:200px">Désignation *</th>
+                        <th style="width:80px">Qté *</th>
+                        <th style="width:90px">Unité</th>
+                        <th style="width:130px">Prix unit. (FCFA)</th>
+                        <th style="width:120px">Montant</th>
+                        <th style="width:150px">Fournisseur</th>
+                        <th style="width:36px"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (l of lignesAchat(); track $index; let i = $index) {
+                        <tr>
+                          <td>
+                            <input type="text" class="ligne-input"
+                                   placeholder="ex: Souris optique USB"
+                                   [value]="l.designation"
+                                   (input)="updateLigne(i,'designation',$event)" />
+                          </td>
+                          <td>
+                            <input type="number" class="ligne-input text-right"
+                                   min="0.01" step="0.01"
+                                   [value]="l.quantite"
+                                   (input)="updateLigne(i,'quantite',$event)" />
+                          </td>
+                          <td>
+                            <input type="text" class="ligne-input"
+                                   placeholder="unités"
+                                   [value]="l.unite"
+                                   (input)="updateLigne(i,'unite',$event)" />
+                          </td>
+                          <td>
+                            <input type="number" class="ligne-input text-right"
+                                   min="0" step="1"
+                                   [value]="l.prix_unitaire ?? ''"
+                                   placeholder="optionnel"
+                                   (input)="updateLigne(i,'prix_unitaire',$event)" />
+                          </td>
+                          <td style="text-align:right;font-size:12px;font-weight:600;color:var(--navy)">
+                            @if (l.prix_unitaire && l.quantite) {
+                              {{ (l.quantite * l.prix_unitaire) | number:'1.0-0' }} F
+                            } @else { — }
+                          </td>
+                          <td>
+                            <input type="text" class="ligne-input"
+                                   placeholder="optionnel"
+                                   [value]="l.fournisseur"
+                                   (input)="updateLigne(i,'fournisseur',$event)" />
+                          </td>
+                          <td>
+                            <button type="button" class="btn-remove-ligne"
+                                    title="Supprimer cette ligne"
+                                    (click)="supprimerLigne(i)">
+                              <i class="fas fa-times"></i>
+                            </button>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colspan="4" style="text-align:right;font-weight:700;color:var(--gray-600);font-size:12px;padding:8px 6px">
+                          TOTAL ESTIMÉ
+                        </td>
+                        <td style="text-align:right;font-weight:800;color:var(--navy);font-size:14px;padding:8px 6px">
+                          @if (totalAchat > 0) { {{ totalAchat | number:'1.0-0' }} FCFA }
+                          @else { — }
+                        </td>
+                        <td colspan="2"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              }
+            </div>
+          }
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button type="button" class="btn btn-outline" [disabled]="demandeForm.invalid||newLoading()" (click)="creerDemande(false)">
+              <i class="fas fa-save"></i> Brouillon
+            </button>
+            <button type="button" class="btn btn-green" [disabled]="demandeForm.invalid||newLoading()" (click)="creerDemande(true)">
+              @if (newLoading()) { <i class="fas fa-circle-notch fa-spin"></i> }
+              @else { <i class="fas fa-paper-plane"></i> }
+              Créer et soumettre
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  <!-- ══ TYPES / WORKFLOW ══ -->
+  @if (activeTab() === 'types') {
+
+    @if (typeSuccess()) { <div class="alert-success" style="margin-bottom:12px"><i class="fas fa-check-circle"></i> {{ typeSuccess() }}</div> }
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Types de demande</div>
+        <button class="btn btn-green btn-sm" (click)="ouvrirNouveauType()">
+          <i class="fas fa-plus"></i> Nouveau type
+        </button>
+      </div>
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead><tr><th>Type</th><th style="text-align:center">Niv.</th><th style="text-align:center">Délai</th><th>Statut</th><th></th></tr></thead>
+            <tbody>
+              @for (t of typesDemande(); track t.id) {
+                <tr>
+                  <td>
+                    <div style="font-weight:700">{{ t.nom }}</div>
+                    <div style="font-size:11px;color:var(--gray-400)">Formulaire : {{ t.code }}</div>
+                    @if (t.niveaux?.length > 0) {
+                      <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
+                        @for (n of t.niveaux; track n.id) {
+                          <span style="font-size:10px;background:var(--gray-100);padding:1px 6px;border-radius:8px;color:var(--gray-600)">
+                            Niv.{{ n.niveau }}: {{ n.libelle }}
+                            @if (n.role_nom) { <span style="color:var(--green-dark)"> ({{ n.role_nom }})</span> }
+                          </span>
+                        }
+                      </div>
+                    }
+                  </td>
+                  <td style="text-align:center;font-weight:700">{{ t.nb_niveaux }}</td>
+                  <td style="text-align:center">{{ t.delai_reponse_jours }}j</td>
+                  <td><span class="badge" [class]="t.actif ? 'badge-green' : 'badge-gray'">{{ t.actif ? 'Actif' : 'Inactif' }}</span></td>
+                  <td>
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn-icon" title="Modifier" (click)="editType(t)">
+                        <i class="fas fa-edit"></i>
+                      </button>
+                      <button class="btn btn-icon" title="Configurer les niveaux" (click)="ouvrirNiveaux(t)">
+                        <i class="fas fa-sitemap"></i>
+                      </button>
+                      <button class="btn btn-icon btn-danger-light" title="Désactiver / Supprimer"
+                              (click)="demanderSuppressionType(t)">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+    </div>
+  }
+
+</div>
+
+<!-- ══ MODALE : Détail demande ══ -->
+@if (demandeDetail(); as d) {
+  <div class="modal-backdrop" (click)="fermerDetail()">
+    <div class="modal-box modal-detail" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i [class]="typeIcon(d.type_code ?? '')" style="color:var(--green-dark)"></i>
+          {{ d.numero }} — {{ d.titre }}
+        </div>
+        <button class="modal-close" (click)="fermerDetail()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body detail-body">
+        @if (demandeDetailLoading()) {
+          <div style="text-align:center;padding:20px"><i class="fas fa-circle-notch fa-spin"></i></div>
+        } @else {
+          <!-- En-tête statut -->
+          <div class="detail-status-bar">
+            <span class="badge" [class]="prioriteClass(d.priorite)">{{ d.priorite_display }}</span>
+            <span class="badge" [class]="statutClass(d.statut)">{{ d.statut_display }}</span>
+            @if (d.statut === 'en_validation' || d.statut === 'approuvee') {
+              <div class="workflow-bar" style="flex:1;max-width:200px">
+                <div class="workflow-fill" [style.width.%]="d.progression_pct"></div>
+              </div>
+              <span style="font-size:12px;color:var(--gray-400)">
+                Niveau {{ d.niveau_actuel }}/{{ d.nb_niveaux_total }}
+              </span>
+            }
+          </div>
+
+          <!-- Infos générales -->
+          <div class="detail-section">
+            <div class="detail-grid-2">
+              <div class="detail-field"><label>Type</label><span>{{ d.type_nom }}</span></div>
+              <div class="detail-field"><label>Demandeur</label><span>{{ d.demandeur_nom }}</span></div>
+              <div class="detail-field"><label>Agence</label><span>{{ d.agence_nom || '—' }}</span></div>
+              <div class="detail-field"><label>Date souhaitée</label><span>{{ d.date_souhaitee ? (d.date_souhaitee | date:'dd/MM/yyyy') : '—' }}</span></div>
+              @if (d.vehicule_immat) {
+                <div class="detail-field"><label>Véhicule</label><span class="immat-badge">{{ d.vehicule_immat }}</span></div>
+              }
+              @if (d.montant_estime) {
+                <div class="detail-field"><label>Montant estimé</label><span style="font-weight:700;color:var(--navy)">{{ d.montant_estime | number:'1.0-0' }} FCFA</span></div>
+              }
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div class="detail-section">
+            <div class="detail-section-title">Description</div>
+            <p style="margin:0;font-size:13px;white-space:pre-wrap">{{ d.description }}</p>
+          </div>
+
+          <!-- Lignes achat -->
+          @if (d.lignes_achat?.length > 0) {
+            <div class="detail-section">
+              <div class="detail-section-title">
+                <i class="fas fa-list"></i> Lignes de matériel ({{ d.lignes_achat.length }})
+              </div>
+              <table class="lignes-table" style="margin-top:8px">
+                <thead>
+                  <tr>
+                    <th>Désignation</th><th>Qté</th><th>Unité</th>
+                    <th>Prix unit.</th><th>Montant</th><th>Fournisseur</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (l of d.lignes_achat; track l.id) {
+                    <tr>
+                      <td>{{ l.designation }}</td>
+                      <td style="text-align:right">{{ l.quantite }}</td>
+                      <td>{{ l.unite || '—' }}</td>
+                      <td style="text-align:right">{{ l.prix_unitaire ? (l.prix_unitaire | number:'1.0-0') + ' F' : '—' }}</td>
+                      <td style="text-align:right;font-weight:700">
+                        {{ l.montant_ligne ? (l.montant_ligne | number:'1.0-0') + ' F' : '—' }}
+                      </td>
+                      <td>{{ l.fournisseur || '—' }}</td>
+                    </tr>
+                  }
+                </tbody>
+                @if (d.total_achat) {
+                  <tfoot>
+                    <tr>
+                      <td colspan="4" style="text-align:right;font-weight:700;font-size:12px;padding:8px 6px">TOTAL</td>
+                      <td style="text-align:right;font-weight:800;color:var(--navy)">{{ d.total_achat | number:'1.0-0' }} F</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                }
+              </table>
+            </div>
+          }
+
+          <!-- Historique validations -->
+          @if (d.validations?.length > 0) {
+            <div class="detail-section">
+              <div class="detail-section-title"><i class="fas fa-history"></i> Historique des validations</div>
+              <div class="validations-list">
+                @for (v of d.validations; track v.id) {
+                  <div class="validation-item" [class]="'val-' + v.decision">
+                    <div class="val-niveau">Niveau {{ v.niveau }}</div>
+                    <div class="val-info">
+                      <span class="badge" [class]="v.decision==='approuve' ? 'badge-green' : v.decision==='rejete' ? 'badge-danger' : 'badge-gray'">
+                        {{ v.decision_display }}
+                      </span>
+                      @if (v.validateur_nom) { <span style="font-size:12px;margin-left:8px">{{ v.validateur_nom }}</span> }
+                      @if (v.date_decision) { <span style="font-size:11px;color:var(--gray-400);margin-left:8px">{{ v.date_decision | date:'dd/MM/yyyy HH:mm' }}</span> }
+                    </div>
+                    @if (v.commentaire) {
+                      <div style="font-size:12px;color:var(--gray-500);margin-top:4px;font-style:italic">
+                        "{{ v.commentaire }}"
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </div>
+}
+
+@if (showTypeModal()) {
+  <div class="modal-backdrop" (click)="cancelEditType()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-cogs" style="color:var(--green-dark)"></i>
+          {{ editTypeId() ? 'Modifier le type' : 'Nouveau type de demande' }}
+        </div>
+        <button class="modal-close" (click)="cancelEditType()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        @if (typeError()) {
+          <div class="alert-error" style="margin-bottom:12px">
+            <i class="fas fa-exclamation-triangle"></i> {{ typeError() }}
+          </div>
+        }
+        <form [formGroup]="typeForm" novalidate>
+          <div class="form-group">
+            <label class="form-label">Code</label>
+            <select class="form-control" formControlName="code">
+              <option value="vehicule">vehicule — Formulaire véhicule (champ véhicule + chauffeur)</option>
+              <option value="entretien">entretien — Formulaire entretien (champ véhicule)</option>
+              <option value="carburant">carburant — Formulaire carburant (champ véhicule)</option>
+              <option value="achat">achat — Formulaire achat (matériel, quantité, fournisseur, montant)</option>
+              <option value="autre">autre — Formulaire simple (titre + description)</option>
+            </select>
+            <div style="font-size:11px;color:var(--gray-400);margin-top:4px">
+              <i class="fas fa-info-circle"></i>
+              Plusieurs types peuvent partager le même code — ils auront le même formulaire mais des niveaux de validation différents.
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nom *</label>
+            <input type="text" class="form-control" formControlName="nom"
+                   placeholder="ex: Demande de véhicule mission" />
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Niveaux de validation (1-4)</label>
+              <input type="number" class="form-control" formControlName="nb_niveaux" min="1" max="4" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Délai de réponse (jours)</label>
+              <input type="number" class="form-control" formControlName="delai_reponse_jours" min="1" />
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" (click)="cancelEditType()">Annuler</button>
+        <button class="btn btn-green" [disabled]="typeForm.invalid" (click)="saveType()">
+          <i class="fas fa-save"></i> {{ editTypeId() ? 'Modifier' : 'Créer' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ POPUP : Supprimer niveau ══ -->
+@if (deleteNiveauConfirm(); as n) {
+  <div class="modal-backdrop modal-top" (click)="annulerSuppressionNiveau()">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-trash" style="color:var(--danger)"></i> Supprimer le niveau</div>
+      </div>
+      <p style="color:var(--gray-600);font-size:14px;margin-bottom:8px">
+        Voulez-vous supprimer le niveau <strong>{{ n.niveau }} — {{ n.libelle }}</strong> ?
+      </p>
+      <p style="color:var(--danger);font-size:12px;margin-bottom:24px">Cette action est irréversible.</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="annulerSuppressionNiveau()">Annuler</button>
+        <button class="btn btn-danger" [disabled]="deleteNiveauLoading()" (click)="confirmerSuppressionNiveau()">
+          @if (deleteNiveauLoading()) { <i class="fas fa-circle-notch fa-spin"></i> }
+          @else { <i class="fas fa-trash"></i> }
+          Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ POPUP : Supprimer type ══ -->
+@if (deleteTypeConfirm(); as t) {
+  <div class="modal-backdrop" (click)="annulerSuppressionType()">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-trash" style="color:var(--danger)"></i> Désactiver le type</div>
+      </div>
+      <p style="color:var(--gray-600);font-size:14px;margin-bottom:8px">
+        Voulez-vous désactiver le type <strong>{{ t.nom }}</strong> ?
+      </p>
+      <p style="color:var(--gray-500);font-size:12px;margin-bottom:24px">
+        Le type sera marqué inactif. Les demandes existantes ne seront pas affectées.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="annulerSuppressionType()">Annuler</button>
+        <button class="btn btn-danger" [disabled]="deleteTypeLoading()" (click)="confirmerSuppressionType()">
+          @if (deleteTypeLoading()) { <i class="fas fa-circle-notch fa-spin"></i> }
+          @else { <i class="fas fa-ban"></i> }
+          Désactiver
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ POPUP : Annuler demande ══ -->
+@if (annulerConfirm()) {
+  <div class="modal-backdrop" (click)="annulerConfirmCancel()">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-times-circle" style="color:var(--danger)"></i> Annuler la demande</div>
+      </div>
+      <p style="color:var(--gray-600);font-size:14px;margin-bottom:8px">
+        Voulez-vous annuler cette demande ?
+      </p>
+      <p style="color:var(--danger);font-size:12px;margin-bottom:24px">
+        La demande sera clôturée définitivement et ne pourra pas être rouverte.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="annulerConfirmCancel()">Non, conserver</button>
+        <button class="btn btn-danger" [disabled]="annulerLoading()" (click)="confirmerAnnulation()">
+          @if (annulerLoading()) { <i class="fas fa-circle-notch fa-spin"></i> }
+          @else { <i class="fas fa-times"></i> }
+          Oui, annuler
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ MODALE : Niveaux de validation ══ -->
+@if (editingTypeForNiveaux(); as t) {
+  <div class="modal-backdrop" (click)="fermerNiveaux()">
+    <div class="modal-box modal-lg" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-sitemap" style="color:var(--green-dark)"></i>
+          Niveaux de validation — {{ t.nom }}
+        </div>
+        <button class="modal-close" (click)="fermerNiveaux()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px">
+          Ce type a <strong>{{ t.nb_niveaux }} niveau(x)</strong> de validation.
+          Configurez ici qui peut valider à chaque étape.
+        </p>
+        @if (niveauxLoading()) {
+          <div style="text-align:center;padding:20px;color:var(--gray-400)"><i class="fas fa-circle-notch fa-spin"></i></div>
+        } @else if (niveauxActifs().length === 0) {
+          <div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px">
+            <i class="fas fa-exclamation-circle"></i> Aucun niveau configuré
+          </div>
+        } @else {
+          <div class="niveaux-list">
+            @for (n of niveauxActifs(); track n.id) {
+              <div class="niveau-row">
+                <div class="niveau-badge">Niv. {{ n.niveau }}</div>
+                <div class="niveau-info">
+                  <div class="niveau-libelle">{{ n.libelle }}</div>
+                  @if (n.role_nom) {
+                    <div class="niveau-role"><i class="fas fa-user-shield"></i> {{ n.role_nom }}</div>
+                  } @else {
+                    <div class="niveau-role no-role"><i class="fas fa-exclamation-triangle"></i> Aucun rôle requis</div>
+                  }
+                </div>
+                <button class="btn btn-icon btn-icon-sm btn-danger-light"
+                        title="Supprimer ce niveau"
+                        (click)="demanderSuppressionNiveau(n)">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            }
+          </div>
+        }
+        <div class="add-niveau-section">
+          <div class="add-niveau-title">
+            <i class="fas fa-plus-circle" style="color:var(--green-dark)"></i> Ajouter un niveau
+          </div>
+          <form [formGroup]="niveauForm" novalidate>
+            <div class="add-niveau-grid">
+              <div class="form-group">
+                <label class="form-label">N° niveau</label>
+                <input type="number" class="form-control" min="1" max="4" formControlName="niveau" />
+              </div>
+              <div class="form-group" style="flex:2">
+                <label class="form-label">Libellé *</label>
+                <input type="text" class="form-control"
+                       placeholder="ex: Chef de service, Responsable flotte..."
+                       formControlName="libelle" />
+              </div>
+              <div class="form-group" style="flex:2">
+                <label class="form-label">Rôle minimum requis</label>
+                <select class="form-control" formControlName="role_min">
+                  <option value="">Aucun (tout le monde peut valider)</option>
+                  @for (r of roles(); track r.id) {
+                    <option [value]="r.id">{{ r.nom }} (niveau {{ r.niveau }})</option>
+                  }
+                </select>
+              </div>
+            </div>
+            <button type="button" class="btn btn-green btn-sm"
+                    [disabled]="niveauForm.invalid || niveauxActifs().length >= (editingTypeForNiveaux()?.nb_niveaux ?? 4)"
+                    (click)="saveNiveau()">
+              <i class="fas fa-plus"></i> Ajouter ce niveau
+            </button>
+            @if (niveauxActifs().length >= (editingTypeForNiveaux()?.nb_niveaux ?? 4)) {
+              <p style="color:var(--warning);font-size:12px;margin-top:6px">
+                <i class="fas fa-lock"></i>
+                Limite atteinte ({{ editingTypeForNiveaux()?.nb_niveaux }} niveau(x)).
+                Modifiez le type pour augmenter ce nombre.
+              </p>
+            }
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ MODALE : Validation demande ══ -->
+@if (validationModal(); as d) {
+  <div class="modal-backdrop" (click)="fermerValidation()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i [class]="valRejet() ? 'fas fa-times-circle' : 'fas fa-check-circle'"
+             [style.color]="valRejet() ? 'var(--danger)' : 'var(--green-dark)'"></i>
+          {{ valRejet() ? 'Rejeter' : 'Approuver' }} — {{ d.numero }}
+        </div>
+        <button class="modal-close" (click)="fermerValidation()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="demande-recap">
+          <strong>{{ d.titre }}</strong>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:4px">
+            {{ d.type_nom }} — Niveau {{ d.niveau_actuel }}/{{ d.nb_niveaux_total }}
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:16px">
+          <label class="form-label">
+            {{ valRejet() ? 'Motif de rejet *' : 'Commentaire (optionnel)' }}
+          </label>
+          <textarea class="form-control" rows="3" (input)="onValCommentaire($event)"
+                    [placeholder]="valRejet() ? 'Précisez le motif du rejet...' : 'Ajouter un commentaire...'">
+          </textarea>
+        </div>
+        @if (valRejet() && !valCommentaire().trim()) {
+          <p style="color:var(--danger);font-size:12px;margin-top:4px">
+            <i class="fas fa-exclamation-triangle"></i> Le motif de rejet est obligatoire.
+          </p>
+        }
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" (click)="fermerValidation()">Annuler</button>
+        <button [class]="valRejet() ? 'btn btn-danger' : 'btn btn-green'"
+                [disabled]="valLoading() || (valRejet() && !valCommentaire().trim())"
+                (click)="confirmerValidation()">
+          @if (valLoading()) { <i class="fas fa-circle-notch fa-spin"></i> }
+          {{ valRejet() ? 'Confirmer le rejet' : "Confirmer l'approbation" }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,421 @@
+<!-- UbiFleet — Véhicule Formulaire (Angular 18) -->
+<div class="form-page">
+
+  <!-- ── BREADCRUMB ── -->
+  <div class="breadcrumb">
+    <a routerLink="/vehicules" class="bc-link">
+      <i class="fas fa-car"></i> Véhicules
+    </a>
+    <i class="fas fa-chevron-right bc-sep"></i>
+    <span class="bc-current">
+      {{ isEditMode() ? 'Modifier le véhicule' : 'Nouveau véhicule' }}
+    </span>
+  </div>
+
+  <!-- ── EN-TÊTE ── -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        {{ isEditMode() ? 'Modifier le véhicule' : 'Nouveau véhicule' }}
+      </h1>
+      <p class="page-subtitle">
+        {{ isEditMode() ? 'Mettez à jour les informations du véhicule' : 'Enregistrer un nouveau véhicule dans le parc' }}
+      </p>
+    </div>
+    <button class="btn btn-outline btn-sm" (click)="cancel()">
+      <i class="fas fa-times"></i> Annuler
+    </button>
+  </div>
+
+  <!-- ── CHARGEMENT (mode édition) ── -->
+  @if (loading()) {
+    <div class="form-loading">
+      <i class="fas fa-circle-notch fa-spin"></i>
+      <span>Chargement des données...</span>
+    </div>
+  }
+
+  @if (!loading()) {
+
+    <!-- ── ALERTES ── -->
+    @if (error()) {
+      <div class="alert alert-error">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    @if (success()) {
+      <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i>
+        <span>{{ success() }}</span>
+      </div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <div class="form-sections">
+
+        <!-- ══ SECTION 1 : Identification ══ -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-id-card"></i></div>
+            <div>
+              <div class="section-title">Identification</div>
+              <div class="section-sub">Informations d'identité du véhicule</div>
+            </div>
+          </div>
+
+          <div class="section-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Immatriculation *</label>
+                <input
+                  formControlName="immatriculation"
+                  class="form-control"
+                  [class.is-invalid]="f['immatriculation'].invalid && f['immatriculation'].touched"
+                  placeholder="ex: CI-4521-AB"
+                  style="text-transform:uppercase"
+                />
+                @if (f['immatriculation'].invalid && f['immatriculation'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i>
+                    @if (f['immatriculation'].errors?.['required']) {
+                      L'immatriculation est requise.
+                    } @else if (f['immatriculation'].errors?.['maxlength']) {
+                      Maximum 20 caractères.
+                    }
+                  </div>
+                }
+                <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+                  <input type="checkbox" id="prov-check"
+                         formControlName="est_immatriculation_provisoire"
+                         style="width:16px;height:16px;cursor:pointer" />
+                  <label for="prov-check"
+                         style="font-size:12px;color:var(--gray-500);cursor:pointer;margin:0">
+                    Immatriculation provisoire (sera remplacée ultérieurement)
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">N° Châssis (VIN)</label>
+                <input
+                  formControlName="numero_chassis"
+                  class="form-control"
+                  placeholder="17 caractères"
+                />
+              </div>
+            </div>
+
+            <div class="form-row-3">
+              <div class="form-group">
+                <label class="form-label">Marque *</label>
+                <select
+                  formControlName="marque"
+                  class="form-control"
+                  [class.is-invalid]="f['marque'].invalid && f['marque'].touched"
+                >
+                  <option [ngValue]="null">— Sélectionner une marque —</option>
+                  @for (m of marques(); track m.id) {
+                    <option [ngValue]="m.id">{{ m.libelle }}</option>
+                  }
+                </select>
+                @if (f['marque'].invalid && f['marque'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> La marque est requise.
+                  </div>
+                }
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Modèle *</label>
+                <select
+                  formControlName="modele"
+                  class="form-control"
+                  [class.is-invalid]="f['modele'].invalid && f['modele'].touched"
+                >
+                  <option [ngValue]="null">
+                    {{ form.value.marque ? '— Sélectionner un modèle —' : '— Choisir d\'abord une marque —' }}
+                  </option>
+                  @for (m of modelesFiltres(); track m.id) {
+                    <option [ngValue]="m.id">{{ m.libelle }}</option>
+                  }
+                </select>
+                @if (f['modele'].invalid && f['modele'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Le modèle est requis.
+                  </div>
+                }
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Année *</label>
+                <select
+                  formControlName="annee"
+                  class="form-control"
+                  [class.is-invalid]="f['annee'].invalid && f['annee'].touched"
+                >
+                  @for (a of anneesDisponibles; track a) {
+                    <option [value]="a">{{ a }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Couleur</label>
+                <input formControlName="couleur" class="form-control" placeholder="Blanc, Gris..."/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Nombre de places</label>
+                <input
+                  type="number"
+                  formControlName="nombre_places"
+                  class="form-control"
+                  min="1"
+                  max="100"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ SECTION 2 : Classification ══ -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-tags"></i></div>
+            <div>
+              <div class="section-title">Classification</div>
+              <div class="section-sub">Type de véhicule et carburant</div>
+            </div>
+          </div>
+
+          <div class="section-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Type de véhicule *</label>
+                <select formControlName="type_vehicule" class="form-control">
+                  @for (t of typesVehicule; track t.value) {
+                    <option [value]="t.value">{{ t.label }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Carburant *</label>
+                <select formControlName="type_carburant" class="form-control">
+                  @for (c of typesCarburant; track c.value) {
+                    <option [value]="c.value">{{ c.label }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ SECTION 3 : Affectation ══ -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-map-marker-alt"></i></div>
+            <div>
+              <div class="section-title">Affectation</div>
+              <div class="section-sub">Agence, usage et chauffeur</div>
+            </div>
+          </div>
+
+          <div class="section-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Agence *</label>
+                <select
+                  formControlName="agence"
+                  class="form-control"
+                  [class.is-invalid]="f['agence'].invalid && f['agence'].touched"
+                >
+                  <option value="">-- Sélectionner une agence --</option>
+                  @for (a of agences(); track a.id) {
+                    <option [value]="a.id">{{ a.nom }}</option>
+                  }
+                </select>
+                @if (f['agence'].invalid && f['agence'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> L'agence est requise.
+                  </div>
+                }
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Statut</label>
+                <select formControlName="statut" class="form-control">
+                  <option [value]="null">-- Sélectionner --</option>
+                  @for (s of statutsVehicule(); track s.id) {
+                    <option [value]="s.id">{{ s.libelle }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Affectation / Usage</label>
+                <select formControlName="affectation" class="form-control">
+                  <option [value]="null">-- Sélectionner --</option>
+                  @for (a of affectationsUsage(); track a.id) {
+                    <option [value]="a.id">{{ a.libelle }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Chauffeur attitré</label>
+                <select formControlName="chauffeur_attitré" class="form-control">
+                  <option [value]="null">-- Aucun --</option>
+                  @for (c of chauffeurs(); track c.id) {
+                    <option [value]="c.id">{{ c.nom_complet }} ({{ c.matricule }})</option>
+                  }
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ SECTION 4 : Technique ══ -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-tachometer-alt"></i></div>
+            <div>
+              <div class="section-title">Données techniques</div>
+              <div class="section-sub">Kilométrage et dotation carburant</div>
+            </div>
+          </div>
+
+          <div class="section-body">
+            <div class="form-row-3">
+              <div class="form-group">
+                <label class="form-label">Kilométrage actuel (km)</label>
+                <input
+                  type="number"
+                  formControlName="kilometrage_actuel"
+                  class="form-control"
+                  min="0"
+                  placeholder="0"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Consommation théorique (L/100km)</label>
+                <input
+                  type="number"
+                  formControlName="conso_theorique_origine"
+                  class="form-control"
+                  min="0"
+                  step="0.1"
+                  placeholder="ex: 12.5"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Prochain entretien (km)</label>
+                <input
+                  type="number"
+                  formControlName="kilometrage_revision"
+                  class="form-control"
+                  min="0"
+                  placeholder="0 = non défini"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Dotation carburant (L/mois)</label>
+                <input
+                  type="number"
+                  formControlName="dotation_carburant_mensuelle"
+                  class="form-control"
+                  min="0"
+                  step="0.5"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ SECTION 5 : Dates & Financier ══ -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-calendar-alt"></i></div>
+            <div>
+              <div class="section-title">Dates & Financier</div>
+              <div class="section-sub">Acquisition et mise en service</div>
+            </div>
+          </div>
+
+          <div class="section-body">
+            <div class="form-row-3">
+              <div class="form-group">
+                <label class="form-label">Date de mise en service</label>
+                <input type="date" formControlName="date_mise_en_service" class="form-control"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Date d'acquisition</label>
+                <input type="date" formControlName="date_acquisition" class="form-control"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Valeur d'acquisition (FCFA)</label>
+                <input
+                  type="number"
+                  formControlName="valeur_acquisition"
+                  class="form-control"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ SECTION 6 : Notes ══ -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-sticky-note"></i></div>
+            <div>
+              <div class="section-title">Notes</div>
+              <div class="section-sub">Informations complémentaires</div>
+            </div>
+          </div>
+
+          <div class="section-body">
+            <div class="form-group">
+              <textarea
+                formControlName="notes"
+                class="form-control"
+                rows="3"
+                placeholder="Observations, historique, particularités..."
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /.form-sections -->
+
+      <!-- ── BOUTONS D'ACTION ── -->
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" (click)="cancel()">
+          <i class="fas fa-times"></i> Annuler
+        </button>
+        <button
+          type="submit"
+          class="btn btn-green"
+          [disabled]="form.invalid || saving()"
+        >
+          @if (saving()) {
+            <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
+          } @else if (isEditMode()) {
+            <i class="fas fa-save"></i> Enregistrer les modifications
+          } @else {
+            <i class="fas fa-plus"></i> Créer le véhicule
+          }
+        </button>
+      </div>
+
+    </form>
+  }
+
+</div>

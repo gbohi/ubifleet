@@ -1,0 +1,547 @@
+// UbiFleet — Vehicule Detail Styles
+.detail-page { animation: fadeInUp var(--transition-base) ease; }
+
+.detail-loading {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; padding: 64px; color: var(--gray-500);
+  i { font-size: 24px; color: var(--green-dark); }
+}
+
+.error-state {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 64px; gap: 12px; color: var(--danger); text-align: center;
+  i { font-size: 40px; }
+}
+
+// ── Breadcrumb ──
+.breadcrumb {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--gray-400); margin-bottom: 18px;
+}
+.bc-link {
+  color: var(--green-dark); text-decoration: none; font-weight: 500;
+  display: flex; align-items: center; gap: 5px;
+  &:hover { color: var(--navy); }
+}
+.bc-sep  { font-size: 10px; color: var(--gray-300); }
+.bc-current { color: var(--navy); font-weight: 600; }
+
+// ── Vehicle Header ──
+.vehicle-header {
+  background: var(--white);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+  border-top: 4px solid var(--navy);
+  flex-wrap: wrap;
+}
+
+.vh-left { flex: 1; }
+
+.vh-plate-block {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+
+.vh-plate {
+  background: var(--navy);
+  color: var(--white);
+  font-size: 18px;
+  font-weight: 700;
+  padding: 6px 16px;
+  border-radius: 8px;
+  letter-spacing: 1.5px;
+  border-bottom: 4px solid var(--green);
+}
+
+.vh-title {
+  font-size: 22px; font-weight: 700;
+  color: var(--navy); font-family: var(--font-display);
+  margin-bottom: 4px;
+}
+
+.vh-sub { font-size: 13px; color: var(--gray-400); }
+
+.vh-right {
+  display: flex; flex-direction: column;
+  align-items: flex-end; gap: 12px;
+}
+
+.vh-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.badge-lg { padding: 6px 14px; font-size: 13px; }
+
+// ── KPI Row ──
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.kpi-mini {
+  background: var(--white);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+}
+
+.kpi-mini-icon {
+  width: 40px; height: 40px;
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+  &.green   { background: var(--green-alpha); color: var(--green-dark); }
+  &.navy    { background: var(--navy-alpha);  color: var(--navy); }
+  &.warning { background: var(--warning-light); color: var(--warning); }
+  &.danger  { background: var(--danger-light);  color: var(--danger); }
+}
+
+.kpi-mini-val {
+  font-size: 15px; font-weight: 700; color: var(--navy);
+  line-height: 1.2;
+}
+.kpi-mini-lbl {
+  font-size: 11px; color: var(--gray-400);
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+
+.kpi-badge {
+  position: absolute; top: 8px; right: 10px;
+  font-size: 10px; padding: 2px 7px;
+}
+
+// ── Tabs ──
+.tab i { margin-right: 5px; font-size: 12px; }
+.tab-count {
+  background: var(--navy); color: var(--white);
+  font-size: 10px; font-weight: 600;
+  padding: 1px 6px; border-radius: 10px;
+  margin-left: 4px;
+}
+
+// ── Tab Content ──
+.tab-content { animation: fadeInUp 0.2s ease; }
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+
+  @media (max-width: 768px) { grid-template-columns: 1fr; }
+}
+
+.info-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+
+  tr { border-bottom: 1px solid var(--gray-50); }
+  tr:last-child { border-bottom: none; }
+}
+
+.info-label {
+  padding: 9px 0;
+  color: var(--gray-500);
+  width: 45%;
+  font-weight: 500;
+}
+
+.info-value {
+  padding: 9px 0;
+  color: var(--navy);
+  font-weight: 400;
+}
+
+// ── Placeholder tabs ──
+.placeholder-tab {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 64px 20px; text-align: center; gap: 12px;
+
+  i    { font-size: 48px; color: var(--gray-200); }
+  h3   { font-size: 18px; color: var(--gray-600); font-weight: 600; margin: 0; }
+  p    { font-size: 14px; color: var(--gray-400); margin: 0; }
+}
+
+// ── Documents ──
+.docs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.doc-card {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--white);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  transition: border-color var(--transition-fast);
+
+  &:hover { border-color: var(--green); }
+  &.expired { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.02); }
+}
+
+.doc-icon {
+  width: 40px; height: 40px;
+  background: var(--navy-alpha);
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--navy); flex-shrink: 0;
+}
+
+.doc-info { flex: 1; min-width: 0; }
+.doc-type { font-size: 13px; font-weight: 600; color: var(--navy); }
+.doc-num  { font-size: 12px; color: var(--gray-400); }
+.doc-exp  {
+  font-size: 11px; color: var(--gray-400);
+  display: flex; align-items: center; gap: 5px; margin-top: 3px;
+  &.expired { color: var(--danger); }
+}
+
+// ── Modal KM ──
+.km-current {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px;
+  background: var(--gray-50);
+  border-radius: var(--radius-md);
+  font-size: 13px; color: var(--gray-600);
+  i { color: var(--navy); }
+  strong { color: var(--navy); }
+}
+
+// ── Upload document ──
+.file-input-wrapper { position: relative; }
+
+.file-input {
+  position: absolute; width: 0; height: 0; overflow: hidden; opacity: 0;
+}
+
+.file-label {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border: 2px dashed var(--gray-300);
+  border-radius: var(--radius-md); cursor: pointer;
+  font-size: 13px; color: var(--gray-500);
+  transition: all var(--transition-fast);
+  &:hover { border-color: var(--green-dark); color: var(--navy); }
+  i { font-size: 18px; color: var(--green-dark); }
+}
+
+// ── Tabs header row ──
+.tab-header-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+}
+.tab-count-info { font-size: 13px; color: var(--gray-400); margin: 0; }
+
+// ── Tab loading ──
+.tab-loading {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 48px; color: var(--gray-500); font-size: 14px;
+  i { color: var(--green-dark); }
+}
+
+// ── Sub text in table ──
+.td-sub { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+
+// ── See more hint ──
+.see-more-hint {
+  text-align: center; font-size: 12px; color: var(--gray-400); margin-top: 12px;
+  a { color: var(--green-dark); text-decoration: none; font-weight: 500;
+      &:hover { color: var(--navy); } }
+}
+
+// ── Alert inline ──
+.alert-inline-success {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--green-alpha); border-left: 4px solid var(--green-dark);
+  padding: 10px 14px; border-radius: var(--radius-md); margin-bottom: 12px;
+  font-size: 13px; color: var(--green-dark);
+}
+.alert-error-inline {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--danger-light); border-left: 4px solid var(--danger);
+  padding: 10px 14px; border-radius: var(--radius-md); margin-bottom: 12px;
+  font-size: 13px; color: var(--danger);
+}
+
+// ── Doc card actions ──
+.doc-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.doc-card    { align-items: flex-start; }
+.btn-icon-danger:hover {
+  background: var(--danger-light) !important;
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+
+// ── Modal sm ──
+.modal-sm { max-width: 420px; width: 100%; }
+
+// ── Contrat cards ──
+.contrat-card {
+  background: var(--white);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  transition: border-color var(--transition-fast);
+  &:hover { border-color: var(--green); }
+  &.expired { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.02); }
+}
+
+.contrat-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+}
+
+.contrat-icon {
+  width: 38px; height: 38px; border-radius: var(--radius-md);
+  background: var(--navy-alpha); color: var(--navy);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+
+.contrat-info { flex: 1; }
+.contrat-type   { font-size: 13px; font-weight: 600; color: var(--navy); }
+.contrat-police { font-size: 11px; color: var(--gray-400); }
+
+.contrat-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+  tr { border-bottom: 1px solid var(--gray-50); }
+  tr:last-child { border-bottom: none; }
+}
+.ct-label { padding: 5px 0; color: var(--gray-500); width: 40%; font-weight: 500; }
+.ct-val   { padding: 5px 0; color: var(--navy); }
+
+// ── Immatriculation provisoire ──
+.vh-old-immat {
+  font-size: 11px; color: var(--gray-400); margin-top: 4px;
+  display: flex; align-items: center; gap: 4px;
+  strong { color: var(--gray-500); }
+}
+
+.btn-warning {
+  background: var(--warning); color: var(--white); border-color: var(--warning);
+  &:hover { background: #d97706; border-color: #d97706; }
+}
+
+// ── Modal immatriculation ──
+.immat-current {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px; background: var(--gray-50);
+  border-radius: var(--radius-md); font-size: 13px; color: var(--gray-600);
+  i { color: var(--navy); }
+  strong { font-size: 16px; color: var(--navy); letter-spacing: 1px; }
+}
+
+.immat-historique {
+  margin-top: 20px; padding-top: 16px;
+  border-top: 1px solid var(--gray-100);
+}
+.immat-hist-title {
+  font-size: 13px; font-weight: 600; color: var(--navy);
+  display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+  i { color: var(--gray-400); }
+}
+
+
+// ── Modal Relevé Kilométrique ─────────────────────────────────────────
+.modal-releve { max-width: 600px; }
+
+.km-context-bar {
+  display: flex; gap: 16px; padding: 12px 16px;
+  background: linear-gradient(135deg, var(--navy), #1a3a5c);
+  border-radius: var(--radius-lg); margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.km-ctx-item {
+  display: flex; flex-direction: column; gap: 2px;
+  .km-ctx-label { font-size: 11px; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: .5px; }
+  .km-ctx-val   { font-size: 15px; font-weight: 700; color: white; }
+  .km-ctx-km    { color: var(--green-dark); font-size: 17px;
+    i { margin-right: 6px; } }
+}
+
+.releve-form { display: flex; flex-direction: column; gap: 14px; }
+
+// Sélecteur type mouvement en grille
+.type-mouvement-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  @media (max-width: 480px) { grid-template-columns: repeat(2, 1fr); }
+}
+
+.type-option {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 12px 8px;
+  border: 2px solid var(--gray-200); border-radius: var(--radius-lg);
+  cursor: pointer; font-size: 12px; font-weight: 500;
+  color: var(--gray-600); text-align: center;
+  transition: all var(--transition-fast);
+
+  input[type=radio] { display: none; }
+  i { font-size: 18px; color: var(--gray-400); }
+
+  &:hover {
+    border-color: var(--navy);
+    color: var(--navy);
+    background: var(--gray-50);
+    i { color: var(--navy); }
+  }
+
+  &.selected {
+    border-color: var(--green-dark);
+    background: rgba(91,217,136,.08);
+    color: var(--green-dark);
+    i { color: var(--green-dark); }
+  }
+}
+
+.form-control-lg {
+  height: 44px; font-size: 15px; font-weight: 600;
+}
+
+.modal-footer-actions {
+  display: flex; gap: 8px; justify-content: flex-end;
+  padding-top: 8px; border-top: 1px solid var(--gray-100); margin-top: 4px;
+}
+
+// ══ FICHE PDF PRINT ════════════════════════════════════════════════
+@media print {
+  // Masquer tout sauf la fiche
+  .no-print,
+  .breadcrumb,
+  .vh-actions,
+  .tab-nav,
+  .tab-section,
+  .kpi-row { display: none !important; }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm 12mm 15mm;
+    @bottom-right {
+      content: "Page " counter(page) " / " counter(pages);
+      font-size: 9px; color: #888;
+    }
+  }
+
+  body { font-size: 11px !important; }
+  .detail-page { padding: 0 !important; }
+
+  // En-tête fiche
+  .vehicle-header {
+    border: 2px solid #1a2e4a !important;
+    border-radius: 8px !important;
+    padding: 14px 18px !important;
+    margin-bottom: 12px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: #f8fafc !important;
+  }
+
+  .vh-plate {
+    font-size: 22px !important;
+    font-weight: 800 !important;
+    letter-spacing: 2px !important;
+    color: #1a2e4a !important;
+    font-family: monospace !important;
+    border: 2px solid #1a2e4a !important;
+    padding: 4px 12px !important;
+    border-radius: 6px !important;
+    display: inline-block !important;
+  }
+
+  .vh-title {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #1a2e4a !important;
+    margin-top: 6px !important;
+  }
+
+  .vh-sub {
+    font-size: 11px !important;
+    color: #666 !important;
+    margin-top: 2px !important;
+  }
+
+  .agency-pill {
+    font-size: 10px !important;
+    background: #1a2e4a !important;
+    color: white !important;
+    padding: 2px 8px !important;
+    border-radius: 10px !important;
+    margin-top: 4px !important;
+    display: inline-block !important;
+  }
+
+  // KPI compact pour l'impression
+  .kpi-row {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .kpi-card {
+    padding: 8px !important;
+    border: 1px solid #ddd !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    break-inside: avoid !important;
+  }
+
+  .kpi-val   { font-size: 16px !important; }
+  .kpi-label { font-size: 9px !important; }
+
+  // Sections infos
+  .info-section, .card {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+    break-inside: avoid !important;
+    margin-bottom: 8px !important;
+  }
+
+  .section-grid-2, .info-grid-2 {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .badge { border: 1px solid currentColor !important; font-size: 9px !important; }
+  .badge-green  { color: #16a34a !important; background: #f0fdf4 !important; }
+  .badge-danger { color: #dc2626 !important; background: #fef2f2 !important; }
+  .badge-warning{ color: #d97706 !important; background: #fffbeb !important; }
+  .badge-gray   { color: #6b7280 !important; background: #f9fafb !important; }
+}
+
+// ── Bouton close modale ───────────────────────────────────────────
+.modal-close,
+.btn-close-modal {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  border: none !important;
+  background: var(--gray-100) !important;
+  color: var(--gray-500) !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  padding: 0 !important;
+  transition: background 0.2s, color 0.2s !important;
+
+  &:hover {
+    background: var(--danger) !important;
+    color: white !important;
+  }
+}

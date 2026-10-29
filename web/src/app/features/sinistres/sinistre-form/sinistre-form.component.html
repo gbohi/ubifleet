@@ -1,0 +1,201 @@
+<!-- UbiFleet — Déclaration Sinistre (Angular 18) -->
+<div class="form-page">
+
+  <div class="breadcrumb">
+    <a routerLink="/sinistres" class="bc-link">
+      <i class="fas fa-car-crash"></i> Sinistres
+    </a>
+    <i class="fas fa-chevron-right bc-sep"></i>
+    <span class="bc-current">{{ isEditMode() ? 'Modifier' : 'Déclarer un sinistre' }}</span>
+  </div>
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        {{ isEditMode() ? 'Modifier le sinistre' : 'Déclarer un sinistre' }}
+      </h1>
+      <p class="page-subtitle">Enregistrer un sinistre dans le système</p>
+    </div>
+    <button class="btn btn-outline btn-sm" (click)="cancel()">
+      <i class="fas fa-times"></i> Annuler
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="form-loading">
+      <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+    </div>
+  }
+
+  @if (!loading()) {
+    @if (error()) {
+      <div class="alert alert-error">
+        <i class="fas fa-exclamation-triangle"></i> {{ error() }}
+      </div>
+    }
+    @if (success()) {
+      <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i> {{ success() }}
+      </div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <div class="form-sections">
+
+        <!-- Section Véhicule -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-car"></i></div>
+            <div>
+              <div class="section-title">Véhicule concerné</div>
+              <div class="section-sub">Véhicule et chauffeur impliqués dans le sinistre</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Véhicule *</label>
+                <select formControlName="vehicule" class="form-control"
+                        [class.is-invalid]="f['vehicule'].invalid && f['vehicule'].touched"
+                        (change)="onVehiculeChange($event)">
+                  <option value="">-- Sélectionner un véhicule --</option>
+                  @for (v of vehicules(); track v.id) {
+                    <option [value]="v.id">
+                      {{ v.immatriculation }} — {{ v.designation }}
+                    </option>
+                  }
+                </select>
+                @if (f['vehicule'].invalid && f['vehicule'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Le véhicule est requis.
+                  </div>
+                }
+              </div>
+              <div class="form-group">
+                <label class="form-label">Chauffeur</label>
+                <select formControlName="chauffeur" class="form-control">
+                  <option [value]="null">-- Aucun / Non précisé --</option>
+                  @for (c of chauffeurs(); track c.id) {
+                    <option [value]="c.id">{{ c.nom_complet }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Agence</label>
+              <select formControlName="agence" class="form-control">
+                <option value="">-- Déduite automatiquement du véhicule --</option>
+                @for (a of agences(); track a.id) {
+                  <option [value]="a.id">{{ a.nom }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Sinistre -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-car-crash"></i></div>
+            <div>
+              <div class="section-title">Détails du sinistre</div>
+              <div class="section-sub">Nature, date et circonstances</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Type de sinistre *</label>
+                <select formControlName="type_sinistre" class="form-control">
+                  @for (t of typesSinistre; track t.value) {
+                    <option [value]="t.value">{{ t.label }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Date du sinistre *</label>
+                <input type="date" formControlName="date_sinistre" class="form-control"
+                       [class.is-invalid]="f['date_sinistre'].invalid && f['date_sinistre'].touched" />
+                @if (f['date_sinistre'].invalid && f['date_sinistre'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> La date est requise.
+                  </div>
+                }
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Lieu du sinistre</label>
+              <input formControlName="lieu" class="form-control"
+                     placeholder="Localisation précise de l'incident" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description *</label>
+              <textarea formControlName="description" class="form-control"
+                        rows="4"
+                        [class.is-invalid]="f['description'].invalid && f['description'].touched"
+                        placeholder="Décrire les circonstances du sinistre..."></textarea>
+              @if (f['description'].invalid && f['description'].touched) {
+                <div class="form-error">
+                  <i class="fas fa-times-circle"></i> La description est requise.
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Financier -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-coins"></i></div>
+            <div>
+              <div class="section-title">Évaluation financière</div>
+              <div class="section-sub">Dommages, coûts et indemnisation</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-row-3">
+              <div class="form-group">
+                <label class="form-label">Dommages estimés (FCFA) *</label>
+                <input type="number" formControlName="dommages_estimes" class="form-control"
+                       [class.is-invalid]="f['dommages_estimes'].invalid && f['dommages_estimes'].touched"
+                       min="0" placeholder="0" />
+                @if (f['dommages_estimes'].invalid && f['dommages_estimes'].touched) {
+                  <div class="form-error">
+                    <i class="fas fa-times-circle"></i> Champ requis.
+                  </div>
+                }
+              </div>
+              <div class="form-group">
+                <label class="form-label">Coût réparation (FCFA)</label>
+                <input type="number" formControlName="cout_reparation" class="form-control"
+                       min="0" placeholder="0 — à renseigner après réparation" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Indemnisation reçue (FCFA)</label>
+                <input type="number" formControlName="indemnisation_recue" class="form-control"
+                       min="0" placeholder="0 — à renseigner après indemnisation" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" (click)="cancel()">
+          <i class="fas fa-times"></i> Annuler
+        </button>
+        <button type="submit" class="btn btn-green" [disabled]="form.invalid || saving()">
+          @if (saving()) {
+            <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
+          } @else if (isEditMode()) {
+            <i class="fas fa-save"></i> Enregistrer les modifications
+          } @else {
+            <i class="fas fa-plus"></i> Déclarer le sinistre
+          }
+        </button>
+      </div>
+
+    </form>
+  }
+</div>

@@ -1,0 +1,50 @@
+// UbiFleet — Sinistre Form Styles (réutilise les styles communs)
+.form-page { animation: fadeInUp var(--transition-base) ease; }
+.breadcrumb {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--gray-400); margin-bottom: 18px;
+}
+.bc-link { color: var(--green-dark); text-decoration: none; font-weight: 500;
+  display: flex; align-items: center; gap: 5px; &:hover { color: var(--navy); } }
+.bc-sep     { font-size: 10px; color: var(--gray-300); }
+.bc-current { color: var(--navy); font-weight: 600; }
+.form-loading {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; padding: 80px; color: var(--gray-500);
+  i { font-size: 24px; color: var(--green-dark); }
+}
+.alert {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 16px; border-radius: var(--radius-lg);
+  margin-bottom: 20px; font-size: 13px; border-left: 4px solid;
+  &.alert-error   { background: var(--danger-light); border-left-color: var(--danger); color: var(--danger); }
+  &.alert-success { background: var(--green-alpha); border-left-color: var(--green-dark); color: var(--green-dark); }
+  i { flex-shrink: 0; font-size: 16px; }
+}
+.form-sections { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+.form-section {
+  background: var(--white); border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden;
+}
+.section-header {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px; background: var(--gray-50); border-bottom: 1px solid var(--gray-100);
+}
+.section-icon {
+  width: 36px; height: 36px; background: var(--navy);
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--green); font-size: 15px; flex-shrink: 0;
+}
+.section-title { font-size: 14px; font-weight: 600; color: var(--navy); }
+.section-sub   { font-size: 12px; color: var(--gray-400); margin-top: 1px; }
+.section-body  { padding: 20px; }
+.form-actions {
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  padding: 20px; background: var(--white); border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+  position: sticky; bottom: 0;
+}
+@media (max-width: 768px) {
+  .form-row, .form-row-3 { grid-template-columns: 1fr !important; }
+}

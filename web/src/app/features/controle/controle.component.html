@@ -1,0 +1,385 @@
+<!-- UbiFleet — Contrôle Véhicule -->
+<div class="controle-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><i class="fas fa-clipboard-check" style="color:var(--green-dark)"></i> Contrôle Véhicule</h1>
+      <p class="page-subtitle">Fiches de contrôle et référentiel des points</p>
+    </div>
+    <button class="btn btn-green" (click)="onTabChange('nouvelle')">
+      <i class="fas fa-plus"></i> Nouvelle fiche
+    </button>
+  </div>
+
+  <!-- KPIs -->
+  @if (stats(); as s) {
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-icon blue"><i class="fas fa-clipboard-list"></i></div>
+        <div class="kpi-info"><div class="kpi-val">{{ s.total }}</div><div class="kpi-label">Total fiches</div></div></div>
+      <div class="kpi-card kpi-conforme"><div class="kpi-icon green"><i class="fas fa-check-circle"></i></div>
+        <div class="kpi-info"><div class="kpi-val">{{ s.conformes }}</div><div class="kpi-label">Conformes</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon red"><i class="fas fa-times-circle"></i></div>
+        <div class="kpi-info"><div class="kpi-val">{{ s.non_conformes }}</div><div class="kpi-label">Non conformes</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-clock"></i></div>
+        <div class="kpi-info"><div class="kpi-val">{{ s.en_cours }}</div><div class="kpi-label">En cours</div></div></div>
+    </div>
+  }
+
+  <!-- Onglets -->
+  <div class="tab-bar">
+    <button class="tab" [class.active]="activeTab()==='fiches'"    (click)="activeTab.set('fiches')">
+      <i class="fas fa-list"></i> Fiches de contrôle
+    </button>
+    <button class="tab" [class.active]="activeTab()==='nouvelle'"  (click)="onTabChange('nouvelle')">
+      <i class="fas fa-plus-circle"></i> Nouvelle fiche
+    </button>
+    <button class="tab" [class.active]="activeTab()==='elements'"  (click)="activeTab.set('elements')">
+      <i class="fas fa-cogs"></i> Référentiel
+    </button>
+  </div>
+
+  <!-- ══ FICHES ══ -->
+  @if (activeTab() === 'fiches') {
+    <div class="card filters-card">
+      <div class="filters-grid-5">
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-car"></i> Immatriculation</label>
+          <input type="text" class="form-control" placeholder="ex: AA-940-NG"
+                 (input)="onFiltreInput('immat',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-tag"></i> Type</label>
+          <select class="form-control" (change)="onFiltreInput('type',$event)">
+            <option value="">Tous types</option>
+            <option value="depart">Départ</option>
+            <option value="retour">Retour</option>
+            <option value="periodique">Périodique</option>
+            <option value="apres_sinistre">Après sinistre</option>
+            <option value="apres_reparation">Après réparation</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-circle"></i> Statut</label>
+          <select class="form-control" (change)="onFiltreInput('statut',$event)">
+            <option value="">Tous statuts</option>
+            <option value="conforme">Conforme</option>
+            <option value="non_conforme">Non conforme</option>
+            <option value="partiel">Partiel</option>
+            <option value="en_cours">En cours</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-calendar"></i> Du</label>
+          <input type="date" class="form-control" (input)="onFiltreInput('debut',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-calendar-alt"></i> Au</label>
+          <input type="date" class="form-control" (input)="onFiltreInput('fin',$event)" />
+        </div>
+      </div>
+    </div>
+
+    @if (fichesLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (fiches().length === 0) {
+      <div class="empty-state"><i class="fas fa-clipboard-check"></i><p>Aucune fiche trouvée.</p></div>
+    } @else {
+      <div class="card">
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead><tr>
+              <th>Date / Type</th><th>Véhicule</th><th>Chauffeur</th><th>Agence</th>
+              <th style="text-align:center">Points</th><th style="text-align:center">Non conf.</th>
+              <th style="text-align:center">Photos</th><th style="text-align:center">Statut</th>
+              <th>Actions</th>
+            </tr></thead>
+            <tbody>
+              @for (f of fiches(); track f.id) {
+                <tr>
+                  <td>
+                    <div><i [class]="typeIcon(f.type_controle)" style="margin-right:5px;color:var(--gray-400)"></i>{{ f.type_controle_display }}</div>
+                    <div style="font-size:11px;color:var(--gray-400)">{{ f.date_heure | date:'dd/MM/yyyy HH:mm' }}</div>
+                  </td>
+                  <td><span class="immat-badge">{{ f.vehicule_immat }}</span></td>
+                  <td style="font-size:12px">{{ f.chauffeur_nom || '—' }}</td>
+                  <td style="font-size:12px">{{ f.agence_nom }}</td>
+                  <td style="text-align:center;font-weight:700">{{ f.nb_points }}</td>
+                  <td style="text-align:center">
+                    @if (f.nb_non_conformes > 0) {
+                      <span class="badge badge-danger">{{ f.nb_non_conformes }}</span>
+                    } @else { <span class="badge badge-green">0</span> }
+                  </td>
+                  <td style="text-align:center;color:var(--gray-400)">
+                    <i class="fas fa-camera"></i> {{ f.nb_photos }}
+                  </td>
+                  <td style="text-align:center">
+                    <span class="badge" [class]="statutClass(f.statut_global)">{{ f.statut_global_display }}</span>
+                  </td>
+                  <td>
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn-icon" title="Voir le rapport"
+                              (click)="voirRapport(f.id)">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                      @if (f.statut_global === 'en_cours') {
+                        <button class="btn btn-icon" title="Valider" (click)="validerFiche(f.id)">
+                          <i class="fas fa-check"></i>
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      @if (fichesTotal() > pageSize) {
+        <div class="pagination">
+          <button class="page-btn" [disabled]="filtrePage()===1" (click)="filtrePage.set(filtrePage()-1);loadFiches()"><i class="fas fa-chevron-left"></i></button>
+          @for (p of pages; track p) {
+            <button class="page-btn" [class.active]="p===filtrePage()" (click)="filtrePage.set(p);loadFiches()">{{ p }}</button>
+          }
+          <button class="page-btn" [disabled]="filtrePage()===totalPages" (click)="filtrePage.set(filtrePage()+1);loadFiches()"><i class="fas fa-chevron-right"></i></button>
+          <span class="pagination-info">{{ fichesTotal() }} fiche(s)</span>
+        </div>
+      }
+    }
+  }
+
+  <!-- ══ NOUVELLE FICHE ══ -->
+  @if (activeTab() === 'nouvelle') {
+
+    @if (ficheSuccess()) {
+      <div class="alert-success"><i class="fas fa-check-circle"></i> {{ ficheSuccess() }}</div>
+    }
+    @if (ficheError()) {
+      <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ ficheError() }}</div>
+    }
+
+    <div class="section-grid-2">
+      <!-- Infos fiche -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">Informations générales</div></div>
+        <div class="card-body">
+          <form [formGroup]="ficheForm" novalidate>
+            <div class="form-group" style="position:relative">
+              <label class="form-label"><i class="fas fa-car"></i> Véhicule *</label>
+              <input type="text" class="form-control"
+                     [value]="vehiculeSearch()"
+                     (input)="onVehiculeSearch($event)"
+                     placeholder="Rechercher par immatriculation ou marque..." />
+              @if (vehiculeSearch().length >= 1 && !ficheForm.get('vehicule')?.value) {
+                <div class="vehicule-dropdown">
+                  @for (v of vehiculesFiltres; track v.id) {
+                    <div class="vehicule-option" (click)="selectVehicule(v)">
+                      <span class="immat-badge">{{ v.immatriculation }}</span>
+                      <span style="font-size:12px;color:var(--gray-500);margin-left:8px">{{ v.marque }} {{ v.modele }}</span>
+                    </div>
+                  }
+                  @if (vehiculesFiltres.length === 0) {
+                    <div style="padding:10px;color:var(--gray-400);font-size:12px">Aucun véhicule trouvé</div>
+                  }
+                </div>
+              }
+              @if (ficheForm.get('vehicule')?.value) {
+                <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+                  <i class="fas fa-check-circle" style="color:var(--green-dark)"></i>
+                  <span style="font-size:12px;color:var(--green-dark)">Véhicule sélectionné</span>
+                  <button type="button" class="btn-link-sm" (click)="ficheForm.patchValue({vehicule:''});vehiculeSearch.set('')">
+                    Modifier
+                  </button>
+                </div>
+              }
+            </div>
+            <div class="form-group">
+              <label class="form-label"><i class="fas fa-tag"></i> Type de contrôle *</label>
+              <select class="form-control" formControlName="type_controle">
+                <option value="depart">Contrôle départ</option>
+                <option value="retour">Contrôle retour</option>
+                <option value="periodique">Contrôle périodique</option>
+                <option value="apres_sinistre">Après sinistre</option>
+                <option value="apres_reparation">Après réparation</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label"><i class="fas fa-user"></i> Chauffeur</label>
+              <select class="form-control" formControlName="chauffeur">
+                <option value="">Sélectionner...</option>
+                @for (c of chauffeurs(); track c.id) { <option [value]="c.id">{{ c.nom_complet }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label"><i class="fas fa-building"></i> Agence</label>
+              <select class="form-control" formControlName="agence">
+                <option value="">Sélectionner...</option>
+                @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label"><i class="fas fa-clock"></i> Date et heure *</label>
+              <input type="datetime-local" class="form-control" formControlName="date_heure" />
+            </div>
+            <div class="form-group">
+              <label class="form-label"><i class="fas fa-tachometer-alt"></i> Kilométrage *</label>
+              <input type="number" class="form-control" formControlName="kilometrage" min="0" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notes générales</label>
+              <textarea class="form-control" rows="2" formControlName="notes_generales"></textarea>
+            </div>
+            <!-- Photos globales -->
+            <div class="form-group">
+              <label class="form-label"><i class="fas fa-camera"></i> Photos du véhicule</label>
+              <label class="photo-upload-btn">
+                <i class="fas fa-plus"></i> Ajouter des photos
+                <input type="file" accept="image/*" multiple (change)="onPhotosGlobalesChange($event)" style="display:none" />
+              </label>
+              @if (photosPreviews().length > 0) {
+                <div class="photos-preview-grid">
+                  @for (p of photosPreviews(); track $index; let i = $index) {
+                    <div class="photo-preview-item">
+                      <img [src]="p" alt="Photo {{ i+1 }}" />
+                      <button type="button" class="photo-remove" (click)="removePhoto(i)">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Points de contrôle -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">Points de contrôle ({{ elements().length }})</div></div>
+        <div class="points-list">
+          @for (cat of categories; track cat.value) {
+            @if (categoriesGrouped[cat.value].length > 0) {
+              <div class="points-categorie">
+                <div class="points-cat-header">{{ cat.label }}</div>
+                @for (e of categoriesGrouped[cat.value]; track e.id) {
+                  @if (e.actif) {
+                    <div class="point-row" [class.non-conforme]="pointsMap()[e.id].statut === 'non_conforme'">
+                      <div class="point-nom">
+                        {{ e.nom }}
+                        @if (e.obligatoire) { <span class="oblig-badge">*</span> }
+                      </div>
+                      <div class="point-controls">
+                        <select class="point-select" [value]="pointsMap()[e.id].statut"
+                                (change)="setPoint(e.id,'statut',$any($event.target).value)">
+                          <option value="conforme">✅ Conforme</option>
+                          <option value="non_conforme">❌ Non conforme</option>
+                          <option value="na">➖ N/A</option>
+                        </select>
+                        @if (pointsMap()[e.id].statut === 'non_conforme') {
+                          <select class="point-select point-gravite"
+                                  [value]="pointsMap()[e.id].gravite"
+                                  (change)="setPoint(e.id,'gravite',$any($event.target).value)">
+                            <option value="">Gravité...</option>
+                            <option value="mineur">Mineur</option>
+                            <option value="majeur">Majeur</option>
+                            <option value="bloquant">🚨 Bloquant</option>
+                          </select>
+                          <input type="text" class="point-remarque" placeholder="Remarque..."
+                                 [value]="pointsMap()[e.id].remarque"
+                                 (input)="setPoint(e.id,'remarque',$any($event.target).value)" />
+                        }
+                      </div>
+                    </div>
+                  }
+                }
+              </div>
+            }
+          }
+        </div>
+        <div class="card-footer" style="padding:14px 16px;border-top:1px solid var(--gray-100)">
+          <button class="btn btn-green" [disabled]="ficheLoading() || ficheForm.invalid"
+                  (click)="creerFicheEtSauvegarder()">
+            @if (ficheLoading()) { <i class="fas fa-circle-notch fa-spin"></i> Sauvegarde... }
+            @else { <i class="fas fa-save"></i> Enregistrer la fiche }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ══ RÉFÉRENTIEL ÉLÉMENTS ══ -->
+  @if (activeTab() === 'elements') {
+    <div class="section-grid-2">
+      <div class="card">
+        <div class="card-header"><div class="card-title">{{ editEleId() ? 'Modifier' : 'Ajouter un point' }}</div></div>
+        <div class="card-body">
+          @if (eleSuccess()) { <div class="alert-success"><i class="fas fa-check-circle"></i> {{ eleSuccess() }}</div> }
+          @if (eleError())   { <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ eleError() }}</div> }
+          <form [formGroup]="eleForm" novalidate>
+            <div class="form-group">
+              <label class="form-label">Nom du point *</label>
+              <input type="text" class="form-control" formControlName="nom" placeholder="ex: Niveau huile moteur" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Catégorie *</label>
+              <select class="form-control" formControlName="categorie">
+                @for (c of categories; track c.value) { <option [value]="c.value">{{ c.label }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ordre d'affichage</label>
+              <input type="number" class="form-control" formControlName="ordre" min="0" />
+            </div>
+            <div class="form-check">
+              <input type="checkbox" formControlName="obligatoire" id="oblig" class="form-check-input" />
+              <label for="oblig" class="form-check-label">Point obligatoire</label>
+            </div>
+            <div class="form-check" style="margin-top:6px">
+              <input type="checkbox" formControlName="actif" id="actif-ele" class="form-check-input" />
+              <label for="actif-ele" class="form-check-label">Actif</label>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:14px">
+              <button type="button" class="btn btn-green" [disabled]="eleForm.invalid" (click)="saveElement()">
+                <i class="fas fa-save"></i> {{ editEleId() ? 'Modifier' : 'Ajouter' }}
+              </button>
+              @if (editEleId()) {
+                <button type="button" class="btn btn-outline" (click)="cancelEditElement()">
+                  <i class="fas fa-times"></i> Annuler
+                </button>
+              }
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Points configurés</div>
+          <span style="background:var(--gray-100);color:var(--gray-500);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">{{ elements().length }}</span>
+        </div>
+        @for (cat of categories; track cat.value) {
+          @if (categoriesGrouped[cat.value].length > 0) {
+            <div class="ele-cat-group">
+              <div class="ele-cat-header">{{ cat.label }}</div>
+              @for (e of categoriesGrouped[cat.value]; track e.id) {
+                <div class="ele-row" [class.inactive]="!e.actif">
+                  <div class="ele-info">
+                    <span>{{ e.nom }}</span>
+                    @if (e.obligatoire) { <span class="oblig-badge">Obligatoire</span> }
+                  </div>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-icon" (click)="editElement(e)"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-icon" [title]="e.actif ? 'Désactiver' : 'Activer'" (click)="toggleActifElement(e)">
+                      <i class="fas" [class]="e.actif ? 'fa-toggle-on' : 'fa-toggle-off'"></i>
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        }
+      </div>
+    </div>
+  }
+
+</div>

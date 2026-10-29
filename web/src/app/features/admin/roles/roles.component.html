@@ -1,0 +1,244 @@
+<!-- UbiFleet — Gestion des Rôles (Angular 18) -->
+<div class="roles-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-user-tag" style="color:var(--green-dark)"></i>
+        Gestion des rôles
+      </h1>
+      <p class="page-subtitle">{{ roles().length }} rôle(s) configuré(s)</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a routerLink="/admin/permissions" class="btn btn-outline btn-sm">
+        <i class="fas fa-shield-alt"></i> Permissions
+      </a>
+      <button class="btn btn-green" (click)="openModal()">
+        <i class="fas fa-plus"></i> Nouveau rôle
+      </button>
+    </div>
+  </div>
+
+  @if (modalSuccess()) {
+    <div class="alert-success">
+      <i class="fas fa-check-circle"></i> {{ modalSuccess() }}
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="loading-state">
+      <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+    </div>
+  } @else {
+    <div class="card">
+      <div class="table-container">
+        <table class="ubi-table">
+          <thead>
+            <tr>
+              <th>Rôle</th>
+              <th>Code</th>
+              <th>Niveau</th>
+              <th>Utilisateurs</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (roles().length === 0) {
+              <tr>
+                <td colspan="6" style="text-align:center;padding:48px;color:var(--gray-400)">
+                  Aucun rôle configuré. Créez-en un ou lancez
+                  <code>python manage.py init_roles</code>
+                </td>
+              </tr>
+            }
+            @for (r of roles(); track r.id) {
+              <tr>
+                <td>
+                  <div class="role-name">{{ r.nom }}</div>
+                  @if (r.description) {
+                    <div class="role-desc">{{ r.description }}</div>
+                  }
+                  @if (r.is_system) {
+                    <span class="badge-system">Système</span>
+                  }
+                </td>
+                <td><code class="role-code">{{ r.code }}</code></td>
+                <td>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div class="niveau-bar">
+                      <div class="niveau-fill" [style.width.%]="r.niveau * 10"></div>
+                    </div>
+                    <span class="badge" [class]="niveauClass(r.niveau)">
+                      {{ r.niveau }} — {{ niveauLabel(r.niveau) }}
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <strong>{{ r.nb_utilisateurs }}</strong>
+                  <span style="font-size:11px;color:var(--gray-400)"> utilisateur(s)</span>
+                </td>
+                <td>
+                  @if (r.is_active) {
+                    <span class="badge badge-green">Actif</span>
+                  } @else {
+                    <span class="badge badge-danger">Inactif</span>
+                  }
+                </td>
+                <td>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-icon" title="Modifier" (click)="openModal(r)">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <a [routerLink]="['/admin/permissions']"
+                       [queryParams]="{role: r.id}"
+                       class="btn btn-icon" title="Gérer les permissions">
+                      <i class="fas fa-shield-alt"></i>
+                    </a>
+                    @if (!r.is_system) {
+                      <button class="btn btn-icon btn-icon-danger" title="Supprimer"
+                              (click)="confirmDelete(r.id)">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+</div>
+
+<!-- MODAL Créer / Modifier rôle -->
+@if (showModal()) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          {{ editRoleId() ? 'Modifier le rôle' : 'Nouveau rôle' }}
+        </div>
+        <button class="modal-close" (click)="closeModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      @if (modalError()) {
+        <div class="alert-error-sm">
+          <i class="fas fa-exclamation-triangle"></i> {{ modalError() }}
+        </div>
+      }
+
+      <form [formGroup]="roleForm" (ngSubmit)="saveRole()" novalidate>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nom du rôle *</label>
+            <input formControlName="nom" class="form-control"
+                   [class.is-invalid]="f['nom'].invalid && f['nom'].touched"
+                   placeholder="ex: Responsable Agence" />
+            @if (f['nom'].invalid && f['nom'].touched) {
+              <div class="form-error"><i class="fas fa-times-circle"></i> Requis.</div>
+            }
+          </div>
+          <div class="form-group">
+            <label class="form-label">
+              Code *
+              @if (editRoleId()) {
+                <span style="font-size:10px;color:var(--gray-400);font-weight:400">
+                  (non modifiable)
+                </span>
+              }
+            </label>
+            <input formControlName="code" class="form-control"
+                   [class.is-invalid]="f['code'].invalid && f['code'].touched"
+                   placeholder="ex: resp_agence"
+                   style="font-family:monospace" />
+            @if (f['code'].errors?.['pattern'] && f['code'].touched) {
+              <div class="form-error">
+                <i class="fas fa-times-circle"></i>
+                Minuscules, chiffres et underscores uniquement.
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">
+            Niveau hiérarchique *
+            <span style="font-size:11px;color:var(--gray-400);font-weight:400">
+              (1 = le plus bas, 9 = le plus élevé — le 10 est réservé au super admin)
+            </span>
+          </label>
+          <div class="niveau-selector">
+            @for (n of [1,2,3,4,5,6,7,8,9]; track n) {
+              <button type="button"
+                      class="niveau-btn"
+                      [class.active]="f['niveau'].value === n"
+                      (click)="f['niveau'].setValue(n)">
+                {{ n }}
+              </button>
+            }
+          </div>
+          <div class="niveau-hint">
+            Niveau sélectionné :
+            <strong>{{ f['niveau'].value }} — {{ niveauLabel(f['niveau'].value ?? 1) }}</strong>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea formControlName="description" class="form-control" rows="2"
+                    placeholder="Décrivez les responsabilités de ce rôle..."></textarea>
+        </div>
+
+        <div class="form-group" style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="role-active" formControlName="is_active"
+                 style="width:16px;height:16px" />
+          <label for="role-active" style="margin:0;font-size:13px;cursor:pointer">
+            Rôle actif (visible lors de l'attribution aux utilisateurs)
+          </label>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button type="button" class="btn btn-outline" (click)="closeModal()">Annuler</button>
+          <button type="submit" class="btn btn-green"
+                  [disabled]="roleForm.invalid || saving()">
+            @if (saving()) { <i class="fas fa-circle-notch fa-spin"></i> }
+            @else if (editRoleId()) { <i class="fas fa-save"></i> Modifier }
+            @else { <i class="fas fa-plus"></i> Créer }
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- MODAL Confirmation suppression -->
+@if (deleteId()) {
+  <div class="modal-backdrop" (click)="cancelDelete()">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Supprimer le rôle</div>
+      </div>
+      @if (deleteError()) {
+        <div class="alert-error-sm">
+          <i class="fas fa-exclamation-triangle"></i> {{ deleteError() }}
+        </div>
+      }
+      <p style="font-size:14px;color:var(--gray-600);margin-bottom:20px">
+        Cette action supprime le rôle et toutes ses permissions associées.
+        Les utilisateurs rattachés à ce rôle n'auront plus de rôle.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="cancelDelete()">Annuler</button>
+        <button class="btn btn-danger" (click)="doDelete(deleteId()!)">
+          <i class="fas fa-trash"></i> Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,149 @@
+<!-- UbiFleet — Main Layout (Angular 18 + NgRx Signals Store) -->
+<div class="app-layout" [class.sidebar-collapsed]="!sidebarOpen()">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 40 40" fill="none">
+          <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="#5bd988"/>
+          <rect x="9" y="27" width="22" height="6" rx="2" fill="#092440"/>
+          <path d="M11 27 L13 19 Q14 16 17 15 L23 15 Q26 16 27 19 L29 27 Z" fill="#092440"/>
+          <circle cx="13" cy="33" r="3.5" fill="#5bd988" stroke="#092440" stroke-width="1.5"/>
+          <circle cx="27" cy="33" r="3.5" fill="#5bd988" stroke="#092440" stroke-width="1.5"/>
+          <rect x="29" y="7" width="3" height="9" rx="1.5" fill="#092440"/>
+          <rect x="26" y="10" width="9" height="3" rx="1.5" fill="#092440"/>
+        </svg>
+      </div>
+
+      @if (sidebarOpen()) {
+        <div class="logo-text">
+          <span class="brand-name">Ubi<span>Fleet</span></span>
+          <span class="brand-sub">by Ubipharm</span>
+        </div>
+      }
+
+      <button
+        class="toggle-btn"
+        (click)="toggleSidebar()"
+        [attr.aria-label]="sidebarOpen() ? 'Réduire' : 'Agrandir'"
+      >
+        <i [class]="sidebarOpen() ? 'fas fa-chevron-left' : 'fas fa-chevron-right'"></i>
+      </button>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+      @for (section of navSections; track section.label) {
+        @if (sidebarOpen()) {
+          <div class="nav-section-label">{{ section.label }}</div>
+        } @else {
+          <div class="nav-divider"></div>
+        }
+
+        @for (item of section.items; track item.route) {
+          <a
+            class="nav-item"
+            [routerLink]="item.route"
+            [class.active]="isNavActive(item.route)"
+            [title]="!sidebarOpen() ? item.label : ''"
+          >
+            <i [class]="item.icon"></i>
+
+            @if (sidebarOpen()) {
+              <span class="nav-label">{{ item.label }}</span>
+            }
+
+            <!-- Badge dynamique (NgRx store) ou statique -->
+            @if (getBadge(item) > 0 && sidebarOpen()) {
+              <span class="nav-badge" [class.danger]="item.badgeType === 'danger'">
+                {{ getBadge(item) }}
+              </span>
+            }
+            @if (getBadge(item) > 0 && !sidebarOpen()) {
+              <span class="nav-badge-dot" [class.danger]="item.badgeType === 'danger'"></span>
+            }
+          </a>
+        }
+      }
+    </nav>
+
+    <!-- Footer utilisateur -->
+    @if (sidebarOpen()) {
+      <div class="sidebar-footer">
+        <div class="user-card">
+          <a routerLink="/profil" class="user-avatar" title="Mon profil"
+             style="text-decoration:none;cursor:pointer">
+            {{ userInitials }}
+          </a>
+          <div class="user-info">
+            <a routerLink="/profil"
+               style="text-decoration:none;color:inherit">
+              <div class="user-name">{{ user()?.full_name || user()?.email }}</div>
+            </a>
+            <div class="user-role">{{ user()?.role_display }}</div>
+          </div>
+          <a routerLink="/profil" class="logout-btn" title="Mon profil"
+             style="margin-right:4px">
+            <i class="fas fa-user-circle"></i>
+          </a>
+          <button class="logout-btn" (click)="logout()" title="Se déconnecter">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
+        </div>
+      </div>
+    } @else {
+      <div class="sidebar-footer-collapsed">
+        <button class="logout-btn-sm" (click)="logout()" title="Se déconnecter">
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+      </div>
+    }
+
+  </aside>
+
+  <!-- ── MAIN AREA ── -->
+  <div class="main-area">
+
+    <header class="topbar">
+      <button class="mobile-menu-btn" (click)="toggleSidebar()" aria-label="Menu">
+        <i class="fas fa-bars"></i>
+      </button>
+
+      <div class="topbar-search">
+        <i class="fas fa-search"></i>
+        <input type="text" placeholder="Rechercher véhicule, chauffeur...">
+      </div>
+
+      <div class="topbar-actions">
+        <!-- Badge alertes dynamique depuis NgRx AlertesStore -->
+        <a routerLink="/alertes" class="topbar-icon-btn" title="Alertes">
+          <i class="fas fa-bell"></i>
+          @if (alertesBadge() > 0) {
+            <span class="notif-dot"></span>
+          }
+        </a>
+
+        <button class="topbar-icon-btn" title="Exporter">
+          <i class="fas fa-download"></i>
+        </button>
+
+        <div class="topbar-user">
+          <div class="topbar-avatar">{{ userInitials }}</div>
+          <div class="topbar-user-info">
+            <span class="topbar-name">{{ user()?.full_name }}</span>
+            <span class="topbar-agence">
+              {{ user()?.agence_detail?.nom || 'Toutes agences' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <router-outlet />
+    </main>
+
+  </div>
+</div>

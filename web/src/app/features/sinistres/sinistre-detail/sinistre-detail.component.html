@@ -1,0 +1,223 @@
+<!-- UbiFleet — Sinistre Détail (Angular 18) -->
+<div class="detail-page">
+
+  @if (loading()) {
+    <div class="detail-loading">
+      <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+    </div>
+  }
+  @if (error() && !loading()) {
+    <div class="error-state">
+      <i class="fas fa-exclamation-triangle"></i><p>{{ error() }}</p>
+      <button class="btn btn-outline btn-sm" (click)="goBack()">
+        <i class="fas fa-arrow-left"></i> Retour
+      </button>
+    </div>
+  }
+
+  @if (sinistre(); as s) {
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      <a routerLink="/sinistres" class="bc-link">
+        <i class="fas fa-car-crash"></i> Sinistres
+      </a>
+      <i class="fas fa-chevron-right bc-sep"></i>
+      <span class="bc-current">{{ s.numero_dossier }}</span>
+    </div>
+
+    <!-- Alertes actions -->
+    @if (actionSuccess()) {
+      <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i> {{ actionSuccess() }}
+      </div>
+    }
+    @if (actionError()) {
+      <div class="alert alert-error">
+        <i class="fas fa-exclamation-triangle"></i> {{ actionError() }}
+      </div>
+    }
+
+    <!-- En-tête -->
+    <div class="sinistre-header">
+      <div class="sh-left">
+        <div class="sh-ref">{{ s.numero_dossier }}</div>
+        <div class="sh-badges">
+          <span class="badge badge-lg" [class]="typeBadgeClass(s.type_sinistre)">
+            {{ s.type_display }}
+          </span>
+          <span class="badge badge-lg" [class]="statutBadgeClass(s.statut)">
+            {{ s.statut_display }}
+          </span>
+        </div>
+        <div class="sh-vehicule">
+          <i class="fas fa-car"></i>
+          {{ s.vehicule_immat }} — {{ s.vehicule_designation }}
+        </div>
+        @if (s.chauffeur_nom) {
+          <div class="sh-chauffeur">
+            <i class="fas fa-user"></i> {{ s.chauffeur_nom }}
+          </div>
+        }
+      </div>
+      <div class="sh-right">
+        <div class="sh-actions">
+          @if (s.statut !== 'clos' && s.statut !== 'indemnise') {
+            <button class="btn btn-primary btn-sm" (click)="openStatutModal()">
+              <i class="fas fa-exchange-alt"></i> Changer le statut
+            </button>
+          }
+          @if (s.statut !== 'clos') {
+            <button class="btn btn-outline btn-sm" (click)="goToEdit()">
+              <i class="fas fa-edit"></i> Modifier
+            </button>
+          }
+          <button class="btn btn-outline btn-sm" (click)="goBack()">
+            <i class="fas fa-arrow-left"></i> Retour
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-icon warning"><i class="fas fa-calendar"></i></div>
+        <div>
+          <div class="kpi-val">{{ s.date_sinistre | date:'dd/MM/yyyy' }}</div>
+          <div class="kpi-lbl">Date du sinistre</div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon danger"><i class="fas fa-coins"></i></div>
+        <div>
+          <div class="kpi-val">{{ s.dommages_estimes | number:'1.0-0' }} FCFA</div>
+          <div class="kpi-lbl">Dommages estimés</div>
+        </div>
+      </div>
+      @if (s.cout_reparation !== null) {
+        <div class="kpi-card">
+          <div class="kpi-icon navy"><i class="fas fa-tools"></i></div>
+          <div>
+            <div class="kpi-val">{{ s.cout_reparation | number:'1.0-0' }} FCFA</div>
+            <div class="kpi-lbl">Coût de réparation</div>
+          </div>
+        </div>
+      }
+      @if (s.indemnisation_recue !== null) {
+        <div class="kpi-card">
+          <div class="kpi-icon green"><i class="fas fa-hand-holding-usd"></i></div>
+          <div>
+            <div class="kpi-val">{{ s.indemnisation_recue | number:'1.0-0' }} FCFA</div>
+            <div class="kpi-lbl">Indemnisation reçue</div>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Détails -->
+    <div class="info-grid">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Informations du sinistre</div></div>
+        <div class="card-body">
+          <table class="info-table">
+            <tr><td class="info-label">N° Dossier</td>
+                <td class="info-value"><strong>{{ s.numero_dossier }}</strong></td></tr>
+            <tr><td class="info-label">Type</td>
+                <td class="info-value">{{ s.type_display }}</td></tr>
+            <tr><td class="info-label">Statut</td>
+                <td class="info-value">
+                  <span class="badge" [class]="statutBadgeClass(s.statut)">
+                    {{ s.statut_display }}
+                  </span>
+                </td></tr>
+            <tr><td class="info-label">Date sinistre</td>
+                <td class="info-value">{{ s.date_sinistre | date:'dd/MM/yyyy' }}</td></tr>
+            <tr><td class="info-label">Lieu</td>
+                <td class="info-value">{{ s.lieu || '—' }}</td></tr>
+            <tr><td class="info-label">Agence</td>
+                <td class="info-value">{{ s.agence_nom }}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Informations financières</div></div>
+        <div class="card-body">
+          <table class="info-table">
+            <tr><td class="info-label">Dommages estimés</td>
+                <td class="info-value">{{ s.dommages_estimes | number:'1.0-0' }} FCFA</td></tr>
+            <tr><td class="info-label">Coût réparation</td>
+                <td class="info-value">
+                  @if (s.cout_reparation !== null) {
+                    {{ s.cout_reparation | number:'1.0-0' }} FCFA
+                  } @else { — }
+                </td></tr>
+            <tr><td class="info-label">Indemnisation</td>
+                <td class="info-value">
+                  @if (s.indemnisation_recue !== null) {
+                    {{ s.indemnisation_recue | number:'1.0-0' }} FCFA
+                  } @else { — }
+                </td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    @if (s.description) {
+      <div class="card" style="margin-top:16px">
+        <div class="card-header"><div class="card-title">Description</div></div>
+        <div class="card-body">
+          <p style="font-size:14px;color:var(--gray-600);line-height:1.6">
+            {{ s.description }}
+          </p>
+        </div>
+      </div>
+    }
+
+  }
+</div>
+
+<!-- MODAL CHANGEMENT STATUT -->
+@if (showStatutModal()) {
+  <div class="modal-backdrop" (click)="closeStatutModal()">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Changer le statut du dossier</div>
+        <button class="modal-close" (click)="closeStatutModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form [formGroup]="statutForm" (ngSubmit)="submitStatut()" novalidate>
+        <div class="form-group">
+          <label class="form-label">Nouveau statut *</label>
+          <select formControlName="statut" class="form-control">
+            <option value="">-- Sélectionner un statut --</option>
+            @for (s of statutsDisponibles; track s.value) {
+              <option [value]="s.value">{{ s.label }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes / Commentaires</label>
+          <textarea formControlName="notes" class="form-control" rows="3"
+                    placeholder="Observations sur ce changement de statut..."></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button type="button" class="btn btn-outline" (click)="closeStatutModal()">
+            Annuler
+          </button>
+          <button type="submit" class="btn btn-green"
+                  [disabled]="statutForm.invalid || actionLoading()">
+            @if (actionLoading()) {
+              <i class="fas fa-circle-notch fa-spin"></i>
+            } @else {
+              <i class="fas fa-save"></i>
+            }
+            Enregistrer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

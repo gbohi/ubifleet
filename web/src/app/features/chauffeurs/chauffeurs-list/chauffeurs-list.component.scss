@@ -1,0 +1,311 @@
+// UbiFleet — Chauffeurs List Styles
+.chauffeurs-page { animation: fadeInUp var(--transition-base) ease; }
+
+.header-actions { display: flex; align-items: center; gap: 8px; }
+
+// ── Bannière alerte permis ──
+.permis-alert-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+
+  > i {
+    color: var(--warning);
+    font-size: 18px;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    strong { font-size: 13px; color: var(--navy); }
+    span   { font-size: 12px; color: var(--gray-500); }
+  }
+}
+
+.permis-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.permis-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--warning-light);
+  color: #b45309;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+
+  &:hover { background: rgba(245,158,11,0.2); }
+  &.urgent { background: var(--danger-light); color: var(--danger); }
+
+  span { font-weight: 700; }
+}
+
+.permis-chip-more {
+  font-size: 12px;
+  color: var(--gray-400);
+  padding: 4px 0;
+}
+
+// ── Quick Stats ──
+.quick-stats {
+  display: flex;
+  align-items: center;
+  background: var(--white);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg);
+  padding: 14px 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.qs-item {
+  display: flex; align-items: center; gap: 8px; padding: 0 20px;
+  &:first-child { padding-left: 0; }
+}
+.qs-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  &.green { background: var(--green-dark); }
+  &.orange{ background: var(--warning); }
+  &.red   { background: var(--danger); }
+  &.navy  { background: var(--navy); }
+}
+.qs-val { font-size: 20px; font-weight: 700; color: var(--navy); font-family: var(--font-display); }
+.qs-lbl { font-size: 12px; color: var(--gray-400); }
+.qs-sep { width: 1px; height: 28px; background: var(--gray-200); flex-shrink: 0; }
+
+// ── Filters ──
+.filters-bar {
+  display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;
+}
+
+.search-box {
+  position: relative; flex: 1; min-width: 220px;
+
+  i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--gray-400); font-size: 13px; pointer-events: none; }
+
+  input {
+    width: 100%; padding: 9px 12px 9px 36px;
+    background: var(--white); border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-md); font-size: 13px;
+    font-family: var(--font-body); color: var(--gray-800); outline: none;
+    transition: border-color var(--transition-fast);
+    &:focus { border-color: var(--green-dark); }
+    &::placeholder { color: var(--gray-400); }
+  }
+}
+
+.filter-select { width: auto; min-width: 160px; padding: 8px 10px; font-size: 13px; cursor: pointer; }
+
+// ── Skeleton ──
+.loading-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;
+}
+.skeleton-card {
+  background: var(--white); border-radius: var(--radius-lg);
+  border: 1px solid var(--gray-100); padding: 18px;
+  display: flex; align-items: flex-start; gap: 12px;
+
+  .skeleton-avatar { width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0; }
+  .skeleton-info   { flex: 1; }
+  .skeleton-name   { height: 16px; width: 60%; border-radius: 4px; margin-bottom: 8px; }
+  .skeleton-sub    { height: 12px; width: 40%; border-radius: 4px; margin-bottom: 10px; }
+  .skeleton-badge  { height: 20px; width: 70px; border-radius: 10px; }
+}
+
+// ── States ──
+.empty-state, .error-state {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 64px 20px; text-align: center; gap: 12px; color: var(--gray-400);
+  i { font-size: 48px; }
+  h3 { font-size: 18px; color: var(--gray-600); font-weight: 600; margin: 0; }
+  p  { font-size: 14px; margin: 0; }
+}
+.error-state { color: var(--danger); i { color: var(--danger); } }
+
+// ── Chauffeurs Grid ──
+.chauffeurs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.chauffeur-card {
+  background: var(--white);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  animation: fadeInUp 0.3s ease both;
+
+  &:hover {
+    border-color: var(--green);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+  }
+}
+
+// En-tête carte
+.cc-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.cc-avatar {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.cc-header-info { flex: 1; min-width: 0; }
+.cc-name { font-size: 14px; font-weight: 600; color: var(--navy); }
+.cc-matricule { font-size: 11px; color: var(--gray-400); }
+
+// Corps
+.cc-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+
+.cc-info-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--gray-500);
+  i { width: 14px; text-align: center; color: var(--gray-400); font-size: 11px; }
+}
+
+// Permis
+.cc-permis {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--gray-50);
+
+  i { font-size: 11px; color: var(--gray-400); }
+  span { color: var(--gray-600); }
+
+  &.danger { background: var(--danger-light); i, span { color: var(--danger); } }
+  &.warning { background: var(--warning-light); i, span { color: #b45309; } }
+}
+
+.permis-badge {
+  margin-left: auto; padding: 1px 7px;
+  border-radius: var(--radius-full); font-size: 10px; font-weight: 700;
+  background: var(--warning-light); color: #b45309;
+  &.expired { background: var(--danger-light); color: var(--danger); }
+  &.urgent  { background: var(--danger-light); color: var(--danger); }
+}
+
+.permis-date { margin-left: auto; font-size: 11px; color: var(--gray-400); }
+
+// Véhicule assigné
+.cc-vehicule {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--gray-600);
+  i { font-size: 11px; color: var(--green-dark); }
+
+  &.empty { color: var(--gray-300); i { color: var(--gray-300); } }
+}
+
+.cc-vehicule-model { color: var(--gray-400); font-size: 11px; }
+
+// Pied de carte
+.cc-footer {
+  border-top: 1px solid var(--gray-100);
+  padding: 8px 16px;
+  display: flex; justify-content: flex-end; gap: 4px;
+}
+
+.btn-icon-danger {
+  &:hover {
+    background: var(--danger-light) !important;
+    color: var(--danger) !important;
+    border-color: var(--danger) !important;
+  }
+}
+
+// ── Pagination ──
+.pagination {
+  display: flex; align-items: center; gap: 4px;
+  justify-content: center; margin-top: 24px;
+}
+.page-btn {
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200); background: var(--white);
+  color: var(--gray-600); font-size: 13px; font-family: var(--font-body);
+  cursor: pointer; transition: all var(--transition-fast);
+  display: flex; align-items: center; justify-content: center;
+  &:hover:not(:disabled) { background: var(--gray-50); color: var(--navy); }
+  &.active { background: var(--navy); color: var(--white); border-color: var(--navy); font-weight: 600; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+.pagination-info { font-size: 12px; color: var(--gray-400); margin-left: 8px; }
+
+// ── Modal ──
+.modal-sm { max-width: 420px; width: 100%; }
+
+// ── Vue toggle ──
+.view-toggle {
+  display: flex; border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md); overflow: hidden;
+
+  .toggle-btn {
+    padding: 7px 12px; background: var(--white); border: none;
+    color: var(--gray-400); cursor: pointer; font-size: 13px;
+    transition: all var(--transition-fast);
+    &:hover  { background: var(--gray-50); color: var(--navy); }
+    &.active { background: var(--navy); color: var(--white); }
+  }
+}
+
+// ── Tableau ──
+.tr-clickable { cursor: pointer; }
+.td-empty {
+  text-align: center; padding: 48px !important; color: var(--gray-400);
+  i { font-size: 24px; display: block; margin-bottom: 8px; }
+}
+.td-chauffeur { display: flex; align-items: center; gap: 10px; }
+.td-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--navy); color: var(--white);
+  font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; text-transform: uppercase;
+}
+.td-name  { font-size: 13px; font-weight: 600; color: var(--navy); }
+.td-actions { display: flex; gap: 4px; }
+.btn-icon-danger {
+  &:hover {
+    background: var(--danger-light) !important;
+    color: var(--danger) !important;
+    border-color: var(--danger) !important;
+  }
+}

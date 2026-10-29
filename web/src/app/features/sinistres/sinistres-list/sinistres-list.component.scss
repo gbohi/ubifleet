@@ -1,0 +1,157 @@
+// UbiFleet — Sinistres List Styles
+.sinistres-page { animation: fadeInUp var(--transition-base) ease; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+
+// Alerte contrats
+.contrat-alert {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 14px 18px; background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.25); border-left: 4px solid var(--warning);
+  border-radius: var(--radius-lg); margin-bottom: 16px; flex-wrap: wrap;
+  > i { color: var(--warning); font-size: 18px; margin-top: 2px; flex-shrink: 0; }
+  > div { flex: 1; display: flex; flex-direction: column; gap: 2px;
+    strong { font-size: 13px; color: var(--navy); }
+    span   { font-size: 12px; color: var(--gray-500); }
+  }
+}
+.contrat-chips { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; margin-top: 8px; }
+.contrat-chip {
+  padding: 3px 10px; background: var(--warning-light); color: #b45309;
+  border-radius: var(--radius-full); font-size: 12px; font-weight: 500;
+  &.urgent { background: var(--danger-light); color: var(--danger); }
+}
+
+// Stats
+.quick-stats {
+  display: flex; align-items: center; background: var(--white);
+  border: 1px solid var(--gray-100); border-radius: var(--radius-lg);
+  padding: 14px 20px; margin-bottom: 16px; box-shadow: var(--shadow-sm);
+}
+.qs-item { display: flex; align-items: center; gap: 8px; padding: 0 20px;
+  &:first-child { padding-left: 0; } }
+.qs-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  &.orange{ background: var(--warning); }
+  &.navy  { background: var(--navy); }
+  &.red   { background: var(--danger); }
+}
+.qs-val { font-size: 20px; font-weight: 700; color: var(--navy); font-family: var(--font-display); }
+.qs-lbl { font-size: 12px; color: var(--gray-400); }
+.qs-sep { width: 1px; height: 28px; background: var(--gray-200); flex-shrink: 0; }
+
+// Tab badge
+.tab-badge {
+  background: var(--danger); color: var(--white);
+  font-size: 10px; font-weight: 700; padding: 1px 6px;
+  border-radius: 10px; margin-left: 4px;
+}
+
+// Filters
+.filters-bar { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.search-box {
+  position: relative; flex: 1; min-width: 220px;
+  i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--gray-400); font-size: 13px; pointer-events: none; }
+  input {
+    width: 100%; padding: 9px 12px 9px 36px;
+    background: var(--white); border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-md); font-size: 13px; font-family: var(--font-body); outline: none;
+    &:focus { border-color: var(--green-dark); }
+    &::placeholder { color: var(--gray-400); }
+  }
+}
+.filter-select { width: auto; min-width: 160px; padding: 8px 10px; font-size: 13px; }
+.chip-type { opacity: 0.85;
+  &.active { opacity: 1; background: var(--danger-light); color: var(--danger); border-color: var(--danger); } }
+
+// States
+.loading-state {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 48px; color: var(--gray-500);
+  i { color: var(--green-dark); }
+}
+.error-state {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 48px; gap: 10px; color: var(--danger); text-align: center;
+}
+.empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 64px; gap: 12px; color: var(--gray-400); text-align: center;
+  i { font-size: 48px; }
+  h3 { font-size: 18px; color: var(--gray-600); font-weight: 600; margin: 0; }
+  p  { font-size: 14px; margin: 0; }
+}
+
+// Table
+.tr-clickable { cursor: pointer; }
+.td-empty { text-align: center; padding: 48px !important; color: var(--gray-400);
+  i { font-size: 24px; display: block; margin-bottom: 8px; } }
+.dossier-ref { color: var(--navy); font-size: 13px; letter-spacing: 0.3px; }
+.td-bold { font-size: 13px; font-weight: 600; color: var(--navy); }
+.td-sub  { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+.td-actions { display: flex; gap: 4px; }
+.row-urgent { background: rgba(239,68,68,0.03) !important; }
+
+// Pagination
+.pagination {
+  display: flex; align-items: center; gap: 4px; justify-content: center; margin-top: 20px;
+}
+.page-btn {
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200); background: var(--white);
+  color: var(--gray-600); font-size: 13px; font-family: var(--font-body);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition-fast);
+  &:hover:not(:disabled) { background: var(--gray-50); color: var(--navy); }
+  &.active { background: var(--navy); color: var(--white); border-color: var(--navy); font-weight: 600; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+.pagination-info { font-size: 12px; color: var(--gray-400); margin-left: 8px; }
+
+// ── Contrats layout ──
+.contrats-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  align-items: flex-start;
+
+  @media (max-width: 1100px) { grid-template-columns: 1fr; }
+}
+
+.contrat-form-card { position: sticky; top: 16px; }
+.contrat-list-panel { display: flex; flex-direction: column; gap: 14px; }
+
+.card-urgent {
+  border-left: 4px solid var(--danger);
+  .card-header { background: rgba(239,68,68,0.04); }
+}
+
+// Alert inline
+.alert-success-sm {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--green-alpha); border-left: 3px solid var(--green-dark);
+  padding: 8px 12px; border-radius: var(--radius-md); margin-bottom: 12px;
+  font-size: 12px; color: var(--green-dark);
+}
+.alert-error-sm {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--danger-light); border-left: 3px solid var(--danger);
+  padding: 8px 12px; border-radius: var(--radius-md); margin-bottom: 12px;
+  font-size: 12px; color: var(--danger);
+}
+
+// Tab loading
+.tab-loading {
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px; color: var(--green-dark); font-size: 20px;
+}
+
+// Btn icon danger
+.btn-icon-danger:hover {
+  background: var(--danger-light) !important;
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+
+// Modal sm
+.modal-sm { max-width: 420px; width: 100%; }

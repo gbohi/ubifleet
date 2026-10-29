@@ -1,0 +1,780 @@
+<!-- UbiFleet — Transactions Total Carburant (Angular 18) -->
+<div class="total-import-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-receipt" style="color:var(--green-dark)"></i>
+        Transactions Total Carburant
+      </h1>
+      <p class="page-subtitle">Importation, consultation et analyse des relevés TotalEnergies</p>
+    </div>
+    <a routerLink="/carburant" class="btn btn-outline btn-sm">
+      <i class="fas fa-arrow-left"></i> Carburant
+    </a>
+  </div>
+
+  <!-- ONGLETS -->
+  <div class="tab-bar">
+    <button class="tab" [class.active]="activeTab()==='import'"          (click)="onTabChange('import')">
+      <i class="fas fa-upload"></i> Importer
+    </button>
+    <button class="tab" [class.active]="activeTab()==='historique'"      (click)="onTabChange('historique')">
+      <i class="fas fa-history"></i> Historique imports
+    </button>
+    <button class="tab" [class.active]="activeTab()==='transactions'"    (click)="onTabChange('transactions')">
+      <i class="fas fa-list"></i> Transactions
+      @if (transactionsTotal() > 0) {
+        <span class="tab-badge">{{ transactionsTotal() | number }}</span>
+      }
+    </button>
+    <button class="tab" [class.active]="activeTab()==='consommation'"    (click)="onTabChange('consommation')">
+      <i class="fas fa-tachometer-alt"></i> Consommation L/100
+    </button>
+    <button class="tab" [class.active]="activeTab()==='evolution'"       (click)="onTabChange('evolution')">
+      <i class="fas fa-chart-line"></i> Évolution par agence
+    </button>
+    <button class="tab" [class.active]="activeTab()==='reconciliation'"  (click)="onTabChange('reconciliation')">
+      <i class="fas fa-balance-scale"></i> Réconciliation
+    </button>
+  </div>
+
+  <!-- ═══ IMPORT ═══ -->
+  @if (activeTab() === 'import') {
+    <div class="import-tab">
+      @if (!result()) {
+        <div class="dropzone-card">
+          <div class="dropzone" [class.drag-over]="isDragOver()" [class.has-file]="selectedFile()"
+               (dragover)="onDragOver($event)" (dragleave)="onDragLeave()" (drop)="onDrop($event)">
+            @if (!selectedFile()) {
+              <div class="dropzone-empty">
+                <div class="dropzone-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <div class="dropzone-text">
+                  <strong>Glissez votre fichier ici</strong>
+                  <span>ou cliquez pour sélectionner</span>
+                  <span class="dropzone-hint">CSV, XLSX, XLS — extrait TotalEnergies</span>
+                </div>
+                <label class="btn btn-outline btn-sm" style="cursor:pointer">
+                  <i class="fas fa-folder-open"></i> Parcourir
+                  <input type="file" accept=".csv,.xlsx,.xls" style="display:none" (change)="onFileInput($event)" />
+                </label>
+              </div>
+            } @else {
+              <div class="file-selected">
+                <div class="file-icon"><i class="fas fa-file-excel"></i></div>
+                <div class="file-info">
+                  <div class="file-name">{{ selectedFile()!.name }}</div>
+                  <div class="file-size">{{ formatFileSize(selectedFile()!.size) }}</div>
+                </div>
+                <button class="btn btn-icon" (click)="clearFile()"><i class="fas fa-times"></i></button>
+              </div>
+            }
+          </div>
+          @if (importError()) {
+            <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ importError() }}</div>
+          }
+          @if (uploading()) {
+            <div class="progress-wrap">
+              <div class="progress-bar"><div class="progress-fill" [style.width.%]="uploadPct()"></div></div>
+              <span class="progress-label">{{ uploadPct() }}%</span>
+            </div>
+          }
+          <div style="display:flex;justify-content:flex-end;margin-top:16px">
+            <button class="btn btn-green" [disabled]="!selectedFile() || uploading()" (click)="startImport()">
+              @if (uploading()) { <i class="fas fa-circle-notch fa-spin"></i> Import en cours... }
+              @else { <i class="fas fa-play"></i> Lancer l'importation }
+            </button>
+          </div>
+        </div>
+        <div class="format-guide">
+          <div class="format-guide-title"><i class="fas fa-info-circle"></i> 37 colonnes attendues</div>
+          <div class="format-cols">
+            <div class="format-col-group">
+              <div class="format-col-title">Identification</div>
+              <ul>
+                <li>N° / Nom filiale &amp; client</li>
+                <li>N° moyen de paiement</li>
+                <li>N° / Nom chauffeur</li>
+                <li>Plaque immatriculation</li>
+                <li>Kilométrages précédent / actuel</li>
+              </ul>
+            </div>
+            <div class="format-col-group">
+              <div class="format-col-title">Transaction</div>
+              <ul>
+                <li>Date &amp; heure</li>
+                <li>N° ticket, station, terminal</li>
+                <li>Type &amp; nom de transaction</li>
+                <li>Code autorisation</li>
+                <li>Statut transaction</li>
+              </ul>
+            </div>
+            <div class="format-col-group">
+              <div class="format-col-title">Données financières</div>
+              <ul>
+                <li>Produit &amp; prix unitaire</li>
+                <li>Volume &amp; montant</li>
+                <li>Soldes avant / après</li>
+                <li>Montant pré-autorisé</li>
+                <li>Bonus MyPass, ATC, SAM</li>
+              </ul>
+            </div>
+          </div>
+          <div class="format-note">
+            <i class="fas fa-shield-alt"></i>
+            Doublons détectés automatiquement (ticket + code autorisation + date).
+          </div>
+        </div>
+      }
+      @if (result(); as r) {
+        <div class="result-card">
+          <div class="result-header">
+            <i class="fas fa-check-circle" style="color:var(--green-dark);font-size:28px"></i>
+            <div>
+              <div class="result-title">Import terminé — {{ r.fichier }}</div>
+              <div class="result-sub">{{ r.nb_lignes }} ligne(s) traitée(s)</div>
+            </div>
+          </div>
+          <div class="result-stats">
+            <div class="result-stat result-stat-green">
+              <div class="result-stat-val">{{ r.importees }}</div>
+              <div class="result-stat-label"><i class="fas fa-check"></i> Importées</div>
+            </div>
+            <div class="result-stat result-stat-warn">
+              <div class="result-stat-val">{{ r.doublons }}</div>
+              <div class="result-stat-label"><i class="fas fa-copy"></i> Doublons ignorés</div>
+            </div>
+            <div class="result-stat" [class.result-stat-danger]="r.erreurs > 0" [class.result-stat-gray]="r.erreurs === 0">
+              <div class="result-stat-val">{{ r.erreurs }}</div>
+              <div class="result-stat-label"><i class="fas fa-times"></i> Erreurs</div>
+            </div>
+          </div>
+          @if (r.lignes_erreur.length > 0) {
+            <div class="error-lines">
+              <div class="error-lines-title"><i class="fas fa-exclamation-triangle"></i> Erreurs ({{ r.lignes_erreur.length }})</div>
+              <table class="ubi-table" style="margin-top:8px">
+                <thead><tr><th>Ligne</th><th>Immatriculation</th><th>Erreur</th></tr></thead>
+                <tbody>
+                  @for (e of r.lignes_erreur; track e.ligne) {
+                    <tr>
+                      <td><code>{{ e.ligne }}</code></td>
+                      <td>{{ e.immatriculation || '—' }}</td>
+                      <td style="color:var(--danger);font-size:12px">{{ e.erreur }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+          <div style="display:flex;gap:8px;margin-top:20px">
+            <button class="btn btn-outline" (click)="result.set(null)"><i class="fas fa-upload"></i> Nouveau fichier</button>
+            <button class="btn btn-navy"    (click)="onTabChange('transactions')"><i class="fas fa-list"></i> Voir les transactions</button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ═══ HISTORIQUE ═══ -->
+  @if (activeTab() === 'historique') {
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Historique des imports</div>
+        <button class="btn btn-outline btn-sm" (click)="loadHistorique()"><i class="fas fa-sync-alt"></i> Actualiser</button>
+      </div>
+      @if (historiqueLoad()) { <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i> Chargement...</div> }
+      @else if (historique().length === 0) { <div class="empty-state"><i class="fas fa-inbox"></i><p>Aucun import.</p></div> }
+      @else {
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead>
+              <tr>
+                <th>Fichier</th><th>Date import</th><th>Importé par</th>
+                <th>Total</th><th>Importées</th><th>Doublons</th><th>Erreurs</th><th>Taux</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (h of historique(); track h.id) {
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500"><i class="fas fa-file-excel" style="color:#1d6f42"></i>{{ h.fichier_nom }}</div></td>
+                  <td>{{ h.date_import | date:'dd/MM/yyyy HH:mm' }}</td>
+                  <td>{{ h.importe_par_nom || '—' }}</td>
+                  <td><strong>{{ h.nb_lignes }}</strong></td>
+                  <td><span class="badge badge-green">{{ h.nb_importees }}</span></td>
+                  <td>@if (h.nb_doublons > 0) { <span class="badge badge-warning">{{ h.nb_doublons }}</span> } @else { <span style="color:var(--gray-400)">0</span> }</td>
+                  <td>@if (h.nb_erreurs > 0)  { <span class="badge badge-danger">{{ h.nb_erreurs }}</span>  } @else { <span style="color:var(--gray-400)">0</span> }</td>
+                  <td>
+                    @if (h.nb_lignes > 0) {
+                      <div class="taux-bar">
+                        <div class="taux-fill" [style.width.%]="(h.nb_importees/h.nb_lignes)*100"></div>
+                        <span>{{ ((h.nb_importees/h.nb_lignes)*100) | number:'1.0-0' }}%</span>
+                      </div>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ═══ TRANSACTIONS ═══ -->
+  @if (activeTab() === 'transactions') {
+    <div class="transactions-tab">
+      <div class="filters-toolbar">
+        <div class="filters-left">
+          <div class="filter-item filter-search">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="Recherche ticket, immat..." (input)="onTransSearch($event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-car" style="font-size:11px"></i>
+            <input type="text" placeholder="Immatriculation" style="width:120px" (input)="onTransImmat($event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-id-badge" style="font-size:11px"></i>
+            <input type="text" placeholder="Chauffeur" style="width:110px" (input)="onTransChauf($event)" />
+          </div>
+          <div class="filter-item">
+            <i class="fas fa-calendar" style="font-size:11px"></i>
+            <input type="date" (change)="onTransDateDebut($event)" title="Date début" />
+          </div>
+          <div class="filter-item">
+            <span style="font-size:11px;color:var(--gray-400)">au</span>
+            <input type="date" (change)="onTransDateFin($event)" title="Date fin" />
+          </div>
+        </div>
+        <div class="filters-right">
+          <span class="filter-count">{{ transactionsTotal() | number }} transaction(s)</span>
+          <div class="col-picker-wrap">
+            <button class="btn btn-outline btn-sm" (click)="showColPicker.set(!showColPicker())">
+              <i class="fas fa-columns"></i> Colonnes
+            </button>
+            @if (showColPicker()) {
+              <div class="col-picker-dropdown" (click)="$event.stopPropagation()">
+                <div class="col-picker-title">Colonnes affichées</div>
+                @for (col of allColumns; track col.key) {
+                  <label class="col-picker-item">
+                    <input type="checkbox" [checked]="isColVisible(col.key)" (change)="toggleCol(col.key)" />
+                    {{ col.label }}
+                  </label>
+                }
+              </div>
+            }
+          </div>
+          <button class="btn btn-excel" [disabled]="exporting()" (click)="exportExcel()">
+            @if (exporting()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-file-excel"></i> }
+            Exporter
+          </button>
+        </div>
+      </div>
+
+      @if (transactionsLoad()) { <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div> }
+      @else if (transactions().length === 0) { <div class="empty-state"><i class="fas fa-inbox"></i><p>Aucune transaction.</p></div> }
+      @else {
+        <div class="card">
+          <div class="table-container table-scroll-x">
+            <table class="ubi-table trans-table">
+              <thead>
+                <tr>
+                  @for (col of allColumns; track col.key) {
+                    @if (isColVisible(col.key)) { <th>{{ col.label }}</th> }
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of transactions(); track t.id) {
+                  <tr>
+                    @for (col of allColumns; track col.key) {
+                      @if (isColVisible(col.key)) {
+                        @if (col.key === 'immatriculation') {
+                          <td><span class="immat-badge">{{ t.immatriculation || '—' }}</span></td>
+                        } @else if (col.key === 'date_transaction') {
+                          <td>{{ t.date_transaction | date:'dd/MM/yyyy' }}</td>
+                        } @else if (col.key === 'heure_transaction') {
+                          <td style="font-family:monospace;font-size:12px">{{ t.heure_transaction ? t.heure_transaction.substring(0,5) || '—' : '' }}</td>
+                        } @else if (col.key === 'statut_transaction') {
+                          <td><span class="badge" [class]="statutClass(t.statut_transaction)">{{ t.statut_transaction ? t.statut_transaction.substring(0,20) || '—' : '' }}</span></td>
+                        } @else if (col.key === 'nom_produit') {
+                          <td><span class="badge badge-navy">{{ t.nom_produit || '—' }}</span></td>
+                        } @else if (isNumericCol(col.key)) {
+                          <td style="text-align:right;font-weight:600">{{ t[col.key] | number:'1.2-2' }}</td>
+                        } @else {
+                          <td>{{ t[col.key] || '—' }}</td>
+                        }
+                      }
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <!-- Pagination améliorée -->
+          @if (totalPages > 1) {
+            <div class="pagination">
+              <button class="page-btn" [class.disabled]="transPage()===1" [disabled]="transPage()===1"
+                      (click)="onTransPage(transPage()-1)">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              @if (transPage() > 3) {
+                <button class="page-btn" (click)="onTransPage(1)">1</button>
+                @if (transPage() > 4) { <span class="page-ellipsis">…</span> }
+              }
+              @for (p of pages; track p) {
+                <button class="page-btn" [class.active]="p===transPage()" (click)="onTransPage(p)">{{ p }}</button>
+              }
+              @if (transPage() < totalPages - 2) {
+                @if (transPage() < totalPages - 3) { <span class="page-ellipsis">…</span> }
+                <button class="page-btn" (click)="onTransPage(totalPages)">{{ totalPages }}</button>
+              }
+              <button class="page-btn" [class.disabled]="transPage()===totalPages" [disabled]="transPage()===totalPages"
+                      (click)="onTransPage(transPage()+1)">
+                <i class="fas fa-chevron-right"></i>
+              </button>
+              <span class="page-info">Page {{ transPage() }}/{{ totalPages }} — {{ transactionsTotal() | number }} résultats</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ═══ CONSOMMATION ═══ -->
+  @if (activeTab() === 'consommation') {
+    <div class="analyse-tab">
+      <div class="analyse-header">
+        <div class="analyse-title">
+          <i class="fas fa-tachometer-alt" style="color:var(--green-dark)"></i>
+          Consommation aux 100 km par véhicule
+        </div>
+        <p class="analyse-subtitle">
+          Calculée à partir des kilométrages et volumes relevés dans les transactions Total.
+        </p>
+      </div>
+
+      <!-- Filtres -->
+      <div class="analyse-filters card">
+        <div class="filters-grid">
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date début *</label>
+            <input type="date" class="form-control" [value]="consoDateDebut()" (input)="onConsoInput('debut',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin *</label>
+            <input type="date" class="form-control" [value]="consoDateFin()" (input)="onConsoInput('fin',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
+            <input type="text" class="form-control" placeholder="Filtrer par véhicule" [value]="consoImmat()" (input)="onConsoInput('immat',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-id-badge"></i> Chauffeur</label>
+            <input type="text" class="form-control" [value]="consoNumChauf()" (input)="onConsoInput('chauf',$event)" placeholder="N° chauffeur Total" />
+          </div>
+        </div>
+        @if (consoError()) {
+          <div class="alert-error-sm"><i class="fas fa-exclamation-triangle"></i> {{ consoError() }}</div>
+        }
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-green" [disabled]="consoLoading()" (click)="calculerConso()">
+            @if (consoLoading()) { <i class="fas fa-circle-notch fa-spin"></i> Calcul... }
+            @else { <i class="fas fa-calculator"></i> Calculer }
+          </button>
+          @if (consoData().length > 0) {
+            <button class="btn btn-excel" (click)="exportConsoCsv()">
+              <i class="fas fa-file-excel"></i> Exporter
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Résultats -->
+      @if (consoData().length > 0) {
+        <div class="card" style="margin-top:16px">
+          <div class="card-header">
+            <div class="card-title">{{ consoData().length }} véhicule(s) — période {{ consoDateDebut() }} au {{ consoDateFin() }}</div>
+          </div>
+          <div class="table-container">
+            <table class="ubi-table">
+              <thead>
+                <tr>
+                  <th (click)="sortConso('immatriculation')" class="sortable">
+                    Immatriculation <i class="fas fa-sort"></i>
+                  </th>
+                  <th (click)="sortConso('km_parcourus')" class="sortable">
+                    Km parcourus <i class="fas fa-sort"></i>
+                  </th>
+                  <th (click)="sortConso('volume_total')" class="sortable">
+                    Volume (L) <i class="fas fa-sort"></i>
+                  </th>
+                  <th (click)="sortConso('montant_total')" class="sortable">
+                    Montant (FCFA) <i class="fas fa-sort"></i>
+                  </th>
+                  <th (click)="sortConso('nb_pleins')" class="sortable">
+                    Nb pleins <i class="fas fa-sort"></i>
+                  </th>
+                  <th (click)="sortConso('conso_100')" class="sortable">
+                    Conso L/100km <i class="fas fa-sort"></i>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of consoSorted(); track r.immatriculation) {
+                  <tr>
+                    <td><span class="immat-badge">{{ r.immatriculation }}</span></td>
+                    <td style="text-align:right">{{ r.km_parcourus | number:'1.0-0' }} km</td>
+                    <td style="text-align:right;font-weight:600">{{ r.volume_total | number:'1.2-2' }} L</td>
+                    <td style="text-align:right">{{ r.montant_total | number:'1.0-0' }}</td>
+                    <td style="text-align:center">{{ r.nb_pleins }}</td>
+                    <td style="text-align:center">
+                      @if (r.conso_100 !== null) {
+                        <span class="badge" [class]="consoClass(r.conso_100)">
+                          {{ r.conso_100 | number:'1.1-1' }} L/100
+                        </span>
+                      } @else {
+                        <span class="badge badge-gray">N/A</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <!-- Légende -->
+          <div class="conso-legend">
+            <span class="badge badge-green">≤ 8 L</span> Bonne consommation
+            <span class="badge badge-warning" style="margin-left:12px">≤ 12 L</span> Consommation modérée
+            <span class="badge badge-danger" style="margin-left:12px">&gt; 12 L</span> Consommation élevée
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ═══ ÉVOLUTION AGENCES ═══ -->
+  @if (activeTab() === 'evolution') {
+    <div class="analyse-tab">
+      <div class="analyse-header">
+        <div class="analyse-title">
+          <i class="fas fa-chart-line" style="color:var(--green-dark)"></i>
+          Évolution des prises de carburant par agence
+        </div>
+        <p class="analyse-subtitle">
+          Chaque courbe représente une agence. La correspondance se fait via le
+          <strong>N° client Total</strong> renseigné sur chaque agence.
+        </p>
+      </div>
+
+      <!-- Filtres -->
+      <div class="analyse-filters card">
+        <div class="filters-grid">
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date début *</label>
+            <input type="date" class="form-control" [value]="evoDateDebut()" (input)="onEvoInput('debut',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin *</label>
+            <input type="date" class="form-control" [value]="evoDateFin()" (input)="onEvoInput('fin',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
+            <input type="text" class="form-control" placeholder="Filtrer par véhicule" [value]="evoImmat()" (input)="onEvoInput('immat',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-id-badge"></i> Chauffeur</label>
+            <input type="text" class="form-control" [value]="evoNumChauf()" (input)="onEvoInput('chauf',$event)" />
+          </div>
+        </div>
+
+        <!-- Sélecteur de métrique -->
+        <div class="metrique-selector">
+          <span class="metrique-label">Afficher :</span>
+          <div class="metrique-btns">
+            <button class="metrique-btn" [class.active]="evoMetrique()==='volume'"  (click)="onMetriqueChange('volume')">
+              <i class="fas fa-tint"></i> Volume (L)
+            </button>
+            <button class="metrique-btn" [class.active]="evoMetrique()==='montant'" (click)="onMetriqueChange('montant')">
+              <i class="fas fa-coins"></i> Montant (FCFA)
+            </button>
+            <button class="metrique-btn" [class.active]="evoMetrique()==='nb'"      (click)="onMetriqueChange('nb')">
+              <i class="fas fa-gas-pump"></i> Nb pleins
+            </button>
+          </div>
+        </div>
+
+        @if (evoError()) {
+          <div class="alert-error-sm"><i class="fas fa-exclamation-triangle"></i> {{ evoError() }}</div>
+        }
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-green" [disabled]="evoLoading()" (click)="chargerEvolution()">
+            @if (evoLoading()) { <i class="fas fa-circle-notch fa-spin"></i> Chargement... }
+            @else { <i class="fas fa-chart-line"></i> Afficher la courbe }
+          </button>
+        </div>
+      </div>
+
+      <!-- Graphique -->
+      @if (evoData().length > 0) {
+        <div class="card chart-card" style="margin-top:16px">
+          <div class="card-header">
+            <div class="card-title">
+              Évolution
+              @if (evoMetrique()==='volume')  { du volume en litres }
+              @if (evoMetrique()==='montant') { des montants en FCFA }
+              @if (evoMetrique()==='nb')      { du nombre de pleins }
+              — {{ evoData().length }} agence(s)
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas #chartCanvas></canvas>
+          </div>
+
+          <!-- Résumé par agence -->
+          <div class="agences-summary">
+            @for (a of evoData(); let i = $index; track a.nom) {
+              <div class="agence-card">
+                <div class="agence-color-dot" [style.background]="getColor(i)"></div>
+                <div class="agence-info">
+                  <div class="agence-nom">{{ a.nom }}</div>
+                  <div class="agence-stats">
+                    <span>{{ a.points.length }} mois</span>
+                    @if (evoMetrique()==='volume') {
+                      <span>{{ sumPoints(a.points,'volume') | number:'1.0-0' }} L</span>
+                    }
+                    @if (evoMetrique()==='montant') {
+                      <span>{{ sumPoints(a.points,'montant') | number:'1.0-0' }} FCFA</span>
+                    }
+                    @if (evoMetrique()==='nb') {
+                      <span>{{ sumPoints(a.points,'nb') }} pleins</span>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ═══ RÉCONCILIATION ═══ -->
+  @if (activeTab() === 'reconciliation') {
+    <div class="analyse-tab">
+      <div class="analyse-header">
+        <div class="analyse-title">
+          <i class="fas fa-balance-scale" style="color:var(--green-dark)"></i>
+          Réconciliation Total vs UbiFleet
+        </div>
+        <p class="analyse-subtitle">
+          Compare les transactions Total importées avec les pleins enregistrés dans UbiFleet.
+          La jointure s'effectue par <strong>immatriculation + date (±1 jour)</strong>.
+        </p>
+      </div>
+
+      <!-- Filtres -->
+      <div class="analyse-filters card">
+        <div class="filters-grid">
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date début *</label>
+            <input type="date" class="form-control" [value]="recoDateDebut()" (input)="onRecoInput('debut',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin *</label>
+            <input type="date" class="form-control" [value]="recoDateFin()" (input)="onRecoInput('fin',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
+            <input type="text" class="form-control" placeholder="Filtrer par véhicule"
+                   [value]="recoImmat()" (input)="onRecoInput('immat',$event)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-id-badge"></i> N° chauffeur Total</label>
+            <input type="text" class="form-control" placeholder="N° chauffeur TotalEnergies"
+                   [value]="recoNumChauf()" (input)="onRecoInput('chauf',$event)" />
+          </div>
+        </div>
+
+        <!-- Seuils d'écart -->
+        <div class="seuils-row">
+          <span class="seuils-label">Seuils de tolérance :</span>
+          <div class="seuil-item">
+            <label>Volume</label>
+            <input type="number" class="form-control seuil-input"
+                   [value]="recoSeuilVol()" min="0" max="100" step="1"
+                   (input)="onRecoInput('seuil_vol',$event)" />
+            <span>%</span>
+          </div>
+          <div class="seuil-item">
+            <label>Montant</label>
+            <input type="number" class="form-control seuil-input"
+                   [value]="recoSeuilMnt()" min="0" max="100" step="1"
+                   (input)="onRecoInput('seuil_mnt',$event)" />
+            <span>%</span>
+          </div>
+        </div>
+
+        @if (recoError()) {
+          <div class="alert-error-sm"><i class="fas fa-exclamation-triangle"></i> {{ recoError() }}</div>
+        }
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-green" [disabled]="recoLoading()" (click)="lancerReconciliation()">
+            @if (recoLoading()) { <i class="fas fa-circle-notch fa-spin"></i> Analyse... }
+            @else { <i class="fas fa-balance-scale"></i> Lancer la réconciliation }
+          </button>
+          @if (recoData()) {
+            <button class="btn btn-excel" (click)="exportRecoCsv()">
+              <i class="fas fa-file-excel"></i> Exporter
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Statistiques -->
+      @if (recoData(); as d) {
+        <div class="reco-stats">
+          <div class="reco-stat reco-stat-green"    (click)="recoFiltre.set(recoFiltre()==='reconcilie'?'':'reconcilie')">
+            <div class="reco-stat-val">{{ d.stats.reconcilie }}</div>
+            <div class="reco-stat-label"><i class="fas fa-check-circle"></i> Réconciliés</div>
+          </div>
+          <div class="reco-stat reco-stat-warn"     (click)="recoFiltre.set(recoFiltre()==='ecart_volume'?'':'ecart_volume')">
+            <div class="reco-stat-val">{{ d.stats.ecart_volume }}</div>
+            <div class="reco-stat-label"><i class="fas fa-tint"></i> Écart volume</div>
+          </div>
+          <div class="reco-stat reco-stat-warn"     (click)="recoFiltre.set(recoFiltre()==='ecart_montant'?'':'ecart_montant')">
+            <div class="reco-stat-val">{{ d.stats.ecart_montant }}</div>
+            <div class="reco-stat-label"><i class="fas fa-coins"></i> Écart montant</div>
+          </div>
+          <div class="reco-stat reco-stat-danger"   (click)="recoFiltre.set(recoFiltre()==='double_ecart'?'':'double_ecart')">
+            <div class="reco-stat-val">{{ d.stats.double_ecart }}</div>
+            <div class="reco-stat-label"><i class="fas fa-exclamation-triangle"></i> Double écart</div>
+          </div>
+          <div class="reco-stat reco-stat-navy"     (click)="recoFiltre.set(recoFiltre()==='total_only'?'':'total_only')">
+            <div class="reco-stat-val">{{ d.stats.total_only }}</div>
+            <div class="reco-stat-label"><i class="fas fa-receipt"></i> Total seul.</div>
+          </div>
+          <div class="reco-stat reco-stat-gray"     (click)="recoFiltre.set(recoFiltre()==='ubifleet_only'?'':'ubifleet_only')">
+            <div class="reco-stat-val">{{ d.stats.ubifleet_only }}</div>
+            <div class="reco-stat-label"><i class="fas fa-database"></i> UbiFleet seul.</div>
+          </div>
+        </div>
+
+        <!-- Résumé écarts globaux -->
+        @if (d.stats.total_ecart_vol !== 0 || d.stats.total_ecart_mnt !== 0) {
+          <div class="reco-summary">
+            <i class="fas fa-chart-bar"></i>
+            Écart global :
+            <strong [class.text-danger]="d.stats.total_ecart_vol > 0">
+              {{ d.stats.total_ecart_vol | number:'1.2-2' }} L
+            </strong>
+            en volume et
+            <strong [class.text-danger]="d.stats.total_ecart_mnt > 0">
+              {{ d.stats.total_ecart_mnt | number:'1.0-0' }} FCFA
+            </strong>
+            en montant
+            @if (recoFiltre()) {
+              <span class="reco-filtre-active">
+                — Filtre actif : {{ recoStatutLabel(recoFiltre()) }}
+                <button class="reco-clear-filtre" (click)="recoFiltre.set('')">
+                  <i class="fas fa-times"></i>
+                </button>
+              </span>
+            }
+          </div>
+        }
+
+        <!-- Tableau des lignes -->
+        <div class="card">
+          <div class="table-container table-scroll-x">
+            <table class="ubi-table reco-table">
+              <thead>
+                <tr>
+                  <th>Statut</th>
+                  <th>Immatriculation</th>
+                  <th>Date</th>
+                  <th>Heure</th>
+                  <!-- Total -->
+                  <th class="col-total">N° Ticket</th>
+                  <th class="col-total">Vol. Total (L)</th>
+                  <th class="col-total">Mnt. Total</th>
+                  <th class="col-total">Station</th>
+                  <th class="col-total">Chauf. Total</th>
+                  <!-- UbiFleet -->
+                  <th class="col-ubi">N° Bon</th>
+                  <th class="col-ubi">Vol. UbiFleet (L)</th>
+                  <th class="col-ubi">Mnt. UbiFleet</th>
+                  <th class="col-ubi">Chauf. UbiFleet</th>
+                  <!-- Écarts -->
+                  <th class="col-ecart">Écart Vol. (L)</th>
+                  <th class="col-ecart">Écart Mnt.</th>
+                  <th class="col-ecart">% Vol.</th>
+                  <th class="col-ecart">% Mnt.</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (l of recoLignes(); track $index) {
+                  <tr [class.row-ecart]="l.statut !== 'reconcilie'" [class.row-total-only]="l.statut === 'total_only'" [class.row-ubi-only]="l.statut === 'ubifleet_only'">
+                    <td>
+                      <span class="badge" [class]="recoStatutClass(l.statut)">
+                        {{ recoStatutLabel(l.statut) }}
+                      </span>
+                    </td>
+                    <td><span class="immat-badge">{{ l.immatriculation }}</span></td>
+                    <td>{{ l.date }}</td>
+                    <td style="font-family:monospace;font-size:11px">{{ l.heure ? l.heure.substring(0,5) || '—' : '' }}</td>
+                    <!-- Côté Total -->
+                    <td class="col-total"><code style="font-size:11px">{{ l.total_ticket || '—' }}</code></td>
+                    <td class="col-total" style="text-align:right;font-weight:600">{{ l.total_volume | number:'1.2-2' }}</td>
+                    <td class="col-total" style="text-align:right">{{ l.total_montant | number:'1.0-0' }}</td>
+                    <td class="col-total" style="font-size:11px">{{ l.total_station || '—' }}</td>
+                    <td class="col-total" style="font-size:11px">{{ l.total_chauffeur || '—' }}</td>
+                    <!-- Côté UbiFleet -->
+                    <td class="col-ubi"><code style="font-size:11px">{{ l.ubi_bon || '—' }}</code></td>
+                    <td class="col-ubi" style="text-align:right;font-weight:600">
+                      @if (l.ubi_volume !== null) { {{ l.ubi_volume | number:'1.2-2' }} } @else { <span style="color:var(--gray-300)">—</span> }
+                    </td>
+                    <td class="col-ubi" style="text-align:right">
+                      @if (l.ubi_montant !== null) { {{ l.ubi_montant | number:'1.0-0' }} } @else { <span style="color:var(--gray-300)">—</span> }
+                    </td>
+                    <td class="col-ubi" style="font-size:11px">{{ l.ubi_chauffeur || '—' }}</td>
+                    <!-- Écarts -->
+                    <td class="col-ecart" style="text-align:right;font-weight:700"
+                        [class.text-danger]="l.ecart_volume > 0.5"
+                        [class.text-success]="l.ecart_volume < -0.5">
+                      {{ l.ecart_volume | number:'1.2-2' }}
+                    </td>
+                    <td class="col-ecart" style="text-align:right;font-weight:700"
+                        [class.text-danger]="l.ecart_montant > 100"
+                        [class.text-success]="l.ecart_montant < -100">
+                      {{ l.ecart_montant | number:'1.0-0' }}
+                    </td>
+                    <td class="col-ecart" style="text-align:right">
+                      @if (l.pct_volume > 0) {
+                        <span class="badge" [class]="l.pct_volume > 10 ? 'badge-danger' : 'badge-warning'" style="font-size:10px">
+                          {{ l.pct_volume | number:'1.1-1' }}%
+                        </span>
+                      } @else { — }
+                    </td>
+                    <td class="col-ecart" style="text-align:right">
+                      @if (l.pct_montant > 0) {
+                        <span class="badge" [class]="l.pct_montant > 10 ? 'badge-danger' : 'badge-warning'" style="font-size:10px">
+                          {{ l.pct_montant | number:'1.1-1' }}%
+                        </span>
+                      } @else { — }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (recoLignes().length === 0) {
+            <div class="empty-state"><i class="fas fa-check-circle" style="color:var(--green-dark)"></i><p>Aucune ligne avec ce filtre.</p></div>
+          }
+        </div>
+      }
+    </div>
+  }
+
+
+</div>

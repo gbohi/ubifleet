@@ -1,0 +1,9 @@
+// UbiFleet — Store Barrel Exports
+export { VehiculesStore }  from './vehicules/vehicules.store';
+export { CarburantStore }  from './carburant/carburant.store';
+export { EntretienStore }  from './entretien/entretien.store';
+export { SinistresStore }  from './sinistres/sinistres.store';
+export { BudgetStore }     from './budget/budget.store';
+export { ChauffeursStore } from './chauffeurs/chauffeurs.store';
+export { AlertesStore }    from './alertes/alertes.store';
+export { DashboardStore }  from './dashboard/dashboard.store';

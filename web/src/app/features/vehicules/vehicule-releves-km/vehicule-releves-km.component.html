@@ -1,0 +1,333 @@
+<!-- UbiFleet — Historique Kilométrage (Angular 18) -->
+<div class="releves-page">
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumb">
+    <a routerLink="/vehicules" class="bc-link">
+      <i class="fas fa-car"></i> Véhicules
+    </a>
+    <i class="fas fa-chevron-right bc-sep"></i>
+    @if (vehiculeInfo()) {
+      <a [routerLink]="['/vehicules', id()]" class="bc-link">
+        {{ vehiculeInfo()!.immatriculation }}
+      </a>
+      <i class="fas fa-chevron-right bc-sep"></i>
+    }
+    <span class="bc-current">Historique kilométrage</span>
+  </div>
+
+  <!-- En-tête -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-tachometer-alt" style="color:var(--green-dark)"></i>
+        Historique kilométrage
+      </h1>
+      @if (vehiculeInfo()) {
+        <p class="page-subtitle">
+          {{ vehiculeInfo()!.immatriculation }} — {{ vehiculeInfo()!.designation }} &bull;
+          <strong>{{ vehiculeInfo()!.km | number:'1.0-0' }} km actuels</strong>
+        </p>
+      }
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline btn-sm" (click)="goBack()">
+        <i class="fas fa-arrow-left"></i> Retour au véhicule
+      </button>
+      <button class="btn btn-green" (click)="openForm()">
+        <i class="fas fa-plus"></i> Nouveau relevé
+      </button>
+    </div>
+  </div>
+
+  <!-- Alertes -->
+  @if (success()) {
+    <div class="alert-success">
+      <i class="fas fa-check-circle"></i> {{ success() }}
+    </div>
+  }
+  @if (error()) {
+    <div class="alert-error">
+      <i class="fas fa-exclamation-triangle"></i> {{ error() }}
+    </div>
+  }
+
+  <!-- Compteur total -->
+  <div class="total-info">
+    <i class="fas fa-list"></i>
+    {{ total() }} relevé(s) enregistré(s)
+  </div>
+
+  <!-- Chargement -->
+  @if (loading()) {
+    <div class="loading-state">
+      <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+    </div>
+  }
+
+  <!-- Liste -->
+  @if (!loading()) {
+    @if (releves().length === 0) {
+      <div class="empty-state">
+        <i class="fas fa-tachometer-alt"></i>
+        <h3>Aucun relevé enregistré</h3>
+        <p>Les relevés kilométrage apparaîtront ici.</p>
+        <button class="btn btn-green" (click)="openForm()">
+          <i class="fas fa-plus"></i> Ajouter un relevé
+        </button>
+      </div>
+    } @else {
+      <div class="card">
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Kilométrage</th>
+                <th>Type</th>
+                <th>Tournée / Destination</th>
+                <th>Notes</th>
+                <th style="text-align:center">Photo</th>
+                <th>Saisi par</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of releves(); track r.id) {
+                <tr>
+                  <td>
+                    <strong>{{ r.date_releve | date:'dd/MM/yyyy' }}</strong>
+                    <div class="td-sub">
+                      {{ r.created_at | date:'HH:mm' }}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="km-value">
+                      <i class="fas" [class]="'fa-' + typeMouvementIcon(r.type_mouvement)"
+                         style="font-size:11px;color:var(--gray-300)"></i>
+                      {{ r.kilometrage | number:'1.0-0' }} km
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge" [class]="typeMouvementClass(r.type_mouvement)">
+                      {{ r.type_display }}
+                    </span>
+                  </td>
+                  <td>{{ r.chauffeur_nom || '—' }}</td>
+                      <td>{{ r.tournee || '—' }}</td>
+                  <td>
+                    <div class="td-notes">{{ r.notes || '—' }}</div>
+                  </td>
+                  <td style="text-align:center">
+                    @if (r.photo_tableau_bord_url) {
+                      <button style="background:none;border:none;cursor:pointer;padding:0"
+                              (click)="openLightbox(r.photo_tableau_bord_url!)"
+                              title="Voir le tableau de bord">
+                        <img [src]="r.photo_tableau_bord_url" alt="Tableau de bord"
+                             style="width:40px;height:30px;object-fit:cover;border-radius:4px" />
+                      </button>
+                    } @else {
+                      <span style="color:var(--gray-300);font-size:11px">—</span>
+                    }
+                  </td>
+                  <td>{{ r.created_by_nom || '—' }}</td>
+                  <td>
+                    <button class="btn btn-icon btn-icon-danger" title="Supprimer"
+                            (click)="confirmDelete(r.id)">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      @if (total() > 20) {
+        <div class="pagination">
+          <button class="page-btn" [disabled]="page() === 1"
+                  (click)="onPageChange(page() - 1)">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          @for (p of pages; track p) {
+            <button class="page-btn" [class.active]="p === page()"
+                    (click)="onPageChange(p)">{{ p }}</button>
+          }
+          <button class="page-btn" [disabled]="page() === totalPages"
+                  (click)="onPageChange(page() + 1)">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+          <span class="pagination-info">{{ total() }} relevé(s)</span>
+        </div>
+      }
+    }
+  }
+
+</div>
+
+<!-- MODAL Nouveau relevé -->
+@if (showForm()) {
+  <div class="modal-backdrop">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-tachometer-alt"></i>
+          Nouveau relevé kilométrique
+        </div>
+        <button class="modal-close" (click)="closeForm()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <form [formGroup]="form" (ngSubmit)="saveReleve()" novalidate>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Kilométrage (km) *</label>
+            <input type="number" formControlName="kilometrage"
+                   class="form-control" step="1" min="0"
+                   [class.is-invalid]="f['kilometrage'].invalid && f['kilometrage'].touched"
+                   placeholder="Valeur du compteur" />
+            @if (f['kilometrage'].invalid && f['kilometrage'].touched) {
+              <div class="form-error">
+                <i class="fas fa-times-circle"></i> Kilométrage requis.
+              </div>
+            }
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date du relevé *</label>
+            <input type="date" formControlName="date_releve" class="form-control"
+                   [class.is-invalid]="f['date_releve'].invalid && f['date_releve'].touched" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Type de mouvement *</label>
+          <div class="type-grid">
+            @for (t of typesMouvement; track t.value) {
+              <label class="type-option" [class.active]="f['type_mouvement'].value === t.value">
+                <input type="radio" formControlName="type_mouvement" [value]="t.value"
+                       style="display:none" />
+                <i class="fas" [class]="t.icon"></i>
+                <span>{{ t.label }}</span>
+              </label>
+            }
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Chauffeur</label>
+          <select formControlName="chauffeur" class="form-control">
+            <option value="">-- Aucun / Non précisé --</option>
+            @for (c of chauffeurs(); track c.id) {
+              <option [value]="c.id">{{ c.nom_complet }}</option>
+            }
+          </select>
+        </div>
+
+        @if (f['type_mouvement'].value === 'tournee' || f['type_mouvement'].value === 'sortie') {
+          <div class="form-group">
+            <label class="form-label">Tournée / Destination</label>
+            <input formControlName="tournee" class="form-control"
+                   placeholder="ex: Livraison Bouaké, Tournée Nord..." />
+          </div>
+        }
+
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea formControlName="notes" class="form-control" rows="2"
+                    placeholder="Observations..."></textarea>
+        </div>
+
+        <!-- Photo tableau de bord -->
+        <div class="form-group">
+          <label class="form-label">
+            <i class="fas fa-camera"></i> Photo tableau de bord
+            <span style="font-size:11px;color:var(--gray-400);font-weight:400;margin-left:6px">(optionnel)</span>
+          </label>
+          @if (photoPreview()) {
+            <div style="margin-bottom:8px;position:relative;display:inline-block">
+              <img [src]="photoPreview()!" alt="Aperçu"
+                   style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--gray-200)" />
+              <button type="button"
+                      style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:11px"
+                      (click)="photoFile.set(null); photoPreview.set(null)">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          }
+          <div style="border:2px dashed var(--gray-200);border-radius:8px;padding:12px;text-align:center;position:relative;background:var(--gray-50)">
+            <label for="photo-releve" style="cursor:pointer;font-size:12px;color:var(--gray-500);display:flex;align-items:center;justify-content:center;gap:8px">
+              <i class="fas fa-camera"></i>
+              {{ photoPreview() ? 'Changer la photo' : 'Sélectionner une photo' }}
+            </label>
+            <input type="file" id="photo-releve"
+                   style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%"
+                   accept="image/*" (change)="onPhotoChange($event)" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button type="button" class="btn btn-outline" (click)="closeForm()">
+            Annuler
+          </button>
+          <button type="submit" class="btn btn-green" [disabled]="form.invalid || saving()">
+            @if (saving()) {
+              <i class="fas fa-circle-notch fa-spin"></i>
+            } @else {
+              <i class="fas fa-save"></i>
+            }
+            Enregistrer
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+}
+
+<!-- MODAL Confirmation suppression -->
+@if (deleteId()) {
+  <div class="modal-backdrop">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Supprimer le relevé</div>
+      </div>
+      <p style="font-size:14px;color:var(--gray-600);margin-bottom:24px">
+        La suppression n'affecte pas le kilométrage actuel du véhicule.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="cancelDelete()">Annuler</button>
+        <button class="btn btn-danger" (click)="doDelete(deleteId()!)">
+          <i class="fas fa-trash"></i> Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- LIGHTBOX Photo tableau de bord -->
+@if (photoLightbox()) {
+  <div class="lightbox-backdrop" (click)="closeLightbox()">
+    <div class="lightbox-container" (click)="$event.stopPropagation()">
+      <div class="lightbox-header">
+        <div class="lightbox-title">
+          <i class="fas fa-tachometer-alt"></i> Photo tableau de bord
+        </div>
+        <button class="lightbox-close" (click)="closeLightbox()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="lightbox-body">
+        <img [src]="photoLightbox()!" alt="Tableau de bord" class="lightbox-img" />
+      </div>
+      <div class="lightbox-footer">
+        <a [href]="photoLightbox()!" target="_blank" class="btn btn-outline btn-sm">
+          <i class="fas fa-external-link-alt"></i> Ouvrir en plein écran
+        </a>
+      </div>
+    </div>
+  </div>
+}

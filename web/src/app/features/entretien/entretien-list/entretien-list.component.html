@@ -1,0 +1,328 @@
+<!-- UbiFleet — Entretiens Liste (Angular 18) -->
+<div class="entretien-page">
+
+  <!-- EN-TÊTE -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Entretiens & Réparations</h1>
+      <p class="page-subtitle">
+        {{ store.pagination().total }} intervention(s) &bull;
+        {{ nbUrgentes }} urgente(s) &bull;
+        {{ nbEnCours }} en cours
+      </p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline btn-sm">
+        <i class="fas fa-download"></i> Exporter
+      </button>
+      <button class="btn btn-green" (click)="goToNew()">
+        <i class="fas fa-plus"></i> Planifier
+      </button>
+    </div>
+  </div>
+
+  <!-- STATS RAPIDES -->
+  <div class="quick-stats">
+    <div class="qs-item">
+      <span class="qs-dot navy"></span>
+      <span class="qs-val">{{ store.nbPlanifiees() }}</span>
+      <span class="qs-lbl">Planifiées</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot blue"></span>
+      <span class="qs-val">{{ nbEnCours }}</span>
+      <span class="qs-lbl">En cours</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot red"></span>
+      <span class="qs-val">{{ nbUrgentes }}</span>
+      <span class="qs-lbl">Urgentes</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot orange"></span>
+      <span class="qs-val">{{ nbPneusAChanger }}</span>
+      <span class="qs-lbl">Pneus à changer</span>
+    </div>
+  </div>
+
+  <!-- ONGLETS -->
+  <div class="tabs">
+    <button class="tab" [class.active]="activeTab() === 'liste'"
+            (click)="activeTab.set('liste')">
+      <i class="fas fa-list"></i> Toutes les interventions
+    </button>
+    <button class="tab" [class.active]="activeTab() === 'planifiees'"
+            (click)="activeTab.set('planifiees')">
+      <i class="fas fa-calendar-check"></i> À venir ({{ store.nbPlanifiees() }})
+    </button>
+    <button class="tab" [class.active]="activeTab() === 'pneus'"
+            (click)="activeTab.set('pneus')">
+      <i class="fas fa-circle-notch"></i> Pneus
+      @if (nbPneusAChanger > 0) {
+        <span class="tab-badge">{{ nbPneusAChanger }}</span>
+      }
+    </button>
+  </div>
+
+  <!-- ── ONGLET : LISTE ── -->
+  @if (activeTab() === 'liste') {
+
+    <!-- Filtres -->
+    <div class="filters-bar">
+      <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input
+          type="text"
+          placeholder="Immatriculation, description, prestataire..."
+          (input)="onSearch($event)"
+        />
+      </div>
+      <select class="form-control filter-select" (change)="onAgenceFilter($event)">
+        <option value="">Toutes les agences</option>
+        @for (a of agences(); track a.id) {
+          <option [value]="a.id">{{ a.nom }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="chips-row">
+      @for (chip of statutChips; track chip.value) {
+        <button
+          class="chip"
+          [class.active]="store.filters().statut === chip.value"
+          (click)="onStatutFilter(chip.value)"
+        >{{ chip.label }}</button>
+      }
+      <div class="chips-sep"></div>
+      @for (chip of prioriteChips; track chip.value) {
+        <button
+          class="chip chip-priorite"
+          [class.active]="store.filters().priorite === chip.value"
+          (click)="onPrioriteFilter(chip.value)"
+        >{{ chip.label }}</button>
+      }
+    </div>
+
+    <!-- Chargement -->
+    @if (store.isLoading()) {
+      <div class="loading-state">
+        <i class="fas fa-circle-notch fa-spin"></i>
+        <span>Chargement...</span>
+      </div>
+    }
+
+    <!-- Erreur -->
+    @if (store.hasError() && !store.isLoading()) {
+      <div class="error-state">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>{{ store.error() }}</p>
+        <button class="btn btn-primary btn-sm" (click)="store.loadInterventions()">
+          <i class="fas fa-redo"></i> Réessayer
+        </button>
+      </div>
+    }
+
+    <!-- Tableau -->
+    @if (!store.isLoading() && !store.hasError()) {
+      <div class="card">
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead>
+              <tr>
+                <th>Véhicule</th>
+                <th>Type</th>
+                <th>Date prévue</th>
+                <th>Prestataire</th>
+                <th>Coût estimé</th>
+                <th>Priorité</th>
+                <th>Statut</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (store.interventions().length === 0) {
+                <tr>
+                  <td colspan="8" class="td-empty">
+                    <i class="fas fa-wrench"></i>
+                    Aucune intervention trouvée
+                  </td>
+                </tr>
+              }
+              @for (i of store.interventions(); track i.id) {
+                <tr (click)="goToDetail(i.id)" class="tr-clickable">
+                  <td>
+                    <div class="td-vehicule">{{ i.vehicule_immat }}</div>
+                    <div class="td-sub">{{ i.vehicule_designation }}</div>
+                  </td>
+                  <td>
+                    <div class="td-type">{{ i.type_nom }}</div>
+                    <div class="td-sub">{{ i.type_categorie }}</div>
+                  </td>
+                  <td>{{ i.date_planifiee | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ i.prestataire_nom ?? '—' }}</td>
+                  <td>{{ i.cout_estime | number:'1.0-0' }} FCFA</td>
+                  <td>
+                    <span class="badge" [class]="prioriteBadgeClass(i.priorite)">
+                      {{ i.priorite_display }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge" [class]="statutBadgeClass(i.statut)">
+                      {{ i.statut_display }}
+                    </span>
+                  </td>
+                  <td>
+                    <button
+                      class="btn btn-icon"
+                      title="Voir"
+                      (click)="goToDetail(i.id); $event.stopPropagation()"
+                    >
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      @if (store.pagination().total > store.pagination().pageSize) {
+        <div class="pagination">
+          <button
+            class="page-btn"
+            [disabled]="store.pagination().page === 1"
+            (click)="onPageChange(store.pagination().page - 1)"
+          ><i class="fas fa-chevron-left"></i></button>
+
+          @for (p of pages; track p) {
+            <button
+              class="page-btn"
+              [class.active]="p === store.pagination().page"
+              (click)="onPageChange(p)"
+            >{{ p }}</button>
+          }
+
+          <button
+            class="page-btn"
+            [disabled]="store.pagination().page === totalPages"
+            (click)="onPageChange(store.pagination().page + 1)"
+          ><i class="fas fa-chevron-right"></i></button>
+        </div>
+      }
+    }
+  }
+
+  <!-- ── ONGLET : PLANIFIÉES ── -->
+  @if (activeTab() === 'planifiees') {
+    @if (store.planifiees().length === 0) {
+      <div class="empty-state">
+        <i class="fas fa-calendar-check"></i>
+        <h3>Aucune intervention planifiée</h3>
+        <p>Toutes les interventions sont à jour.</p>
+        <button class="btn btn-green" (click)="goToNew()">
+          <i class="fas fa-plus"></i> Planifier une intervention
+        </button>
+      </div>
+    } @else {
+      <div class="planifiees-grid">
+        @for (i of store.planifiees(); track i.id) {
+          <div
+            class="plan-card"
+            [class.urgente]="i.priorite === 'critique'"
+            (click)="goToDetail(i.id)"
+          >
+            <div class="plan-card-head">
+              <span class="badge" [class]="prioriteBadgeClass(i.priorite)">
+                {{ i.priorite_display }}
+              </span>
+              <span class="plan-date">{{ i.date_planifiee | date:'dd MMM yyyy' }}</span>
+            </div>
+            <div class="plan-vehicule">{{ i.vehicule_immat }}</div>
+            <div class="plan-type">{{ i.type_nom }}</div>
+            @if (i.prestataire_nom) {
+              <div class="plan-prestataire">
+                <i class="fas fa-tools"></i> {{ i.prestataire_nom }}
+              </div>
+            }
+            <div class="plan-footer">
+              <span class="plan-cout">{{ i.cout_estime | number:'1.0-0' }} FCFA</span>
+              <span class="badge" [class]="statutBadgeClass(i.statut)">
+                {{ i.statut_display }}
+              </span>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- ── ONGLET : PNEUS ── -->
+  @if (activeTab() === 'pneus') {
+    @if (store.pneusAChanger().length === 0) {
+      <div class="empty-state">
+        <i class="fas fa-circle-notch"></i>
+        <h3>Aucun pneu à remplacer</h3>
+        <p>Tous les pneus sont en bon état.</p>
+      </div>
+    } @else {
+      <div class="card">
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead>
+              <tr>
+                <th>Véhicule</th>
+                <th>Position</th>
+                <th>Marque / Dimension</th>
+                <th>Monté le</th>
+                <th>Km parcourus</th>
+                <th>Usure</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of store.pneusAChanger(); track p.id) {
+                <tr>
+                  <td><strong>{{ p.vehicule_immat }}</strong></td>
+                  <td>{{ p.position_display }}</td>
+                  <td>
+                    <div>{{ p.marque || '—' }}</div>
+                    <div class="td-sub">{{ p.dimension || '—' }}</div>
+                  </td>
+                  <td>{{ p.date_montage | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ p.kilometrage_utilise | number:'1.0-0' }} km</td>
+                  <td>
+                    @if (p.usure_pct !== null) {
+                      <div class="usure-bar">
+                        <div class="progress">
+                          <div
+                            class="progress-bar"
+                            [class]="usurePctClass(p.usure_pct)"
+                            [style.width.%]="p.usure_pct"
+                          ></div>
+                        </div>
+                        <span class="usure-val" [class]="usurePctClass(p.usure_pct)">
+                          {{ p.usure_pct }}%
+                        </span>
+                      </div>
+                    } @else {
+                      <span style="color:var(--gray-400)">—</span>
+                    }
+                  </td>
+                  <td>
+                    <span class="badge badge-danger">{{ p.statut_display }}</span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+
+</div>

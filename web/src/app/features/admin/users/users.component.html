@@ -1,0 +1,309 @@
+<!-- UbiFleet — Gestion Utilisateurs (Angular 18) -->
+<div class="users-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-users-cog" style="color:var(--green-dark)"></i>
+        Gestion des utilisateurs
+      </h1>
+      <p class="page-subtitle">{{ total() }} utilisateur(s) enregistré(s)</p>
+    </div>
+    <button class="btn btn-green" (click)="openModal()">
+      <i class="fas fa-user-plus"></i> Nouvel utilisateur
+    </button>
+  </div>
+
+  @if (modalSuccess()) {
+    <div class="alert-success">
+      <i class="fas fa-check-circle"></i> {{ modalSuccess() }}
+    </div>
+  }
+
+  <!-- Filtres -->
+  <div class="filters-bar">
+    <div class="search-box">
+      <i class="fas fa-search"></i>
+      <input type="text" placeholder="Nom, prénom, email..."
+             [value]="searchVal()" (input)="onSearch($event)" />
+    </div>
+    <select class="form-control filter-select" (change)="onRoleFilter($event)">
+      <option value="">Tous les rôles</option>
+      @for (r of roles; track r.value) {
+        <option [value]="r.value">{{ r.label }}</option>
+      }
+    </select>
+    <select class="form-control filter-select" (change)="onActifFilter($event)">
+      <option value="">Tous les statuts</option>
+      <option value="true">Actifs</option>
+      <option value="false">Inactifs</option>
+    </select>
+  </div>
+
+  <!-- Tableau -->
+  @if (loading()) {
+    <div class="loading-state">
+      <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+    </div>
+  } @else {
+    <div class="card">
+      <div class="table-container">
+        <table class="ubi-table">
+          <thead>
+            <tr>
+              <th>Utilisateur</th>
+              <th>Rôle</th>
+              <th>Agence</th>
+              <th>Téléphone</th>
+              <th>Dernière connexion</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (users().length === 0) {
+              <tr>
+                <td colspan="7" class="td-empty">
+                  <i class="fas fa-users"></i> Aucun utilisateur trouvé
+                </td>
+              </tr>
+            }
+            @for (u of users(); track u.id) {
+              <tr [class.row-inactive]="!u.is_active">
+                <td>
+                  <div class="user-cell">
+                    <div class="user-avatar">
+                      {{ u.first_name ? u.first_name[0] : u.email[0] }}{{ u.last_name ? u.last_name[0] : '' }}
+                    </div>
+                    <div>
+                      <div class="user-name">{{ u.first_name }} {{ u.last_name }}</div>
+                      <div class="user-email">{{ u.email }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge" [class]="niveauBadgeClass(u.role_detail?.niveau)">
+                    {{ u.role_detail?.nom ?? '—' }}
+                  </span>
+                </td>
+                <td>{{ u.agence_detail?.nom ?? '—' }}</td>
+                <td>{{ u.telephone || '—' }}</td>
+                <td>{{ u.date_joined | date:'dd/MM/yyyy' }}</td>
+                <td>
+                  @if (u.is_active) {
+                    <span class="badge badge-green">Actif</span>
+                  } @else {
+                    <span class="badge badge-danger">Inactif</span>
+                  }
+                </td>
+                <td>
+                  <div class="td-actions">
+                    <button class="btn btn-icon" title="Modifier"
+                            (click)="openModal(u)">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-icon" title="Réinitialiser mot de passe"
+                            (click)="openPwdModal(u)">
+                      <i class="fas fa-key"></i>
+                    </button>
+                    <button class="btn btn-icon"
+                            [title]="u.is_active ? 'Désactiver' : 'Activer'"
+                            [class.btn-icon-warning]="u.is_active"
+                            [class.btn-icon-green]="!u.is_active"
+                            (click)="toggleActive(u)">
+                      <i class="fas" [class.fa-user-slash]="u.is_active"
+                                     [class.fa-user-check]="!u.is_active"></i>
+                    </button>
+                    <button class="btn btn-icon btn-icon-danger" title="Supprimer"
+                            (click)="confirmDelete(u.id)">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    @if (total() > 20) {
+      <div class="pagination">
+        <button class="page-btn" [disabled]="page() === 1"
+                (click)="onPageChange(page() - 1)">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        @for (p of pages; track p) {
+          <button class="page-btn" [class.active]="p === page()"
+                  (click)="onPageChange(p)">{{ p }}</button>
+        }
+        <button class="page-btn" [disabled]="page() === totalPages"
+                (click)="onPageChange(page() + 1)">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+        <span class="pagination-info">{{ total() }} utilisateur(s)</span>
+      </div>
+    }
+  }
+</div>
+
+<!-- MODAL Créer / Modifier utilisateur -->
+@if (showModal()) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal-container modal-lg" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          {{ editUserId() ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur' }}
+        </div>
+        <button class="modal-close" (click)="closeModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      @if (modalError()) {
+        <div class="alert-error-sm">
+          <i class="fas fa-exclamation-triangle"></i> {{ modalError() }}
+        </div>
+      }
+
+      <form [formGroup]="userForm" (ngSubmit)="saveUser()" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Prénom *</label>
+            <input formControlName="first_name" class="form-control"
+                   [class.is-invalid]="f['first_name'].invalid && f['first_name'].touched"
+                   placeholder="Prénom" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nom *</label>
+            <input formControlName="last_name" class="form-control"
+                   [class.is-invalid]="f['last_name'].invalid && f['last_name'].touched"
+                   placeholder="Nom de famille" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Email *</label>
+            <input type="email" formControlName="email" class="form-control"
+                   [class.is-invalid]="f['email'].invalid && f['email'].touched"
+                   placeholder="email@ubipharm.ci" />
+            @if (f['email'].invalid && f['email'].touched) {
+              <div class="form-error">
+                <i class="fas fa-times-circle"></i> Email valide requis.
+              </div>
+            }
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nom d'utilisateur *</label>
+            <input formControlName="username" class="form-control"
+                   placeholder="identifiant unique" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Rôle *</label>
+            <select formControlName="role" class="form-control">
+              @for (r of roles; track r.value) {
+                <option [value]="r.value">{{ r.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Agence</label>
+            <select formControlName="agence" class="form-control">
+              <option [value]="null">— Toutes les agences —</option>
+              @for (a of agences(); track a.id) {
+                <option [value]="a.id">{{ a.nom }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Téléphone</label>
+          <input formControlName="telephone" class="form-control"
+                 placeholder="+225 XX XX XX XX XX" />
+        </div>
+
+        @if (!editUserId()) {
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Mot de passe *</label>
+              <input type="password" formControlName="password" class="form-control"
+                     [class.is-invalid]="f['password'].invalid && f['password'].touched"
+                     placeholder="Min. 8 caractères" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirmer *</label>
+              <input type="password" formControlName="password2" class="form-control"
+                     placeholder="Répéter le mot de passe" />
+            </div>
+          </div>
+        }
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button type="button" class="btn btn-outline" (click)="closeModal()">Annuler</button>
+          <button type="submit" class="btn btn-green" [disabled]="userForm.invalid || saving()">
+            @if (saving()) { <i class="fas fa-circle-notch fa-spin"></i> }
+            @else if (editUserId()) { <i class="fas fa-save"></i> Modifier }
+            @else { <i class="fas fa-user-plus"></i> Créer }
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- MODAL Réinitialiser mot de passe -->
+@if (showPwdModal()) {
+  <div class="modal-backdrop" (click)="closePwdModal()">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-key"></i> Réinitialiser le mot de passe
+        </div>
+        <button class="modal-close" (click)="closePwdModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      @if (pwdError()) {
+        <div class="alert-error-sm">
+          <i class="fas fa-exclamation-triangle"></i> {{ pwdError() }}
+        </div>
+      }
+      <div class="form-group" style="margin-top:8px">
+        <label class="form-label">Nouveau mot de passe *</label>
+        <input type="password" class="form-control"
+               [value]="newPwd()" (input)="onNewPwd($event)"
+               placeholder="Min. 8 caractères" />
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-outline" (click)="closePwdModal()">Annuler</button>
+        <button class="btn btn-green" [disabled]="pwdSaving()" (click)="submitResetPwd()">
+          @if (pwdSaving()) { <i class="fas fa-circle-notch fa-spin"></i> }
+          @else { <i class="fas fa-key"></i> Réinitialiser }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- MODAL Confirmation suppression -->
+@if (deleteUserId()) {
+  <div class="modal-backdrop" (click)="cancelDelete()">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header"><div class="modal-title">Supprimer l'utilisateur</div></div>
+      <p style="font-size:14px;color:var(--gray-600);margin-bottom:24px">
+        Cette action est irréversible.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="cancelDelete()">Annuler</button>
+        <button class="btn btn-danger" (click)="doDelete(deleteUserId()!)">
+          <i class="fas fa-trash"></i> Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+}

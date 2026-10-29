@@ -1,0 +1,491 @@
+<!-- UbiFleet — Sinistres & Assurances Liste (Angular 18) -->
+<div class="sinistres-page">
+
+  <!-- EN-TÊTE -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Sinistres & Assurances</h1>
+      <p class="page-subtitle">
+        {{ store.pagination().total }} sinistre(s) &bull;
+        {{ nbEnCours }} en cours &bull;
+        {{ store.contratsExpirant().length }} contrat(s) expirant bientôt
+      </p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline btn-sm">
+        <i class="fas fa-download"></i> Exporter
+      </button>
+      <button class="btn btn-green" (click)="goToNew()">
+        <i class="fas fa-plus"></i> Déclarer un sinistre
+      </button>
+    </div>
+  </div>
+
+  <!-- ALERTES CONTRATS -->
+  @if (store.contratsExpirant().length > 0) {
+    <div class="contrat-alert">
+      <i class="fas fa-exclamation-triangle"></i>
+      <div>
+        <strong>{{ store.contratsExpirant().length }} contrat(s) expirent bientôt</strong>
+        <span>Renouvelez les contrats d'assurance concernés.</span>
+      </div>
+      <div class="contrat-chips">
+        @for (c of store.contratsExpirant().slice(0, 3); track c.id) {
+          <span class="contrat-chip" [class.urgent]="c.jours_restants <= 30">
+            {{ c.vehicule_immat }} — J-{{ c.jours_restants }}
+          </span>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- STATS -->
+  <div class="quick-stats">
+    <div class="qs-item">
+      <span class="qs-dot orange"></span>
+      <span class="qs-val">{{ nbEnCours }}</span>
+      <span class="qs-lbl">En cours</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot navy"></span>
+      <span class="qs-val">{{ store.pagination().total }}</span>
+      <span class="qs-lbl">Total sinistres</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot red"></span>
+      <span class="qs-val">{{ nbContratsUrgents }}</span>
+      <span class="qs-lbl">Contrats urgents</span>
+    </div>
+  </div>
+
+  <!-- ONGLETS -->
+  <div class="tabs">
+    <button class="tab" [class.active]="activeTab() === 'sinistres'"
+            (click)="onTabChange('sinistres')">
+      <i class="fas fa-car-crash"></i> Sinistres ({{ store.pagination().total }})
+    </button>
+    <button class="tab" [class.active]="activeTab() === 'contrats'"
+            (click)="onTabChange('contrats')">
+      <i class="fas fa-shield-alt"></i> Contrats d'assurance
+      @if (nbContratsUrgents > 0) {
+        <span class="tab-badge">{{ nbContratsUrgents }}</span>
+      }
+    </button>
+  </div>
+
+  <!-- ── ONGLET SINISTRES ── -->
+  @if (activeTab() === 'sinistres') {
+
+    <!-- Filtres -->
+    <div class="filters-bar">
+      <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" placeholder="N° dossier, véhicule, lieu..."
+               (input)="onSearch($event)" />
+      </div>
+      <select class="form-control filter-select" (change)="onAgenceFilter($event)">
+        <option value="">Toutes les agences</option>
+        @for (a of agences(); track a.id) {
+          <option [value]="a.id">{{ a.nom }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="chip-row">
+      @for (chip of statutChips; track chip.value) {
+        <button class="chip" [class.active]="store.filters().statut === chip.value"
+                (click)="onStatutFilter(chip.value)">{{ chip.label }}</button>
+      }
+      <div style="width:1px;height:20px;background:var(--gray-200);margin:0 4px"></div>
+      @for (chip of typesChips; track chip.value) {
+        <button class="chip chip-type"
+                [class.active]="store.filters().type_sinistre === chip.value"
+                (click)="onTypeFilter(chip.value)">{{ chip.label }}</button>
+      }
+    </div>
+
+    <!-- Chargement -->
+    @if (store.isLoading()) {
+      <div class="loading-state">
+        <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+      </div>
+    }
+
+    <!-- Erreur -->
+    @if (store.hasError() && !store.isLoading()) {
+      <div class="error-state">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>{{ store.error() }}</p>
+        <button class="btn btn-sm btn-primary" (click)="store.loadSinistres()">
+          <i class="fas fa-redo"></i> Réessayer
+        </button>
+      </div>
+    }
+
+    <!-- Tableau -->
+    @if (!store.isLoading() && !store.hasError()) {
+      <div class="card">
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead>
+              <tr>
+                <th>N° Dossier</th>
+                <th>Véhicule</th>
+                <th>Type</th>
+                <th>Date sinistre</th>
+                <th>Lieu</th>
+                <th>Dommages estimés</th>
+                <th>Coût réparation</th>
+                <th>Statut</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (store.sinistres().length === 0) {
+                <tr>
+                  <td colspan="9" class="td-empty">
+                    <i class="fas fa-car-crash"></i> Aucun sinistre trouvé
+                  </td>
+                </tr>
+              }
+              @for (s of store.sinistres(); track s.id) {
+                <tr (click)="goToDetail(s.id)" class="tr-clickable">
+                  <td><strong class="dossier-ref">{{ s.numero_dossier }}</strong></td>
+                  <td>
+                    <div class="td-bold">{{ s.vehicule_immat }}</div>
+                    <div class="td-sub">{{ s.vehicule_designation }}</div>
+                  </td>
+                  <td>
+                    <span class="badge" [class]="typeBadgeClass(s.type_sinistre)">
+                      {{ s.type_display }}
+                    </span>
+                  </td>
+                  <td>{{ s.date_sinistre | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ s.lieu || '—' }}</td>
+                  <td>{{ s.dommages_estimes | number:'1.0-0' }} FCFA</td>
+                  <td>
+                    @if (s.cout_reparation !== null) {
+                      {{ s.cout_reparation | number:'1.0-0' }} FCFA
+                    } @else { — }
+                  </td>
+                  <td>
+                    <span class="badge" [class]="statutBadgeClass(s.statut)">
+                      {{ s.statut_display }}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="td-actions">
+                      <button class="btn btn-icon" title="Modifier"
+                              (click)="goToEdit($event, s.id)">
+                        <i class="fas fa-edit"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      @if (store.pagination().total > store.pagination().pageSize) {
+        <div class="pagination">
+          <button class="page-btn" [disabled]="store.pagination().page === 1"
+                  (click)="onPageChange(store.pagination().page - 1)">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          @for (p of pages; track p) {
+            <button class="page-btn" [class.active]="p === store.pagination().page"
+                    (click)="onPageChange(p)">{{ p }}</button>
+          }
+          <button class="page-btn" [disabled]="store.pagination().page === totalPages"
+                  (click)="onPageChange(store.pagination().page + 1)">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+          <span class="pagination-info">{{ store.pagination().total }} sinistre(s)</span>
+        </div>
+      }
+    }
+  }
+
+  <!-- ── ONGLET CONTRATS ── -->
+  @if (activeTab() === 'contrats') {
+    <div class="contrats-layout">
+
+      <!-- Panneau gauche : formulaire -->
+      <div class="card contrat-form-card">
+        <div class="card-header">
+          <div class="card-title">
+            {{ editContratId() ? 'Modifier le contrat' : 'Nouveau contrat' }}
+          </div>
+        </div>
+        <div class="card-body">
+
+          @if (contratSuccess()) {
+            <div class="alert-success-sm">
+              <i class="fas fa-check-circle"></i> {{ contratSuccess() }}
+            </div>
+          }
+          @if (contratError()) {
+            <div class="alert-error-sm">
+              <i class="fas fa-exclamation-triangle"></i> {{ contratError() }}
+            </div>
+          }
+
+          <form [formGroup]="contratForm" (ngSubmit)="saveContrat()" novalidate>
+
+            <div class="form-group">
+              <label class="form-label">Véhicule *</label>
+              <select formControlName="vehicule" class="form-control"
+                      [class.is-invalid]="cf['vehicule'].invalid && cf['vehicule'].touched">
+                <option value="">-- Sélectionner --</option>
+                @for (v of vehicules(); track v.id) {
+                  <option [value]="v.id">{{ v.immatriculation }} — {{ v.designation }}</option>
+                }
+              </select>
+              @if (cf['vehicule'].invalid && cf['vehicule'].touched) {
+                <div class="form-error">
+                  <i class="fas fa-times-circle"></i> Requis.
+                </div>
+              }
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Assureur *</label>
+              <select formControlName="assureur" class="form-control"
+                      [class.is-invalid]="cf['assureur'].invalid && cf['assureur'].touched">
+                <option value="">-- Sélectionner --</option>
+                @for (a of assureurs(); track a.id) {
+                  <option [value]="a.id">{{ a.nom }}</option>
+                }
+              </select>
+              @if (cf['assureur'].invalid && cf['assureur'].touched) {
+                <div class="form-error">
+                  <i class="fas fa-times-circle"></i> Requis.
+                </div>
+              }
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">N° Police *</label>
+              <input formControlName="numero_police" class="form-control"
+                     [class.is-invalid]="cf['numero_police'].invalid && cf['numero_police'].touched"
+                     placeholder="ex: POL-2024-001" />
+              @if (cf['numero_police'].invalid && cf['numero_police'].touched) {
+                <div class="form-error">
+                  <i class="fas fa-times-circle"></i> Requis.
+                </div>
+              }
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Type de contrat *</label>
+              <select formControlName="type_contrat" class="form-control">
+                @for (t of typesContrat; track t.value) {
+                  <option [value]="t.value">{{ t.label }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Date début *</label>
+                <input type="date" formControlName="date_debut" class="form-control"
+                       [class.is-invalid]="cf['date_debut'].invalid && cf['date_debut'].touched" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Date fin *</label>
+                <input type="date" formControlName="date_fin" class="form-control"
+                       [class.is-invalid]="cf['date_fin'].invalid && cf['date_fin'].touched" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Prime annuelle (FCFA) *</label>
+                <input type="number" formControlName="prime_annuelle" class="form-control"
+                       min="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Franchise (FCFA)</label>
+                <input type="number" formControlName="franchise" class="form-control"
+                       min="0" placeholder="0" />
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+              @if (editContratId()) {
+                <button type="button" class="btn btn-outline btn-sm"
+                        (click)="closeContratModal()">Annuler</button>
+              }
+              <button type="submit" class="btn btn-green btn-sm"
+                      [disabled]="contratForm.invalid || contratSaving()">
+                @if (contratSaving()) {
+                  <i class="fas fa-circle-notch fa-spin"></i>
+                } @else if (editContratId()) {
+                  <i class="fas fa-save"></i> Modifier
+                } @else {
+                  <i class="fas fa-plus"></i> Créer
+                }
+              </button>
+            </div>
+
+          </form>
+        </div>
+      </div>
+
+      <!-- Panneau droit : liste -->
+      <div class="contrat-list-panel">
+
+        <!-- Alerte expirant -->
+        @if (store.contratsExpirant().length > 0) {
+          <div class="card card-urgent">
+            <div class="card-header">
+              <div class="card-title" style="color:var(--danger)">
+                <i class="fas fa-exclamation-triangle"></i>
+                {{ store.contratsExpirant().length }} contrat(s) expirant bientôt
+              </div>
+            </div>
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead>
+                  <tr>
+                    <th>Véhicule</th>
+                    <th>N° Police</th>
+                    <th>Date fin</th>
+                    <th>Jours</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of store.contratsExpirant(); track c.id) {
+                    <tr>
+                      <td><strong>{{ c.vehicule_immat }}</strong></td>
+                      <td>{{ c.numero_police }}</td>
+                      <td>{{ c.date_fin | date:'dd/MM/yyyy' }}</td>
+                      <td>
+                        <span class="badge" [class]="joursClass(c.jours_restants)">
+                          @if (c.jours_restants <= 0) { EXPIRÉ }
+                          @else { J-{{ c.jours_restants }} }
+                        </span>
+                      </td>
+                      <td>
+                        <button class="btn btn-icon" title="Renouveler"
+                                (click)="openContratModal(c)">
+                          <i class="fas fa-redo"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        <!-- Tous les contrats -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Tous les contrats</div>
+            <span style="font-size:12px;color:var(--gray-400)">
+              {{ allContrats().length }} contrat(s)
+            </span>
+          </div>
+          @if (contratsLoad()) {
+            <div class="tab-loading"><i class="fas fa-circle-notch fa-spin"></i></div>
+          } @else if (allContrats().length === 0) {
+            <div class="card-body">
+              <p style="text-align:center;color:var(--gray-400);font-size:13px;padding:24px 0">
+                Aucun contrat. Créez-en un avec le formulaire.
+              </p>
+            </div>
+          } @else {
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead>
+                  <tr>
+                    <th>Véhicule</th>
+                    <th>Assureur</th>
+                    <th>N° Police</th>
+                    <th>Type</th>
+                    <th>Validité</th>
+                    <th>Prime</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of allContrats(); track c.id) {
+                    <tr [class.row-urgent]="c.jours_restants <= 30 && !c.est_expire">
+                      <td><strong>{{ c.vehicule_immat }}</strong></td>
+                      <td>{{ c.assureur_nom }}</td>
+                      <td>{{ c.numero_police }}</td>
+                      <td>{{ c.type_display }}</td>
+                      <td>
+                        <div style="font-size:12px">
+                          {{ c.date_debut | date:'dd/MM/yy' }} →
+                          {{ c.date_fin   | date:'dd/MM/yy' }}
+                        </div>
+                      </td>
+                      <td>{{ c.prime_annuelle | number:'1.0-0' }} F</td>
+                      <td>
+                        @if (c.est_expire) {
+                          <span class="badge badge-danger">Expiré</span>
+                        } @else if (c.jours_restants <= 60) {
+                          <span class="badge" [class]="joursClass(c.jours_restants)">
+                            J-{{ c.jours_restants }}
+                          </span>
+                        } @else if (c.is_active) {
+                          <span class="badge badge-green">Actif</span>
+                        } @else {
+                          <span class="badge badge-gray">Inactif</span>
+                        }
+                      </td>
+                      <td>
+                        <div style="display:flex;gap:4px">
+                          <button class="btn btn-icon" title="Modifier"
+                                  (click)="openContratModal(c)">
+                            <i class="fas fa-edit"></i>
+                          </button>
+                          <button class="btn btn-icon btn-icon-danger" title="Supprimer"
+                                  (click)="confirmDeleteContrat(c.id)">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+
+    </div>
+  }
+
+  <!-- MODAL Confirmation suppression contrat -->
+  @if (deleteContratId()) {
+    <div class="modal-backdrop" (click)="cancelDeleteContrat()">
+      <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-title">Supprimer le contrat</div>
+        </div>
+        <p style="font-size:14px;color:var(--gray-600);margin-bottom:24px">
+          Cette action est irréversible.
+        </p>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-outline" (click)="cancelDeleteContrat()">Annuler</button>
+          <button class="btn btn-danger" (click)="doDeleteContrat(deleteContratId()!)">
+            <i class="fas fa-trash"></i> Supprimer
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+</div>

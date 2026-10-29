@@ -1,0 +1,216 @@
+<!-- UbiFleet — Alertes (Angular 18) -->
+<div class="alertes-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-bell" style="color:var(--green-dark)"></i>
+        Centre d'alertes
+      </h1>
+      <p class="page-subtitle">Surveillance en temps réel — documents, révisions, consommation</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-green btn-sm" (click)="genererEtRecharger()">
+        <i class="fas fa-magic"></i> Générer les alertes
+      </button>
+      <button class="btn btn-outline btn-sm" (click)="marquerToutesLues()">
+        <i class="fas fa-check-double"></i> Tout marquer lu
+      </button>
+      <button class="btn btn-outline btn-sm" (click)="store.loadAlertes()">
+        <i class="fas fa-sync-alt"></i> Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- ── KPI résumé ── -->
+  @if (store.resume(); as r) {
+    <div class="kpi-row">
+      <div class="kpi-card kpi-total" (click)="store.setFilter('priorite',''); store.loadAlertes()">
+        <div class="kpi-icon"><i class="fas fa-bell"></i></div>
+        <div>
+          <div class="kpi-val">{{ r.total }}</div>
+          <div class="kpi-label">Alertes actives</div>
+        </div>
+      </div>
+      <div class="kpi-card kpi-critique" (click)="store.setFilter('priorite','critique'); store.loadAlertes()">
+        <div class="kpi-icon"><i class="fas fa-exclamation-circle"></i></div>
+        <div>
+          <div class="kpi-val">{{ r.critiques }}</div>
+          <div class="kpi-label">Critiques</div>
+        </div>
+      </div>
+      <div class="kpi-card kpi-haute" (click)="store.setFilter('priorite','haute'); store.loadAlertes()">
+        <div class="kpi-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        <div>
+          <div class="kpi-val">{{ r.hautes }}</div>
+          <div class="kpi-label">Hautes</div>
+        </div>
+      </div>
+      <div class="kpi-card kpi-normale" (click)="store.setFilter('priorite','normale'); store.loadAlertes()">
+        <div class="kpi-icon"><i class="fas fa-info-circle"></i></div>
+        <div>
+          <div class="kpi-val">{{ r.normales }}</div>
+          <div class="kpi-label">Normales</div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ── Filtres ── -->
+  <div class="filters-bar card">
+    <div class="filters-grid-4">
+      <div class="filter-item">
+        <i class="fas fa-circle" style="font-size:10px"></i>
+        <select (change)="onFilter('statut',$event)">
+          <option value="active">Actives</option>
+          <option value="lue">Lues</option>
+          <option value="traitee">Traitées</option>
+          <option value="ignoree">Ignorées</option>
+          <option value="">Toutes</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <i class="fas fa-flag" style="font-size:11px"></i>
+        <select (change)="onFilter('priorite',$event)">
+          <option value="">Toutes priorités</option>
+          <option value="critique">Critique</option>
+          <option value="haute">Haute</option>
+          <option value="normale">Normale</option>
+          <option value="basse">Basse</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <i class="fas fa-tag" style="font-size:11px"></i>
+        <select (change)="onFilter('type_alerte',$event)">
+          <option value="">Tous les types</option>
+          <option value="revision_due">Révision due</option>
+          <option value="assurance_exp">Assurance expirant</option>
+          <option value="assurance_expiree">Assurance expirée</option>
+          <option value="ct_exp">CT expirant</option>
+          <option value="ct_expiree">CT expiré</option>
+          <option value="permis_exp">Permis expirant</option>
+          <option value="permis_expire">Permis expiré</option>
+          <option value="conso_anormale">Conso anormale</option>
+          <option value="pneu_usure">Pneu à changer</option>
+          <option value="plein_anomalie">Anomalie plein</option>
+          <option value="budget_depasse">Budget dépassé</option>
+          <option value="sinistre_ouvert">Sinistre ouvert</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <i class="fas fa-building" style="font-size:11px"></i>
+        <input type="text" placeholder="Agence..."
+               (input)="onFilter('agence',$event)" />
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Liste des alertes ── -->
+  @if (store.isLoading()) {
+    <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i> Chargement...</div>
+  } @else if (store.alertes().length === 0) {
+    <div class="empty-state">
+      <i class="fas fa-check-circle" style="font-size:48px;color:var(--green-dark)"></i>
+      <p>Aucune alerte pour ce filtre.</p>
+    </div>
+  } @else {
+    <div class="alertes-list">
+      @for (a of store.alertes(); track a.id) {
+        <div class="alerte-card" [class]="'alerte-' + a.priorite">
+          <!-- Icône type -->
+          <div class="alerte-icon" [class]="'icon-' + a.priorite">
+            <i [class]="typeIcon(a.type_alerte)"></i>
+          </div>
+
+          <!-- Contenu -->
+          <div class="alerte-body">
+            <div class="alerte-header-row">
+              <div class="alerte-titre">{{ a.titre }}</div>
+              <div class="alerte-badges">
+                <span class="badge" [class]="prioriteBadge(a.priorite)">{{ a.priorite_display }}</span>
+                <span class="badge" [class]="statutBadge(a.statut)">{{ a.statut_display }}</span>
+              </div>
+            </div>
+            <div class="alerte-message">{{ a.message }}</div>
+            <div class="alerte-meta">
+              @if (a.vehicule_immat) {
+                <span class="meta-item"><i class="fas fa-car"></i> {{ a.vehicule_immat }}</span>
+              }
+              @if (a.chauffeur_nom) {
+                <span class="meta-item"><i class="fas fa-user"></i> {{ a.chauffeur_nom }}</span>
+              }
+              <span class="meta-item"><i class="fas fa-building"></i> {{ a.agence_nom }}</span>
+              <span class="meta-item"><i class="fas fa-clock"></i> {{ a.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+              @if (a.date_echeance) {
+                <span class="meta-item meta-echeance">
+                  <i class="fas fa-calendar-alt"></i> Échéance : {{ a.date_echeance | date:'dd/MM/yyyy' }}
+                </span>
+              }
+            </div>
+          </div>
+
+          <!-- Actions -->
+          @if (a.statut === 'active' || a.statut === 'lue') {
+            <div class="alerte-actions">
+              <button class="btn btn-green btn-sm" (click)="ouvrirTraitement(a)"
+                      title="Marquer comme traitée">
+                <i class="fas fa-check"></i> Traiter
+              </button>
+              <button class="btn btn-outline btn-sm" (click)="ignorer(a)"
+                      title="Ignorer cette alerte">
+                <i class="fas fa-eye-slash"></i>
+              </button>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Pagination -->
+    @if (store.pagination().total > store.pagination().pageSize) {
+      <div class="pagination">
+        <button class="page-btn" [disabled]="store.pagination().page === 1"
+                (click)="store.setPage(store.pagination().page - 1); store.loadAlertes()">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <span class="page-info">
+          Page {{ store.pagination().page }} /
+          {{ Math.ceil(store.pagination().total / store.pagination().pageSize) }}
+        </span>
+        <button class="page-btn"
+                [disabled]="store.pagination().page >= Math.ceil(store.pagination().total / store.pagination().pageSize)"
+                (click)="store.setPage(store.pagination().page + 1); store.loadAlertes()">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+    }
+  }
+</div>
+
+<!-- ── Modale traitement ── -->
+@if (alerteEnTraitement()) {
+  <div class="modal-backdrop" (click)="fermerTraitement()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-check-circle"></i> Traiter l'alerte</div>
+        <button class="modal-close" (click)="fermerTraitement()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-alerte-titre">{{ alerteEnTraitement()!.titre }}</div>
+        <div class="form-group" style="margin-top:16px">
+          <label class="form-label">Notes de traitement (optionnel)</label>
+          <textarea class="form-control" rows="3" placeholder="Décrivez l'action effectuée..."
+                    (input)="onNotesInput($event)"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" (click)="fermerTraitement()">Annuler</button>
+        <button class="btn btn-green" [disabled]="traitementLoading()" (click)="confirmerTraitement()">
+          @if (traitementLoading()) { <i class="fas fa-circle-notch fa-spin"></i> }
+          @else { <i class="fas fa-check"></i> }
+          Confirmer le traitement
+        </button>
+      </div>
+    </div>
+  </div>
+}

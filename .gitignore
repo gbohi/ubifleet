@@ -1,0 +1,85 @@
+# ═══════════════════════════════════════════════════════════════
+#  UbiFleet — .gitignore (racine du dépôt)
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Secrets — NE JAMAIS COMMITER ─────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets.json
+docker-ubifleet/.env
+
+# ─── Python / Django ──────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Base de données locale
+*.sqlite3
+*.sqlite3-journal
+*.db
+
+# Fichiers générés par Django
+/ubifleet_backend/media/
+/ubifleet_backend/staticfiles/
+/ubifleet_backend/static_root/
+*.log
+
+# Tests / couverture
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+
+# ─── Node / Angular ───────────────────────────────────────────
+node_modules/
+/ubifleet-angular/dist/
+/ubifleet-angular/.angular/
+/ubifleet-angular/tmp/
+/ubifleet-angular/out-tsc/
+/ubifleet-angular/bazel-out/
+npm-debug.log*
+yarn-error.log*
+.npm/
+.yarn/
+
+# ─── Sauvegardes & archives ───────────────────────────────────
+backups/
+*.sql
+*.dump
+*.tar.gz
+*.zip
+!docs/**/*.zip
+
+# ─── Éditeurs & IDE ───────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+.history/
+*.sublime-workspace
+
+# ─── Systèmes d'exploitation ──────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/

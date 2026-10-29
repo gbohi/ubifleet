@@ -1,0 +1,439 @@
+<!-- UbiFleet — Fiche Récapitulative Véhicule -->
+<div class="fiche-page">
+
+  <!-- Boutons actions (masqués à l'impression) -->
+  <div class="fiche-toolbar no-print">
+    <button class="btn btn-outline btn-sm" (click)="retour()">
+      <i class="fas fa-arrow-left"></i> Retour
+    </button>
+    <span style="color:var(--gray-400);font-size:13px">
+      @if (loading()) { <i class="fas fa-circle-notch fa-spin"></i> Chargement des données... }
+      @else { Fiche prête à imprimer }
+    </span>
+    <button class="btn btn-green" [disabled]="loading()" (click)="imprimer()">
+      <i class="fas fa-file-pdf"></i> Enregistrer en PDF
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="fiche-loading"><i class="fas fa-circle-notch fa-spin"></i></div>
+  } @else if (error()) {
+    <div class="fiche-error">{{ error() }}</div>
+  } @else if (vehicule()) {
+
+    <!-- ══ PAGE A4 ══ -->
+    <div class="fiche-a4">
+
+      <!-- ── EN-TÊTE ── -->
+      <div class="fiche-header">
+        <div class="fiche-header-left">
+          <div class="fiche-logo-text">UbiFleet</div>
+          <div class="fiche-subtitle">Fiche Véhicule Récapitulative</div>
+        </div>
+        <div class="fiche-header-center">
+          <div class="fiche-immat">{{ vehicule().immatriculation }}</div>
+          <div class="fiche-designation">{{ vehicule().marque_libelle }} {{ vehicule().modele_libelle }} — {{ vehicule().annee }}</div>
+          <span class="badge badge-lg" [class]="statutClass(vehicule().statut_couleur)">
+            {{ vehicule().statut_display || 'Non défini' }}
+          </span>
+        </div>
+        <div class="fiche-header-right">
+          <div class="fiche-num">N° {{ numeroFiche }}</div>
+          <div class="fiche-date">Édité le {{ today | date:'dd/MM/yyyy' }}</div>
+          @if (vehicule().agence_detail) {
+            <div class="fiche-agence">{{ vehicule().agence_detail.nom }}</div>
+          }
+        </div>
+      </div>
+
+      <!-- ── 1. INFORMATIONS GÉNÉRALES ── -->
+      <div class="fiche-section">
+        <div class="fiche-section-title">
+          <span class="fiche-section-num">1</span>
+          Informations générales
+        </div>
+        <div class="fiche-info-grid">
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Immatriculation</div>
+            <div class="fiche-info-value immat">{{ vehicule().immatriculation }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">N° Châssis (VIN)</div>
+            <div class="fiche-info-value mono">{{ vehicule().numero_chassis || '—' }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Marque</div>
+            <div class="fiche-info-value">{{ vehicule().marque_libelle }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Modèle</div>
+            <div class="fiche-info-value">{{ vehicule().modele_libelle }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Année</div>
+            <div class="fiche-info-value">{{ vehicule().annee }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Couleur</div>
+            <div class="fiche-info-value">{{ vehicule().couleur || '—' }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Type véhicule</div>
+            <div class="fiche-info-value">{{ vehicule().type_vehicule_display }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Carburant</div>
+            <div class="fiche-info-value">{{ vehicule().type_carburant_display }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Nb places</div>
+            <div class="fiche-info-value">{{ vehicule().nombre_places }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Affectation</div>
+            <div class="fiche-info-value">{{ vehicule().affectation_libelle || '—' }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Kilométrage actuel</div>
+            <div class="fiche-info-value">{{ vehicule().kilometrage_actuel | number:'1.0-0' }} km</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Km prochain entretien</div>
+            <div class="fiche-info-value" [class.text-danger]="vehicule().revision_due">
+              {{ vehicule().kilometrage_revision | number:'1.0-0' }} km
+              @if (vehicule().revision_due) { ⚠️ }
+            </div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Date mise en service</div>
+            <div class="fiche-info-value">{{ vehicule().date_mise_en_service ? (vehicule().date_mise_en_service | date:'dd/MM/yyyy') : '—' }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Date acquisition</div>
+            <div class="fiche-info-value">{{ vehicule().date_acquisition ? (vehicule().date_acquisition | date:'dd/MM/yyyy') : '—' }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Valeur acquisition</div>
+            <div class="fiche-info-value">{{ vehicule().valeur_acquisition ? (vehicule().valeur_acquisition | number:'1.0-0') + ' FCFA' : '—' }}</div>
+          </div>
+          <div class="fiche-info-block">
+            <div class="fiche-info-label">Dotation carburant</div>
+            <div class="fiche-info-value">{{ vehicule().dotation_carburant_mensuelle | number:'1.0-0' }} L/mois</div>
+          </div>
+        </div>
+        @if (vehicule().notes) {
+          <div class="fiche-notes"><strong>Notes :</strong> {{ vehicule().notes }}</div>
+        }
+      </div>
+
+      <!-- ── 2. CARBURANT ── -->
+      <div class="fiche-section">
+        <div class="fiche-section-title">
+          <span class="fiche-section-num">2</span>
+          Carburant
+          <span class="fiche-section-stats">
+            {{ pleins().length }} plein(s) &bull;
+            Volume total : {{ totalVolume | number:'1.0-0' }} L &bull;
+            Dépenses : {{ totalDepenseCarburant | number:'1.0-0' }} FCFA &bull;
+            Conso. moy. : {{ consommationMoyenne | number:'1.1-1' }} L/100km
+          </span>
+        </div>
+        @if (pleins().length === 0) {
+          <div class="fiche-empty">Aucun plein enregistré</div>
+        } @else {
+          <table class="fiche-table">
+            <thead>
+              <tr>
+                <th>Date</th><th>Kilométrage</th><th>Volume (L)</th>
+                <th>Prix/L</th><th>Montant (FCFA)</th>
+                <th>Conso. L/100km</th><th>Chauffeur</th><th>Tournée</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of pleins().slice(0, 20); track p.id) {
+                <tr>
+                  <td>{{ p.date_plein | date:'dd/MM/yyyy' }}</td>
+                  <td class="num">{{ p.kilometrage_releve | number:'1.0-0' }}</td>
+                  <td class="num">{{ p.volume_litres | number:'1.1-1' }}</td>
+                  <td class="num">{{ p.prix_litre ? (p.prix_litre | number:'1.0-0') : '—' }}</td>
+                  <td class="num">{{ p.montant_fcfa | number:'1.0-0' }}</td>
+                  <td class="num" [class.text-danger]="p.consommation_calculee > 20">
+                    {{ p.consommation_calculee ? (p.consommation_calculee | number:'1.1-1') : '—' }}
+                  </td>
+                  <td>{{ p.chauffeur_nom || '—' }}</td>
+                  <td>{{ p.tournee_libelle || '—' }}</td>
+                </tr>
+              }
+              @if (pleins().length > 20) {
+                <tr class="tr-more">
+                  <td colspan="8">... et {{ pleins().length - 20 }} plein(s) supplémentaire(s)</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <!-- ── 3. ENTRETIENS ── -->
+      <div class="fiche-section">
+        <div class="fiche-section-title">
+          <span class="fiche-section-num">3</span>
+          Entretiens / Interventions
+          <span class="fiche-section-stats">
+            {{ interventions().length }} intervention(s) &bull;
+            Coût total : {{ totalDepenseEntretien | number:'1.0-0' }} FCFA
+          </span>
+        </div>
+        @if (interventions().length === 0) {
+          <div class="fiche-empty">Aucune intervention enregistrée</div>
+        } @else {
+          <table class="fiche-table">
+            <thead>
+              <tr>
+                <th>Date</th><th>Type</th><th>Description</th>
+                <th>Km</th><th>Coût (FCFA)</th><th>Prestataire</th><th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (i of interventions(); track i.id) {
+                <tr>
+                  <td>{{ i.date_debut | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ i.type_display || i.type }}</td>
+                  <td>{{ i.description || '—' }}</td>
+                  <td class="num">{{ i.kilometrage ? (i.kilometrage | number:'1.0-0') : '—' }}</td>
+                  <td class="num">{{ i.cout_total ? (i.cout_total | number:'1.0-0') : '—' }}</td>
+                  <td>{{ i.prestataire_nom || '—' }}</td>
+                  <td><span class="badge-sm" [class]="statutEntretien(i.statut)">{{ i.statut_display }}</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <!-- ── 4. ASSURANCE ── -->
+      <div class="fiche-section">
+        <div class="fiche-section-title">
+          <span class="fiche-section-num">4</span>
+          Assurance
+        </div>
+        @if (contrats().length === 0) {
+          <div class="fiche-empty">Aucun contrat enregistré</div>
+        } @else {
+          <table class="fiche-table">
+            <thead>
+              <tr>
+                <th>N° Police</th><th>Assureur</th><th>Type</th>
+                <th>Début</th><th>Fin</th><th>Prime (FCFA)</th><th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of contrats(); track c.id) {
+                <tr [class.tr-expire]="c.est_expire">
+                  <td class="mono">{{ c.numero_police }}</td>
+                  <td>{{ c.assureur_nom || c.assureur }}</td>
+                  <td>{{ c.type_contrat_display || c.type_contrat }}</td>
+                  <td>{{ c.date_debut | date:'dd/MM/yyyy' }}</td>
+                  <td [class.text-danger]="c.est_expire">
+                    {{ c.date_fin | date:'dd/MM/yyyy' }}
+                    @if (c.est_expire) { ⚠️ EXPIRÉ }
+                  </td>
+                  <td class="num">{{ c.prime_annuelle ? (c.prime_annuelle | number:'1.0-0') : '—' }}</td>
+                  <td>
+                    @if (c.est_expire) { <span class="badge-sm badge-danger">Expiré</span> }
+                    @else { <span class="badge-sm badge-green">Actif</span> }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <!-- ── 5. DOCUMENTS ── -->
+      <div class="fiche-section">
+        <div class="fiche-section-title">
+          <span class="fiche-section-num">5</span>
+          Documents administratifs
+        </div>
+        @if (documents().length === 0) {
+          <div class="fiche-empty">Aucun document enregistré</div>
+        } @else {
+          <table class="fiche-table">
+            <thead>
+              <tr><th>Type</th><th>N° / Référence</th><th>Date émission</th><th>Date expiration</th><th>Statut</th></tr>
+            </thead>
+            <tbody>
+              @for (d of documents(); track d.id) {
+                <tr [class.tr-expire]="d.est_expire">
+                  <td>{{ d.type_display }}</td>
+                  <td class="mono">{{ d.numero || '—' }}</td>
+                  <td>{{ d.date_emission ? (d.date_emission | date:'dd/MM/yyyy') : '—' }}</td>
+                  <td [class.text-danger]="d.est_expire">
+                    {{ d.date_expiration ? (d.date_expiration | date:'dd/MM/yyyy') : '—' }}
+                    @if (d.est_expire) { ⚠️ }
+                  </td>
+                  <td>
+                    @if (d.est_expire) { <span class="badge-sm badge-danger">Expiré</span> }
+                    @else if (d.date_expiration) { <span class="badge-sm badge-green">Valide</span> }
+                    @else { <span class="badge-sm badge-gray">—</span> }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <!-- ── 6. HISTORIQUE KILOMÉTRAGE ── -->
+      <div class="fiche-section">
+        <div class="fiche-section-title">
+          <span class="fiche-section-num">6</span>
+          Historique kilométrage
+          <span class="fiche-section-stats">{{ relevesKm().length }} relevé(s)</span>
+        </div>
+        @if (relevesKm().length === 0) {
+          <div class="fiche-empty">Aucun relevé enregistré</div>
+        } @else {
+          <table class="fiche-table">
+            <thead>
+              <tr><th>Date</th><th>Kilométrage</th><th>Type mouvement</th><th>Chauffeur</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              @for (r of relevesKm().slice(0,15); track r.id) {
+                <tr>
+                  <td>{{ r.date_releve | date:'dd/MM/yyyy' }}</td>
+                  <td class="num">{{ r.kilometrage | number:'1.0-0' }} km</td>
+                  <td>{{ r.type_mouvement_display || r.type_mouvement }}</td>
+                  <td>{{ r.chauffeur_nom || '—' }}</td>
+                  <td>{{ r.notes || '—' }}</td>
+                </tr>
+              }
+              @if (relevesKm().length > 15) {
+                <tr class="tr-more"><td colspan="5">... et {{ relevesKm().length - 15 }} relevé(s) de plus</td></tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <!-- ── 7. CHAUFFEURS ── -->
+      <div class="fiche-section">
+        <div class="fiche-section-title">
+          <span class="fiche-section-num">7</span>
+          Affectations chauffeurs
+        </div>
+        @if (affectations().length === 0) {
+          <div class="fiche-empty">Aucune affectation enregistrée</div>
+        } @else {
+          <table class="fiche-table">
+            <thead>
+              <tr><th>Chauffeur</th><th>Date début</th><th>Date fin</th><th>Statut</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              @for (a of affectations(); track a.id) {
+                <tr>
+                  <td><strong>{{ a.chauffeur_nom }}</strong></td>
+                  <td>{{ a.date_debut | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ a.date_fin ? (a.date_fin | date:'dd/MM/yyyy') : 'En cours' }}</td>
+                  <td>
+                    @if (!a.date_fin) { <span class="badge-sm badge-green">Actif</span> }
+                    @else { <span class="badge-sm badge-gray">Terminé</span> }
+                  </td>
+                  <td>{{ a.notes || '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <!-- ── 8. STATUT ── -->
+      <div class="fiche-section">
+        <div class="fiche-section-title">
+          <span class="fiche-section-num">8</span>
+          Historique des statuts
+        </div>
+        @if (historiqueStatuts().length === 0) {
+          <div class="fiche-empty">Aucun changement de statut enregistré</div>
+        } @else {
+          <table class="fiche-table">
+            <thead>
+              <tr><th>Date</th><th>Ancien statut</th><th>Nouveau statut</th><th>Motif</th><th>Par</th></tr>
+            </thead>
+            <tbody>
+              @for (h of historiqueStatuts(); track h.id) {
+                <tr>
+                  <td>{{ h.date_changement | date:'dd/MM/yyyy' }}</td>
+                  <td>
+                    @if (h.ancien_statut_libelle) {
+                      <span class="badge-sm" [class]="statutClass(h.ancien_statut_couleur ?? 'gray')">
+                        {{ h.ancien_statut_libelle }}
+                      </span>
+                    } @else { — }
+                  </td>
+                  <td>
+                    @if (h.nouveau_statut_libelle) {
+                      <span class="badge-sm" [class]="statutClass(h.nouveau_statut_couleur ?? 'gray')">
+                        {{ h.nouveau_statut_libelle }}
+                      </span>
+                    } @else { — }
+                  </td>
+                  <td>{{ h.motif || '—' }}</td>
+                  <td>{{ h.created_by_nom || '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <!-- ── 9. FICHES DE CONTRÔLE ── -->
+      <div class="fiche-section">
+        <div class="fiche-section-title">
+          <span class="fiche-section-num">9</span>
+          Fiches de contrôle
+        </div>
+        @if (ficheControles().length === 0) {
+          <div class="fiche-empty">Aucune fiche de contrôle enregistrée</div>
+        } @else {
+          <table class="fiche-table">
+            <thead>
+              <tr>
+                <th>Date</th><th>Type</th><th>Kilométrage</th>
+                <th>Points contrôlés</th><th>Conformes</th><th>Non conformes</th><th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (fc of ficheControles(); track fc.id) {
+                <tr>
+                  <td>{{ fc.date_heure | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ fc.type_controle_display || fc.type_controle }}</td>
+                  <td class="num">{{ fc.kilometrage | number:'1.0-0' }} km</td>
+                  <td class="num">{{ fc.nb_points_total || '—' }}</td>
+                  <td class="num" style="color:var(--success)">{{ fc.nb_conformes || '—' }}</td>
+                  <td class="num" [class.text-danger]="fc.nb_non_conformes > 0">
+                    {{ fc.nb_non_conformes || '—' }}
+                  </td>
+                  <td>
+                    <span class="badge-sm" [class]="statutControle(fc.statut_global)">
+                      {{ fc.statut_global_display || fc.statut_global }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <!-- ── PIED DE PAGE ── -->
+      <div class="fiche-footer">
+        <div>UbiFleet — Système de Gestion de Flotte Automobile</div>
+        <div>{{ numeroFiche }} &bull; Édité le {{ today | date:'dd/MM/yyyy à HH:mm' }}</div>
+        <div>Document confidentiel — Usage interne</div>
+      </div>
+
+    </div><!-- /.fiche-a4 -->
+  }
+</div>

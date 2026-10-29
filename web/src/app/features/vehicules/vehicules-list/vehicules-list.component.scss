@@ -1,0 +1,372 @@
+// UbiFleet — Vehicules List Styles
+.vehicules-page { animation: fadeInUp var(--transition-base) ease; }
+
+// ── Header ──
+.header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.view-toggle {
+  display: flex;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+
+  .toggle-btn {
+    padding: 7px 12px;
+    background: var(--white);
+    border: none;
+    color: var(--gray-400);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all var(--transition-fast);
+
+    &:hover { background: var(--gray-50); color: var(--navy); }
+    &.active { background: var(--navy); color: var(--white); }
+  }
+}
+
+// ── Quick Stats ──
+.quick-stats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--white);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg);
+  padding: 14px 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.qs-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  &:first-child { padding-left: 0; }
+}
+
+.qs-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  &.green   { background: var(--green-dark); }
+  &.orange  { background: var(--warning); }
+  &.red     { background: var(--danger); }
+  &.warning { background: var(--warning); }
+}
+
+.qs-val  { font-size: 20px; font-weight: 700; color: var(--navy); font-family: var(--font-display); }
+.qs-lbl  { font-size: 12px; color: var(--gray-400); }
+.qs-sep  { width: 1px; height: 28px; background: var(--gray-200); flex-shrink: 0; }
+
+// ── Filters ──
+.filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+
+  i.fa-search {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gray-400);
+    font-size: 13px;
+    pointer-events: none;
+  }
+
+  input {
+    width: 100%;
+    padding: 9px 36px;
+    background: var(--white);
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-family: var(--font-body);
+    color: var(--gray-800);
+    outline: none;
+    transition: border-color var(--transition-fast);
+
+    &:focus { border-color: var(--green-dark); }
+    &::placeholder { color: var(--gray-400); }
+  }
+
+  .clear-search {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--gray-400);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px;
+    &:hover { color: var(--danger); }
+  }
+}
+
+.filter-select {
+  width: auto;
+  min-width: 150px;
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+// Chips
+.chip-row { margin-bottom: 16px; }
+
+.chip-reset {
+  margin-left: auto;
+  color: var(--danger);
+  border-color: var(--danger);
+  &:hover { background: var(--danger-light); }
+}
+
+// ── Skeleton loading ──
+.loading-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.skeleton-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gray-100);
+  overflow: hidden;
+
+  .skeleton-head  { height: 52px; }
+  .skeleton-body  { padding: 14px; }
+  .skeleton-title { height: 18px; width: 70%; margin-bottom: 8px; border-radius: 4px; }
+  .skeleton-sub   { height: 13px; width: 50%; margin-bottom: 14px; border-radius: 4px; }
+  .skeleton-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .skeleton-stat  { height: 36px; border-radius: 6px; }
+}
+
+// ── Empty / Error state ──
+.empty-state, .error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 20px;
+  text-align: center;
+  gap: 12px;
+  color: var(--gray-400);
+
+  i    { font-size: 48px; }
+  h3   { font-size: 18px; color: var(--gray-600); font-weight: 600; margin: 0; }
+  p    { font-size: 14px; margin: 0; }
+}
+
+.error-state { color: var(--danger); i { color: var(--danger); } }
+
+// ── Vehicle Cards Grid ──
+.vehicules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.vehicle-card {
+  background: var(--white);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  animation: fadeInUp 0.3s ease both;
+
+  &:hover {
+    border-color: var(--green);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-3px);
+  }
+
+  @for $i from 1 through 12 {
+    &:nth-child(#{$i}) { animation-delay: #{($i - 1) * 40}ms; }
+  }
+}
+
+// En-tête carte
+.vc-head {
+  background: var(--navy);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vc-plate {
+  background: var(--white);
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+  border-bottom: 3px solid var(--green);
+}
+
+// Corps carte
+.vc-body { padding: 14px 16px; }
+
+.vc-model {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 3px;
+}
+
+.vc-meta {
+  font-size: 12px;
+  color: var(--gray-400);
+  margin-bottom: 8px;
+}
+
+.vc-stats {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: 0;
+  background: var(--gray-50);
+  border-radius: var(--radius-sm);
+  padding: 8px 4px;
+  margin: 10px 0;
+}
+
+.vc-stat {
+  text-align: center;
+  padding: 0 4px;
+}
+
+.vc-stat-val {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--navy);
+  line-height: 1.2;
+}
+
+.vc-stat-lbl {
+  font-size: 10px;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.vc-stat-sep {
+  width: 1px;
+  background: var(--gray-200);
+  margin: 4px 0;
+}
+
+.revision-alert {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--danger);
+  background: var(--danger-light);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  margin-top: 8px;
+
+  i { flex-shrink: 0; }
+}
+
+// Pied de carte
+.vc-footer {
+  border-top: 1px solid var(--gray-100);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chauffeur-chip {
+  font-size: 11px;
+  color: var(--gray-500);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  i { font-size: 11px; }
+
+  &.empty { color: var(--gray-300); }
+}
+
+.vc-actions { display: flex; gap: 4px; }
+
+.btn-icon-danger {
+  &:hover { background: var(--danger-light) !important; color: var(--danger) !important; border-color: var(--danger) !important; }
+}
+
+// ── Tableau ──
+.plate-text { color: var(--navy); letter-spacing: 0.5px; }
+
+.td-model { font-size: 13px; font-weight: 600; color: var(--navy); }
+.td-sub   { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+.td-actions { display: flex; gap: 4px; }
+
+// ── Pagination ──
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.page-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  color: var(--gray-600);
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover:not(:disabled) { background: var(--gray-50); color: var(--navy); }
+  &.active { background: var(--navy); color: var(--white); border-color: var(--navy); font-weight: 600; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.pagination-info {
+  font-size: 12px;
+  color: var(--gray-400);
+  margin-left: 8px;
+}
+
+// ── Modal confirmation ──
+.modal-sm { max-width: 420px; width: 100%; }
+
+// ── Dots dans badge ──
+.badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  &.green  { background: var(--green-dark); }
+  &.orange { background: var(--warning); }
+  &.red    { background: var(--danger); }
+  &.gray   { background: var(--gray-400); }
+}

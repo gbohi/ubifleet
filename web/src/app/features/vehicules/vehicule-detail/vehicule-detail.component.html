@@ -1,0 +1,1402 @@
+<!-- UbiFleet — Vehicule Detail (Angular 18) -->
+<div class="detail-page">
+
+  @if (store.detailLoading()) {
+    <div class="detail-loading">
+      <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+    </div>
+  }
+
+  @if (store.hasError() && !store.detailLoading()) {
+    <div class="error-state">
+      <i class="fas fa-exclamation-triangle"></i>
+      <p>{{ store.error() }}</p>
+      <button class="btn btn-outline btn-sm" (click)="goBack()">
+        <i class="fas fa-arrow-left"></i> Retour
+      </button>
+    </div>
+  }
+
+  @if (store.selectedVehicule(); as v) {
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      <a routerLink="/vehicules" class="bc-link">
+        <i class="fas fa-car"></i> Véhicules
+      </a>
+      <i class="fas fa-chevron-right bc-sep"></i>
+      <span class="bc-current">{{ v.immatriculation }}</span>
+    </div>
+
+    <!-- En-tête -->
+    <div class="vehicle-header">
+      <div class="vh-left">
+        <div class="vh-plate-block">
+          <div class="vh-plate">
+            {{ v.immatriculation }}
+            @if (v.est_immatriculation_provisoire) {
+              <span class="badge badge-warning" style="font-size:10px;margin-left:6px">
+                PROVISOIRE
+              </span>
+            }
+          </div>
+          @if (v.immatriculation_provisoire) {
+            <div class="vh-old-immat">
+              <i class="fas fa-history" style="font-size:10px"></i>
+              Ancienne : <strong>{{ v.immatriculation_provisoire }}</strong>
+            </div>
+          }
+          @if (v.agence_detail) {
+            <span class="agency-pill">{{ v.agence_detail.nom }}</span>
+          }
+        </div>
+        <div class="vh-title">{{ v.marque_libelle }} {{ v.modele_libelle }}</div>
+        <div class="vh-sub">
+          {{ v.annee }} &bull; {{ v.type_vehicule_display }}
+          &bull; {{ v.type_carburant_display }}
+          @if (v.nombre_places > 0) { &bull; {{ v.nombre_places }} places }
+        </div>
+      </div>
+      <div class="vh-right">
+        <span class="badge badge-lg" [class]="statutBadgeClass(v.statut_couleur)">
+          {{ v.statut_display }}
+        </span>
+        <div class="vh-actions">
+          @if (v.est_immatriculation_provisoire) {
+            <button class="btn btn-warning btn-sm" (click)="openImmatModal()">
+              <i class="fas fa-exchange-alt"></i> Changer d'immat
+            </button>
+          } @else {
+            <button class="btn btn-outline btn-sm" (click)="openImmatModal()">
+              <i class="fas fa-exchange-alt"></i> Immatriculation
+            </button>
+          }
+          <button class="btn btn-outline btn-sm" (click)="openKmModal()">
+            <i class="fas fa-tachometer-alt"></i> MAJ kilométrage
+          </button>
+          <button class="btn btn-outline btn-sm" (click)="goToRelevesKm()">
+            <i class="fas fa-history"></i> Historique km
+          </button>
+          <button class="btn btn-primary btn-sm" (click)="goToEdit()">
+            <i class="fas fa-edit"></i> Modifier
+          </button>
+          <button class="btn btn-outline btn-sm no-print" (click)="router.navigate(['/vehicules', v.id, 'fiche'])">
+            <i class="fas fa-file-pdf"></i> Fiche PDF
+          </button>
+          <button class="btn btn-outline btn-sm" (click)="goBack()">
+            <i class="fas fa-arrow-left"></i> Retour
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi-mini">
+        <div class="kpi-mini-icon navy"><i class="fas fa-road"></i></div>
+        <div>
+          <div class="kpi-mini-val">{{ v.kilometrage_actuel | number:'1.0-0' }} km</div>
+          <div class="kpi-mini-lbl">Kilométrage actuel</div>
+        </div>
+        @if (v.revision_due) {
+          <span class="badge badge-danger" style="font-size:10px;margin-left:auto">Révision due</span>
+        }
+      </div>
+      <div class="kpi-mini">
+        <div class="kpi-mini-icon green"><i class="fas fa-gas-pump"></i></div>
+        <div>
+          <div class="kpi-mini-val">
+            @if (v.consommation_moyenne !== null) {
+              {{ v.consommation_moyenne | number:'1.1-1' }} L/100km
+            } @else { — L/100km }
+          </div>
+          <div class="kpi-mini-lbl">Consommation moy.</div>
+        </div>
+      </div>
+      <div class="kpi-mini">
+        <div class="kpi-mini-icon warning"><i class="fas fa-tint"></i></div>
+        <div>
+          <div class="kpi-mini-val">{{ v.dotation_carburant_mensuelle | number:'1.0-0' }} L</div>
+          <div class="kpi-mini-lbl">Dotation mensuelle</div>
+        </div>
+      </div>
+      @if (v.kilometrage_revision > 0) {
+        <div class="kpi-mini">
+          <div class="kpi-mini-icon" [class]="v.revision_due ? 'danger' : 'green'">
+            <i class="fas fa-wrench"></i>
+          </div>
+          <div>
+            <div class="kpi-mini-val">{{ v.kilometrage_revision | number:'1.0-0' }} km</div>
+            <div class="kpi-mini-lbl">Prochain entretien</div>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Onglets -->
+    <div class="tabs">
+      <button class="tab" [class.active]="activeTab() === 'infos'"
+              (click)="onTabChange('infos')">
+        <i class="fas fa-info-circle"></i> Informations
+      </button>
+      <button class="tab" [class.active]="activeTab() === 'carburant'"
+              (click)="onTabChange('carburant')">
+        <i class="fas fa-gas-pump"></i> Carburant
+      </button>
+      <button class="tab" [class.active]="activeTab() === 'entretiens'"
+              (click)="onTabChange('entretiens')">
+        <i class="fas fa-wrench"></i> Entretiens
+      </button>
+      <button class="tab" [class.active]="activeTab() === 'assurance'"
+              (click)="onTabChange('assurance')">
+        <i class="fas fa-shield-alt"></i> Assurance
+        @if (contrats().length > 0) {
+          <span class="tab-count">{{ contrats().length }}</span>
+        }
+      </button>
+      <button class="tab" [class.active]="activeTab() === 'documents'"
+              (click)="onTabChange('documents')">
+        <i class="fas fa-folder"></i> Documents
+        @if (v.documents && v.documents.length > 0) {
+          <span class="tab-count">{{ v.documents.length }}</span>
+        }
+      </button>
+      <button class="tab" [class.active]="activeTab() === 'historique-km'"
+              (click)="onTabChange('historique-km')">
+        <i class="fas fa-tachometer-alt"></i> Historique Km
+        @if (relevesKmTotal() > 0) {
+          <span class="tab-count">{{ relevesKmTotal() }}</span>
+        }
+      </button>
+      <button class="tab" [class.active]="activeTab() === 'chauffeurs'"
+              (click)="onTabChange('chauffeurs')">
+        <i class="fas fa-id-badge"></i> Chauffeurs
+        @if (affectations().length > 0) {
+          <span class="tab-count">{{ affectations().length }}</span>
+        }
+      </button>
+      <button class="tab" [class.active]="activeTab() === 'statut'"
+              (click)="onTabChange('statut'); loadHistoriqueStatuts()">
+        <i class="fas fa-circle"></i> Statut
+      </button>
+    </div>
+
+    <!-- ── Onglet Infos ── -->
+    @if (activeTab() === 'infos') {
+      <div class="tab-content">
+        <div class="info-grid">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Identité du véhicule</div></div>
+            <div class="card-body">
+              <table class="info-table">
+                <tr><td class="info-label">Immatriculation</td>
+                    <td class="info-value"><strong>{{ v.immatriculation }}</strong></td></tr>
+                <tr><td class="info-label">N° Châssis</td>
+                    <td class="info-value">{{ v.numero_chassis || '—' }}</td></tr>
+                <tr><td class="info-label">Marque / Modèle</td>
+                    <td class="info-value">{{ v.marque_libelle }} {{ v.modele_libelle }}</td></tr>
+                <tr><td class="info-label">Année</td>
+                    <td class="info-value">{{ v.annee }}</td></tr>
+                <tr><td class="info-label">Couleur</td>
+                    <td class="info-value">{{ v.couleur || '—' }}</td></tr>
+                <tr><td class="info-label">Type</td>
+                    <td class="info-value">{{ v.type_vehicule_display }}</td></tr>
+                <tr><td class="info-label">Carburant</td>
+                    <td class="info-value">{{ v.type_carburant_display }}</td></tr>
+                <tr><td class="info-label">Nb places</td>
+                    <td class="info-value">{{ v.nombre_places }}</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Affectation & Usage</div></div>
+            <div class="card-body">
+              <table class="info-table">
+                <tr><td class="info-label">Agence</td>
+                    <td class="info-value">{{ v.agence_detail ? v.agence_detail.nom : '—' }}</td></tr>
+                <tr><td class="info-label">Affectation</td>
+                    <td class="info-value">{{ v.affectation || '—' }}</td></tr>
+                <tr><td class="info-label">Chauffeur attitré</td>
+                    <td class="info-value">{{ v.chauffeur_nom || 'Non assigné' }}</td></tr>
+                <tr><td class="info-label">Statut</td>
+                    <td class="info-value">
+                      <span class="badge" [class]="statutBadgeClass(v.statut_couleur)">
+                        {{ v.statut_display }}
+                      </span>
+                    </td></tr>
+                <tr><td class="info-label">Mise en service</td>
+                    <td class="info-value">
+                      {{ v.date_mise_en_service ? (v.date_mise_en_service | date:'dd/MM/yyyy') : '—' }}
+                    </td></tr>
+                <tr><td class="info-label">Date d'acquisition</td>
+                    <td class="info-value">
+                      {{ v.date_acquisition ? (v.date_acquisition | date:'dd/MM/yyyy') : '—' }}
+                    </td></tr>
+                <tr><td class="info-label">Valeur d'acquisition</td>
+                    <td class="info-value">
+                      @if (v.valeur_acquisition) {
+                        {{ v.valeur_acquisition | number:'1.0-0' }} FCFA
+                      } @else { — }
+                    </td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+        @if (v.notes) {
+          <div class="card" style="margin-top:16px">
+            <div class="card-header"><div class="card-title">Notes</div></div>
+            <div class="card-body">
+              <p style="font-size:14px;color:var(--gray-600);line-height:1.6">{{ v.notes }}</p>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Onglet Carburant ── -->
+    @if (activeTab() === 'carburant') {
+      <div class="tab-content">
+        <div class="tab-header-row">
+          <p class="tab-count-info">{{ pleinsTotal() }} plein(s) enregistré(s)</p>
+          <a routerLink="/carburant" [queryParams]="{vehicule: v.id}" class="btn btn-outline btn-sm">
+            <i class="fas fa-arrow-right"></i> Voir tout dans Carburant
+          </a>
+        </div>
+
+        @if (pleinsLoad()) {
+          <div class="tab-loading"><i class="fas fa-circle-notch fa-spin"></i> Chargement...</div>
+        } @else if (pleins().length === 0) {
+          <div class="placeholder-tab">
+            <i class="fas fa-gas-pump"></i>
+            <h3>Aucun plein enregistré</h3>
+            <p>Les prises de carburant apparaîtront ici.</p>
+          </div>
+        } @else {
+          <div class="card">
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Volume (L)</th>
+                    <th>Prix/L</th>
+                    <th>Montant</th>
+                    <th>Km relevé</th>
+                    <th>Conso.</th>
+                    <th>Bon</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (p of pleins(); track p.id) {
+                    <tr>
+                      <td>{{ p.date_plein | date:'dd/MM/yyyy' }}</td>
+                      <td><strong>{{ p.volume_litres | number:'1.1-1' }}</strong></td>
+                      <td>
+                        @if (p.prix_litre !== null) {
+                          {{ p.prix_litre | number:'1.0-0' }}
+                        } @else { — }
+                      </td>
+                      <td>{{ p.montant_fcfa | number:'1.0-0' }} F</td>
+                      <td>{{ p.kilometrage_releve | number:'1.0-0' }} km</td>
+                      <td>
+                        @if (p.consommation_calculee !== null) {
+                          {{ p.consommation_calculee | number:'1.1-1' }} L/100
+                        } @else { — }
+                      </td>
+                      <td>{{ p.bon_carburant || '—' }}</td>
+                      <td>
+                        <span class="badge" [class]="statutValidationClass(p.statut_validation)">
+                          {{ p.statut_display }}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+          @if (pleinsTotal() > 10) {
+            <p class="see-more-hint">
+              <i class="fas fa-info-circle"></i>
+              Affichage des 10 derniers pleins.
+              <a routerLink="/carburant" [queryParams]="{vehicule: v.id}">
+                Voir les {{ pleinsTotal() }} pleins
+              </a>
+            </p>
+          }
+        }
+      </div>
+    }
+
+    <!-- ── Onglet Entretiens ── -->
+    @if (activeTab() === 'entretiens') {
+      <div class="tab-content">
+        <div class="tab-header-row">
+          <p class="tab-count-info">{{ interventionsTotal() }} intervention(s)</p>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-green btn-sm" (click)="planifierIntervention()">
+              <i class="fas fa-plus"></i> Planifier
+            </button>
+            <a routerLink="/entretien" [queryParams]="{vehicule: v.id}" class="btn btn-outline btn-sm">
+              <i class="fas fa-arrow-right"></i> Voir tout
+            </a>
+          </div>
+        </div>
+
+        @if (interventionsLoad()) {
+          <div class="tab-loading"><i class="fas fa-circle-notch fa-spin"></i> Chargement...</div>
+        } @else if (interventions().length === 0) {
+          <div class="placeholder-tab">
+            <i class="fas fa-wrench"></i>
+            <h3>Aucune intervention enregistrée</h3>
+            <p>Planifiez un entretien ou une réparation pour ce véhicule.</p>
+            <button class="btn btn-green" (click)="planifierIntervention()">
+              <i class="fas fa-plus"></i> Planifier une intervention
+            </button>
+          </div>
+        } @else {
+          <div class="card">
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Prestataire</th>
+                    <th>Coût estimé</th>
+                    <th>Coût réel</th>
+                    <th>Priorité</th>
+                    <th>Statut</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (i of interventions(); track i.id) {
+                    <tr (click)="goToIntervention(i.id)" style="cursor:pointer">
+                      <td>{{ i.date_planifiee | date:'dd/MM/yyyy' }}</td>
+                      <td>
+                        <div>{{ i.type_nom }}</div>
+                        <div class="td-sub">{{ i.type_categorie }}</div>
+                      </td>
+                      <td>{{ i.prestataire_nom ?? '—' }}</td>
+                      <td>{{ i.cout_estime | number:'1.0-0' }} F</td>
+                      <td>
+                        @if (i.cout_reel !== null) {
+                          {{ i.cout_reel | number:'1.0-0' }} F
+                        } @else { — }
+                      </td>
+                      <td>
+                        <span class="badge" [class]="interventionStatutClass(i.statut)">
+                          {{ i.priorite_display }}
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge" [class]="interventionStatutClass(i.statut)">
+                          {{ i.statut_display }}
+                        </span>
+                      </td>
+                      <td>
+                        <button class="btn btn-icon" title="Voir"
+                                (click)="goToIntervention(i.id); $event.stopPropagation()">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Onglet Assurance ── -->
+    @if (activeTab() === 'assurance') {
+      <div class="tab-content">
+        <div class="tab-header-row">
+          <p class="tab-count-info">{{ contrats().length }} contrat(s)</p>
+          <button class="btn btn-green btn-sm" (click)="goToContrats()">
+            <i class="fas fa-plus"></i> Gérer les contrats
+          </button>
+        </div>
+
+        @if (contratsLoad()) {
+          <div class="tab-loading"><i class="fas fa-circle-notch fa-spin"></i> Chargement...</div>
+        } @else if (contrats().length === 0) {
+          <div class="placeholder-tab">
+            <i class="fas fa-shield-alt"></i>
+            <h3>Aucun contrat d'assurance</h3>
+            <p>Ajoutez un contrat depuis le module Sinistres & Assurances.</p>
+            <button class="btn btn-green" (click)="goToContrats()">
+              <i class="fas fa-plus"></i> Ajouter un contrat
+            </button>
+          </div>
+        } @else {
+          <div class="docs-grid">
+            @for (c of contrats(); track c.id) {
+              <div class="contrat-card" [class.expired]="c.est_expire">
+                <div class="contrat-head">
+                  <div class="contrat-icon">
+                    <i class="fas fa-shield-alt"></i>
+                  </div>
+                  <div class="contrat-info">
+                    <div class="contrat-type">{{ c.type_display }}</div>
+                    <div class="contrat-police">N° {{ c.numero_police }}</div>
+                  </div>
+                  @if (c.est_expire) {
+                    <span class="badge badge-danger">Expiré</span>
+                  } @else if (c.jours_restants <= 60) {
+                    <span class="badge" [class]="joursContratClass(c.jours_restants)">
+                      J-{{ c.jours_restants }}
+                    </span>
+                  } @else if (c.is_active) {
+                    <span class="badge badge-green">Actif</span>
+                  } @else {
+                    <span class="badge badge-gray">Inactif</span>
+                  }
+                </div>
+                <table class="contrat-table">
+                  <tr>
+                    <td class="ct-label">Assureur</td>
+                    <td class="ct-val">{{ c.assureur_nom }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ct-label">Validité</td>
+                    <td class="ct-val">
+                      {{ c.date_debut | date:'dd/MM/yyyy' }} →
+                      {{ c.date_fin   | date:'dd/MM/yyyy' }}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="ct-label">Prime annuelle</td>
+                    <td class="ct-val">{{ c.prime_annuelle | number:'1.0-0' }} FCFA</td>
+                  </tr>
+                  @if (c.franchise > 0) {
+                    <tr>
+                      <td class="ct-label">Franchise</td>
+                      <td class="ct-val">{{ c.franchise | number:'1.0-0' }} FCFA</td>
+                    </tr>
+                  }
+                </table>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Onglet Historique Km ── -->
+    @if (activeTab() === 'historique-km') {
+      <div class="tab-content">
+        <div class="tab-header-row">
+          <p class="tab-count-info">{{ relevesKmTotal() }} relevé(s)</p>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-green btn-sm" (click)="openKmModal()">
+              <i class="fas fa-plus"></i> Nouveau relevé
+            </button>
+            <button class="btn btn-outline btn-sm" (click)="goToRelevesKm()">
+              <i class="fas fa-arrow-right"></i> Voir tout
+            </button>
+          </div>
+        </div>
+
+        @if (relevesKmLoad()) {
+          <div class="tab-loading"><i class="fas fa-circle-notch fa-spin"></i> Chargement...</div>
+        } @else if (relevesKm().length === 0) {
+          <div class="placeholder-tab">
+            <i class="fas fa-tachometer-alt"></i>
+            <h3>Aucun relevé kilométrique</h3>
+            <p>Les relevés apparaîtront ici dès que vous mettrez à jour le kilométrage.</p>
+          </div>
+        } @else {
+          <div class="card">
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Kilométrage</th>
+                    <th>Type</th>
+                    <th>Chauffeur</th>
+                    <th>Tournée</th>
+                    <th>Notes</th>
+                    <th style="text-align:center">Photo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (r of relevesKm(); track r.id) {
+                    <tr>
+                      <td><strong>{{ r.date_releve | date:'dd/MM/yyyy' }}</strong></td>
+                      <td>
+                        <strong style="color:var(--navy)">
+                          {{ r.kilometrage | number:'1.0-0' }} km
+                        </strong>
+                      </td>
+                      <td>
+                        <span class="badge" [class]="typeMouvementClass(r.type_mouvement)">
+                          {{ r.type_display }}
+                        </span>
+                      </td>
+                      <td>{{ r.chauffeur_nom || '—' }}</td>
+                      <td>{{ r.tournee || '—' }}</td>
+                      <td>{{ r.notes || '—' }}</td>
+                      <td style="text-align:center">
+                        @if (r.photo_tableau_bord_url) {
+                          <button class="btn-photo-thumb"
+                                  (click)="openPhotoLightbox(r.photo_tableau_bord_url!)"
+                                  title="Voir le tableau de bord">
+                            <img [src]="r.photo_tableau_bord_url" alt="Tableau de bord"
+                                 style="width:40px;height:30px;object-fit:cover;border-radius:4px" />
+                          </button>
+                        } @else {
+                          <span style="color:var(--gray-300);font-size:11px">—</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+          @if (relevesKmTotal() > 20) {
+            <p class="see-more-hint">
+              <i class="fas fa-info-circle"></i>
+              Affichage des 20 derniers relevés.
+              <a (click)="goToRelevesKm()" style="cursor:pointer">
+                Voir les {{ relevesKmTotal() }} relevés
+              </a>
+            </p>
+          }
+        }
+      </div>
+    }
+
+    <!-- ── Onglet Documents ── -->
+    @if (activeTab() === 'documents') {
+      <div class="tab-content">
+        <div class="tab-header-row">
+          <p class="tab-count-info">
+            {{ v.documents ? v.documents.length : 0 }} document(s)
+          </p>
+          <button class="btn btn-green btn-sm" (click)="openUpload()">
+            <i class="fas fa-upload"></i> Ajouter un document
+          </button>
+        </div>
+
+        @if (uploadSuccess()) {
+          <div class="alert-inline-success">
+            <i class="fas fa-check-circle"></i> {{ uploadSuccess() }}
+          </div>
+        }
+
+        @if (!v.documents || v.documents.length === 0) {
+          <div class="placeholder-tab">
+            <i class="fas fa-folder-open"></i>
+            <h3>Aucun document</h3>
+            <p>Ajoutez des documents (carte grise, assurance, contrôle technique...).</p>
+          </div>
+        } @else {
+          <div class="docs-grid">
+            @for (doc of v.documents; track doc.id) {
+              <div class="doc-card" [class.expired]="doc.est_expire">
+                <div class="doc-icon">
+                  <i class="fas fa-file-alt"></i>
+                </div>
+                <div class="doc-info">
+                  <div class="doc-type">{{ doc.type_display || '—' }}</div>
+                  @if (doc.numero) {
+                    <div class="doc-num">N° {{ doc.numero }}</div>
+                  }
+                  @if (doc.date_emission) {
+                    <div class="doc-exp">
+                      <i class="fas fa-calendar-plus"></i>
+                      Émis le : {{ doc.date_emission | date:'dd/MM/yyyy' }}
+                    </div>
+                  }
+                  @if (doc.date_expiration) {
+                    <div class="doc-exp" [class.expired]="doc.est_expire">
+                      <i class="fas fa-calendar"></i>
+                      Expire : {{ doc.date_expiration | date:'dd/MM/yyyy' }}
+                      @if (doc.est_expire) {
+                        <span class="badge badge-danger" style="font-size:10px">Expiré</span>
+                      }
+                    </div>
+                  }
+                </div>
+                <div class="doc-actions">
+                  <a [href]="doc.fichier" target="_blank" class="btn btn-icon" title="Télécharger">
+                    <i class="fas fa-download"></i>
+                  </a>
+                  <button class="btn btn-icon" title="Modifier" (click)="openEditDoc(doc)">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button class="btn btn-icon btn-icon-danger" title="Supprimer"
+                          (click)="confirmDeleteDoc(doc.id)">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Onglet Chauffeurs ── -->
+    @if (activeTab() === 'chauffeurs') {
+      <div class="tab-content">
+        <div class="tab-header-row">
+          <p class="tab-count-info">{{ affectations().length }} affectation(s)</p>
+          <button class="btn btn-green btn-sm" (click)="openAffectForm()">
+            <i class="fas fa-plus"></i> Nouvelle affectation
+          </button>
+        </div>
+
+        @if (affectSuccess()) {
+          <div class="alert-inline-success">
+            <i class="fas fa-check-circle"></i> {{ affectSuccess() }}
+          </div>
+        }
+
+        @if (affectationsLoad()) {
+          <div class="tab-loading">
+            <i class="fas fa-circle-notch fa-spin"></i> Chargement...
+          </div>
+        } @else if (affectations().length === 0) {
+          <div class="placeholder-tab">
+            <i class="fas fa-id-badge"></i>
+            <h3>Aucune affectation</h3>
+            <p>Affectez un chauffeur à ce véhicule.</p>
+          </div>
+        } @else {
+          <div class="card">
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead>
+                  <tr>
+                    <th>Chauffeur</th>
+                    <th>Date début</th>
+                    <th>Date fin</th>
+                    <th>Statut</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (a of affectations(); track a.id) {
+                    <tr>
+                      <td>
+                        <a [routerLink]="['/chauffeurs', a.chauffeur]"
+                           style="font-weight:600;color:var(--navy);text-decoration:none;
+                                  &:hover{color:var(--green-dark)}">
+                          {{ a.chauffeur_nom }}
+                        </a>
+                      </td>
+                      <td>{{ a.date_debut | date:'dd/MM/yyyy' }}</td>
+                      <td>
+                        {{ a.date_fin ? (a.date_fin | date:'dd/MM/yyyy') : '—' }}
+                      </td>
+                      <td>
+                        @if (a.est_active) {
+                          <span class="badge badge-green">En cours</span>
+                        } @else {
+                          <span class="badge badge-gray">Terminée</span>
+                        }
+                      </td>
+                      <td>{{ a.notes || '—' }}</td>
+                      <td>
+                        <div style="display:flex;gap:4px">
+                          <button class="btn btn-icon" title="Modifier"
+                                  (click)="openAffectForm(a)">
+                            <i class="fas fa-edit"></i>
+                          </button>
+                          <button class="btn btn-icon btn-icon-danger" title="Supprimer"
+                                  (click)="confirmDeleteAffect(a.id)">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+  }
+</div>
+
+<!-- MODAL Nouveau relevé kilométrique -->
+@if (showKmModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-container modal-releve" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-tachometer-alt" style="color:var(--green-dark)"></i>
+          Nouveau relevé kilométrique
+        </div>
+        <button class="modal-close" (click)="closeKmModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      @if (store.selectedVehicule(); as v) {
+        <div class="km-context-bar">
+          <div class="km-ctx-item">
+            <span class="km-ctx-label">Véhicule</span>
+            <span class="km-ctx-val">{{ v.immatriculation }}</span>
+          </div>
+          <div class="km-ctx-item">
+            <span class="km-ctx-label">Kilométrage actuel</span>
+            <span class="km-ctx-val km-ctx-km">
+              <i class="fas fa-road"></i>
+              {{ v.kilometrage_actuel | number:'1.0-0' }} km
+            </span>
+          </div>
+        </div>
+      }
+
+      @if (kmError()) {
+        <div class="alert-error-inline">
+          <i class="fas fa-exclamation-triangle"></i> {{ kmError() }}
+        </div>
+      }
+
+      <div class="releve-form">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">
+              <i class="fas fa-tachometer-alt"></i> Kilométrage relevé (km) *
+            </label>
+            <input type="number" class="form-control form-control-lg"
+                   [class.is-invalid]="kmError()"
+                   [value]="kmValue()"
+                   (change)="onKmInput($event)"
+                   (input)="onKmInput($event)"
+                   min="0" step="1"
+                   placeholder="Ex : 45 250" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">
+              <i class="fas fa-calendar-alt"></i> Date du relevé *
+            </label>
+            <input type="date" class="form-control form-control-lg"
+                   [value]="kmDate()" (input)="onKmDateInput($event)" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">
+            <i class="fas fa-exchange-alt"></i> Type de mouvement *
+          </label>
+          <div class="type-mouvement-grid">
+            <label class="type-option" [class.selected]="kmTypeMouvement() === 'releve'">
+              <input type="radio" name="typeMvt" value="releve"
+                     [checked]="kmTypeMouvement() === 'releve'"
+                     (change)="kmTypeMouvement.set('releve')" />
+              <i class="fas fa-tachometer-alt"></i>
+              <span>Relevé simple</span>
+            </label>
+            <label class="type-option" [class.selected]="kmTypeMouvement() === 'sortie'">
+              <input type="radio" name="typeMvt" value="sortie"
+                     [checked]="kmTypeMouvement() === 'sortie'"
+                     (change)="kmTypeMouvement.set('sortie')" />
+              <i class="fas fa-arrow-right"></i>
+              <span>Sortie véhicule</span>
+            </label>
+            <label class="type-option" [class.selected]="kmTypeMouvement() === 'entree'">
+              <input type="radio" name="typeMvt" value="entree"
+                     [checked]="kmTypeMouvement() === 'entree'"
+                     (change)="kmTypeMouvement.set('entree')" />
+              <i class="fas fa-arrow-left"></i>
+              <span>Retour véhicule</span>
+            </label>
+            <label class="type-option" [class.selected]="kmTypeMouvement() === 'tournee'">
+              <input type="radio" name="typeMvt" value="tournee"
+                     [checked]="kmTypeMouvement() === 'tournee'"
+                     (change)="kmTypeMouvement.set('tournee')" />
+              <i class="fas fa-route"></i>
+              <span>Tournée</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">
+              <i class="fas fa-id-badge"></i> Chauffeur
+            </label>
+            <select class="form-control" [value]="kmChauffeur()" (change)="onKmChauffeur($event)">
+              <option value="">— Non précisé —</option>
+              @for (c of chauffeurs(); track c.id) {
+                <option [value]="c.id">{{ c.nom_complet }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">
+              <i class="fas fa-route"></i> Tournée / Destination
+            </label>
+            <input type="text" class="form-control"
+                   [value]="kmTournee()"
+                   (input)="onKmTournee($event)"
+                   placeholder="ex : Livraison Bouaké..." />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">
+            <i class="fas fa-sticky-note"></i> Notes / Observations
+          </label>
+          <textarea class="form-control" rows="2"
+                    [value]="kmNotes()"
+                    (input)="onKmNotes($event)"
+                    placeholder="Observations, état du véhicule..."></textarea>
+        </div>
+
+        <!-- Photo tableau de bord -->
+        <div class="form-group">
+          <label class="form-label">
+            <i class="fas fa-camera"></i> Photo tableau de bord
+            <span style="font-size:11px;color:var(--gray-400);font-weight:400;margin-left:6px">(optionnel)</span>
+          </label>
+          @if (kmPhotoPreview()) {
+            <div style="margin-bottom:8px;position:relative;display:inline-block">
+              <img [src]="kmPhotoPreview()!" alt="Aperçu tableau de bord"
+                   style="max-width:100%;max-height:150px;border-radius:8px;border:1px solid var(--gray-200)" />
+              <button type="button"
+                      style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:11px"
+                      (click)="kmPhoto.set(null); kmPhotoPreview.set(null)">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          }
+          <div class="upload-zone-sm" style="position:relative">
+            <label class="upload-label-sm" for="km-photo">
+              <i class="fas fa-camera"></i>
+              {{ kmPhotoPreview() ? 'Changer la photo' : 'Sélectionner une photo' }}
+            </label>
+            <input type="file" id="km-photo" class="upload-input"
+                   accept="image/*" (change)="onKmPhotoChange($event)" />
+          </div>
+        </div>
+
+        <div class="modal-footer-actions">
+          <button class="btn btn-outline" (click)="closeKmModal()">
+            <i class="fas fa-times"></i> Annuler
+          </button>
+          <button class="btn btn-green" [disabled]="kmLoading()" (click)="saveKilometrage()">
+            @if (kmLoading()) {
+              <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
+            } @else {
+              <i class="fas fa-check"></i> Enregistrer le relevé
+            }
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+}
+
+<!-- MODAL Upload Document -->
+@if (showUploadModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Ajouter un document</div>
+        <button class="modal-close" (click)="closeUpload()"><i class="fas fa-times"></i></button>
+      </div>
+      @if (uploadError()) {
+        <div class="alert-error-inline">
+          <i class="fas fa-exclamation-triangle"></i> {{ uploadError() }}
+        </div>
+      }
+      <form [formGroup]="uploadForm" (ngSubmit)="submitUpload()" novalidate>
+        <div class="form-group">
+          <label class="form-label">Type de document *</label>
+          <select formControlName="type_document" class="form-control">
+            @for (t of typesDocument(); track t.id) {
+              <option [value]="t.id">{{ t.libelle }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fichier *</label>
+          <div class="file-input-wrapper">
+            <input type="file" id="doc-file" class="file-input"
+                   accept=".pdf,.jpg,.jpeg,.png" (change)="onFileSelected($event)" />
+            <label for="doc-file" class="file-label">
+              <i class="fas fa-cloud-upload-alt"></i>
+              @if (selectedFile()) { <span>{{ selectedFile()!.name }}</span> }
+              @else { <span>Choisir un fichier (PDF, JPG, PNG)</span> }
+            </label>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">N° document</label>
+            <input formControlName="numero" class="form-control" placeholder="Numéro" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date d'émission</label>
+            <input type="date" formControlName="date_emission" class="form-control" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date d'expiration</label>
+          <input type="date" formControlName="date_expiration" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea formControlName="notes" class="form-control"
+                    rows="2" placeholder="Observations..."></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button type="button" class="btn btn-outline" (click)="closeUpload()">Annuler</button>
+          <button type="submit" class="btn btn-green"
+                  [disabled]="!selectedFile() || uploadForm.invalid || uploadLoading()">
+            @if (uploadLoading()) { <i class="fas fa-circle-notch fa-spin"></i> Envoi... }
+            @else { <i class="fas fa-upload"></i> Ajouter }
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- MODAL Modifier Document -->
+@if (showEditDocModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Modifier le document</div>
+        <button class="modal-close" (click)="closeEditDoc()"><i class="fas fa-times"></i></button>
+      </div>
+      <form [formGroup]="editDocForm" (ngSubmit)="submitEditDoc()" novalidate>
+        <div class="form-group">
+          <label class="form-label">Type de document *</label>
+          <select formControlName="type_document" class="form-control">
+            @for (t of typesDocument(); track t.id) {
+              <option [value]="t.id">{{ t.libelle }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">N° document</label>
+            <input formControlName="numero" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date d'émission</label>
+            <input type="date" formControlName="date_emission" class="form-control" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date d'expiration</label>
+          <input type="date" formControlName="date_expiration" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Remplacer le fichier (optionnel)</label>
+          <div class="file-input-wrapper">
+            <input type="file" id="edit-doc-file" class="file-input"
+                   accept=".pdf,.jpg,.jpeg,.png" (change)="onEditFileSelected($event)" />
+            <label for="edit-doc-file" class="file-label">
+              <i class="fas fa-cloud-upload-alt"></i>
+              @if (editSelectedFile()) { <span>{{ editSelectedFile()!.name }}</span> }
+              @else { <span>Laisser vide pour conserver le fichier actuel</span> }
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea formControlName="notes" class="form-control"
+                    rows="2" placeholder="Observations..."></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button type="button" class="btn btn-outline" (click)="closeEditDoc()">Annuler</button>
+          <button type="submit" class="btn btn-green" [disabled]="editDocForm.invalid">
+            <i class="fas fa-save"></i> Enregistrer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- MODAL Confirmer Suppression Document -->
+@if (deleteDocConfirm()) {
+  <div class="modal-backdrop">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header"><div class="modal-title">Supprimer le document</div></div>
+      <p style="font-size:14px;color:var(--gray-600);margin-bottom:24px">
+        Cette action est irréversible.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="cancelDeleteDoc()">Annuler</button>
+        <button class="btn btn-danger" (click)="doDeleteDoc(deleteDocConfirm()!)">
+          <i class="fas fa-trash"></i> Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- MODAL CHANGEMENT IMMATRICULATION -->
+@if (showImmatModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-container modal-lg" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-exchange-alt"></i> Changer l'immatriculation
+        </div>
+        <button class="modal-close" (click)="closeImmatModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      @if (immatError()) {
+        <div class="alert-error-inline">
+          <i class="fas fa-exclamation-triangle"></i> {{ immatError() }}
+        </div>
+      }
+      @if (immatSuccess()) {
+        <div class="alert-inline-success">
+          <i class="fas fa-check-circle"></i> {{ immatSuccess() }}
+        </div>
+      }
+
+      @if (store.selectedVehicule(); as v) {
+        <div class="immat-current">
+          <i class="fas fa-car"></i>
+          Immatriculation actuelle :
+          <strong>{{ v.immatriculation }}</strong>
+          @if (v.est_immatriculation_provisoire) {
+            <span class="badge badge-warning" style="font-size:11px">Provisoire</span>
+          }
+        </div>
+
+        <div class="form-row" style="margin-top:16px">
+          <div class="form-group">
+            <label class="form-label">Nouvelle immatriculation *</label>
+            <input type="text" class="form-control"
+                   [value]="newImmat()" (input)="onNewImmat($event)"
+                   placeholder="ex: AB-1234-CD"
+                   style="text-transform:uppercase;font-weight:700;font-size:15px" />
+            <small style="font-size:11px;color:var(--gray-400)">
+              L'ancienne immatriculation sera conservée dans l'historique.
+            </small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date du changement *</label>
+            <input type="date" class="form-control"
+                   [value]="dateImmat()" (input)="onDateImmat($event)" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Motif</label>
+          <input type="text" class="form-control"
+                 [value]="motifImmat()" (input)="onMotifImmat($event)"
+                 placeholder="ex: Passage de provisoire à définitive" />
+        </div>
+      }
+
+      <!-- Historique des changements -->
+      @if (historiqueImmat().length > 0) {
+        <div class="immat-historique">
+          <div class="immat-hist-title">
+            <i class="fas fa-history"></i> Historique des changements
+          </div>
+          <table class="ubi-table" style="font-size:12px">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Ancienne</th>
+                <th>Nouvelle</th>
+                <th>Motif</th>
+                <th>Par</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (h of historiqueImmat(); track h.id) {
+                <tr>
+                  <td>{{ h.date_changement | date:'dd/MM/yyyy' }}</td>
+                  <td><span class="badge badge-gray">{{ h.ancienne_immatriculation }}</span></td>
+                  <td><span class="badge badge-green">{{ h.nouvelle_immatriculation }}</span></td>
+                  <td>{{ h.motif || '—' }}</td>
+                  <td>{{ h.created_by_nom || '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-outline" (click)="closeImmatModal()">Fermer</button>
+        <button class="btn btn-green"
+                [disabled]="!newImmat() || immatLoading()"
+                (click)="submitChangerImmat()">
+          @if (immatLoading()) {
+            <i class="fas fa-circle-notch fa-spin"></i>
+          } @else {
+            <i class="fas fa-exchange-alt"></i>
+          }
+          Valider le changement
+        </button>
+      </div>
+
+    </div>
+  </div>
+}
+
+<!-- MODAL Affectation Chauffeur -->
+@if (showAffectForm()) {
+  <div class="modal-backdrop">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          {{ editAffectId() ? 'Modifier l\'affectation' : 'Affecter un chauffeur' }}
+        </div>
+        <button class="modal-close" (click)="closeAffectForm()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      @if (affectError()) {
+        <div class="alert-error-inline">
+          <i class="fas fa-exclamation-triangle"></i> {{ affectError() }}
+        </div>
+      }
+
+      <form [formGroup]="affectForm" (ngSubmit)="saveAffectation()" novalidate>
+        <div class="form-group">
+          <label class="form-label">Chauffeur *</label>
+          <select formControlName="chauffeur" class="form-control"
+                  [class.is-invalid]="aff['chauffeur'].invalid && aff['chauffeur'].touched">
+            <option value="">-- Sélectionner un chauffeur --</option>
+            @for (c of chauffeurs(); track c.id) {
+              <option [value]="c.id">{{ c.nom_complet }}</option>
+            }
+          </select>
+          @if (aff['chauffeur'].invalid && aff['chauffeur'].touched) {
+            <div class="form-error">
+              <i class="fas fa-times-circle"></i> Le chauffeur est requis.
+            </div>
+          }
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Date de début *</label>
+            <input type="date" formControlName="date_debut" class="form-control"
+                   [class.is-invalid]="aff['date_debut'].invalid && aff['date_debut'].touched" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date de fin</label>
+            <input type="date" formControlName="date_fin" class="form-control" />
+            <small style="font-size:11px;color:var(--gray-400)">
+              Laisser vide si l'affectation est en cours
+            </small>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea formControlName="notes" class="form-control" rows="2"
+                    placeholder="Observations..."></textarea>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button type="button" class="btn btn-outline" (click)="closeAffectForm()">
+            Annuler
+          </button>
+          <button type="submit" class="btn btn-green"
+                  [disabled]="affectForm.invalid || affectSaving()">
+            @if (affectSaving()) { <i class="fas fa-circle-notch fa-spin"></i> }
+            @else if (editAffectId()) { <i class="fas fa-save"></i> Modifier }
+            @else { <i class="fas fa-plus"></i> Affecter }
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- MODAL Confirmation suppression affectation -->
+@if (deleteAffectId()) {
+  <div class="modal-backdrop">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Supprimer l'affectation</div>
+      </div>
+      <p style="font-size:14px;color:var(--gray-600);margin-bottom:24px">
+        Cette action est irréversible.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="cancelDeleteAffect()">Annuler</button>
+        <button class="btn btn-danger" (click)="doDeleteAffect(deleteAffectId()!)">
+          <i class="fas fa-trash"></i> Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (activeTab() === 'statut') {
+  <div class="tab-section">
+    <div class="section-header">
+      <div class="section-title">
+        <i class="fas fa-circle"></i> Statut du véhicule
+      </div>
+      <button class="btn btn-green btn-sm" (click)="ouvrirChangerStatut()">
+        <i class="fas fa-exchange-alt"></i> Changer le statut
+      </button>
+    </div>
+
+    <!-- Statut actuel -->
+    @if (store.selectedVehicule(); as v) {
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-body" style="display:flex;align-items:center;gap:16px;padding:16px">
+          <div style="font-size:13px;color:var(--gray-400)">Statut actuel</div>
+          @if (v.statut_display) {
+            <span class="badge" [class]="couleurStatut(v.statut_couleur)"
+                  style="font-size:14px;padding:6px 16px">
+              {{ v.statut_display }}
+            </span>
+          } @else {
+            <span style="color:var(--gray-300);font-size:13px">Non défini</span>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Historique -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><i class="fas fa-history"></i> Historique des statuts</div>
+      </div>
+      @if (historiqueStatutsLoad()) {
+        <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+      } @else if (historiqueStatuts().length === 0) {
+        <div class="empty-state">
+          <i class="fas fa-history"></i>
+          <p>Aucun changement de statut enregistré.</p>
+        </div>
+      } @else {
+        <div class="table-container">
+          <table class="ubi-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Ancien statut</th>
+                <th>Nouveau statut</th>
+                <th>Motif</th>
+                <th>Par</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (h of historiqueStatuts(); track h.id) {
+                <tr>
+                  <td style="white-space:nowrap">{{ h.date_changement | date:'dd/MM/yyyy' }}</td>
+                  <td>
+                    @if (h.ancien_statut_libelle) {
+                      <span class="badge" [class]="couleurStatut(h.ancien_statut_couleur ?? 'gray')">
+                        {{ h.ancien_statut_libelle }}
+                      </span>
+                    } @else { <span style="color:var(--gray-300)">—</span> }
+                  </td>
+                  <td>
+                    @if (h.nouveau_statut_libelle) {
+                      <span class="badge" [class]="couleurStatut(h.nouveau_statut_couleur ?? 'gray')">
+                        {{ h.nouveau_statut_libelle }}
+                      </span>
+                    } @else { <span style="color:var(--gray-300)">—</span> }
+                  </td>
+                  <td style="font-size:12px;color:var(--gray-500)">{{ h.motif || '—' }}</td>
+                  <td style="font-size:12px;color:var(--gray-400)">{{ h.created_by_nom || '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+<!-- Modale : Changer le statut -->
+@if (showChangerStatutModal()) {
+  <div class="modal-backdrop">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-exchange-alt" style="color:var(--green-dark);margin-right:8px"></i>
+          Changer le statut
+        </div>
+        <button class="btn-close-modal" (click)="fermerChangerStatut()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form [formGroup]="changerStatutForm" novalidate>
+        <div class="form-group">
+          <label class="form-label">Nouveau statut *</label>
+          <select formControlName="nouveau_statut" class="form-control">
+            <option [value]="null">-- Sélectionner --</option>
+            @for (s of statutsDisponibles(); track s.id) {
+              <option [value]="s.id">{{ s.libelle }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date de changement *</label>
+          <input type="date" class="form-control" formControlName="date_changement" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Motif</label>
+          <input type="text" class="form-control" formControlName="motif"
+                 placeholder="Raison du changement de statut..." />
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+          <button type="button" class="btn btn-outline" (click)="fermerChangerStatut()">Annuler</button>
+          <button type="button" class="btn btn-green"
+                  [disabled]="changerStatutForm.invalid"
+                  (click)="sauvegarderChangementStatut()">
+            <i class="fas fa-save"></i> Enregistrer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- LIGHTBOX Photo tableau de bord -->
+@if (photoLightbox()) {
+  <div class="lightbox-backdrop" (click)="closePhotoLightbox()">
+    <div class="lightbox-container" (click)="$event.stopPropagation()">
+      <div class="lightbox-header">
+        <div class="lightbox-title">
+          <i class="fas fa-tachometer-alt"></i> Photo tableau de bord
+        </div>
+        <button class="lightbox-close" (click)="closePhotoLightbox()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="lightbox-body">
+        <img [src]="photoLightbox()!" alt="Tableau de bord" class="lightbox-img" />
+      </div>
+      <div class="lightbox-footer">
+        <a [href]="photoLightbox()!" target="_blank" class="btn btn-outline btn-sm">
+          <i class="fas fa-external-link-alt"></i> Ouvrir en plein écran
+        </a>
+      </div>
+    </div>
+  </div>
+}

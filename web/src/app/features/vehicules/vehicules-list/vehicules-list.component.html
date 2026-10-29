@@ -1,0 +1,424 @@
+<!-- UbiFleet — Véhicules Liste (Angular 18) -->
+<div class="vehicules-page">
+
+  <!-- ── EN-TÊTE ── -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Parc Automobile</h1>
+      <p class="page-subtitle">
+        {{ store.totalVehicules() }} véhicule(s) &bull;
+        {{ store.vehiculesEnService().length }} en service &bull;
+        {{ store.vehiculesRevisionDue().length }} révision(s) due(s)
+      </p>
+    </div>
+    <div class="header-actions">
+      <!-- Toggle vue -->
+      <div class="view-toggle">
+        <button
+          class="toggle-btn"
+          [class.active]="viewMode() === 'cards'"
+          (click)="viewMode.set('cards')"
+          title="Vue cartes"
+        >
+          <i class="fas fa-th-large"></i>
+        </button>
+        <button
+          class="toggle-btn"
+          [class.active]="viewMode() === 'table'"
+          (click)="viewMode.set('table')"
+          title="Vue tableau"
+        >
+          <i class="fas fa-list"></i>
+        </button>
+      </div>
+      <button class="btn btn-outline btn-sm" [disabled]="exportLoading()" (click)="exportExcel()">
+        @if (exportLoading()) {
+          <i class="fas fa-circle-notch fa-spin"></i> Export...
+        } @else {
+          <i class="fas fa-file-excel"></i> Exporter Excel
+        }
+      </button>
+      <button class="btn btn-green" (click)="goToNew()">
+        <i class="fas fa-plus"></i> Nouveau véhicule
+      </button>
+    </div>
+  </div>
+
+  <!-- ── STATS RAPIDES ── -->
+  <div class="quick-stats">
+    <div class="qs-item">
+      <span class="qs-dot green"></span>
+      <span class="qs-val">{{ store.vehiculesEnService().length }}</span>
+      <span class="qs-lbl">En service</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot orange"></span>
+      <span class="qs-val">{{ store.vehiculesEnRevision().length }}</span>
+      <span class="qs-lbl">En révision</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot red"></span>
+      <span class="qs-val">{{ store.vehiculesImmobilises().length }}</span>
+      <span class="qs-lbl">Immobilisés</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot warning"></span>
+      <span class="qs-val">{{ store.vehiculesRevisionDue().length }}</span>
+      <span class="qs-lbl">Révision due</span>
+    </div>
+  </div>
+
+  <!-- ── FILTRES ── -->
+  <div class="filters-bar">
+    <!-- Recherche -->
+    <div class="search-box">
+      <i class="fas fa-search"></i>
+      <input
+        type="text"
+        placeholder="Immatriculation, marque, modèle..."
+        (input)="onSearch($event)"
+      />
+      @if (store.hasActiveFilters()) {
+        <button class="clear-search" (click)="resetFilters()" title="Effacer les filtres">
+          <i class="fas fa-times"></i>
+        </button>
+      }
+    </div>
+
+    <!-- Agence -->
+    <select class="form-control filter-select" (change)="onAgenceFilter($event)">
+      <option value="">Toutes les agences</option>
+      @for (agence of agences(); track agence.id) {
+        <option [value]="agence.id">{{ agence.nom }}</option>
+      }
+    </select>
+
+    <!-- Type véhicule -->
+    <select class="form-control filter-select" (change)="onTypeFilter($event)">
+      @for (t of typesVehicule; track t.value) {
+        <option [value]="t.value">{{ t.label }}</option>
+      }
+    </select>
+
+    <!-- Carburant -->
+    <select class="form-control filter-select" (change)="onCarburantFilter($event)">
+      @for (c of typesCarburant; track c.value) {
+        <option [value]="c.value">{{ c.label }}</option>
+      }
+    </select>
+
+    <!-- Statut -->
+    <select class="form-control filter-select"
+            [value]="store.filters().statut || ''"
+            (change)="onStatutFilter($any($event.target).value)">
+      <option value="">Tous les statuts</option>
+      @for (s of statutsDisponibles(); track s.id) {
+        <option [value]="s.code">{{ s.libelle }}</option>
+      }
+    </select>
+  </div>
+
+  @if (store.hasActiveFilters()) {
+    <button class="chip chip-reset" (click)="resetFilters()">
+      <i class="fas fa-times"></i> Réinitialiser
+    </button>
+  }
+
+  <!-- ── CHARGEMENT ── -->
+  @if (store.isLoading()) {
+    <div class="loading-row">
+      @for (i of [1,2,3,4,5,6]; track i) {
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-head"></div>
+          <div class="skeleton-body">
+            <div class="skeleton skeleton-title"></div>
+            <div class="skeleton skeleton-sub"></div>
+            <div class="skeleton-stats">
+              <div class="skeleton skeleton-stat"></div>
+              <div class="skeleton skeleton-stat"></div>
+              <div class="skeleton skeleton-stat"></div>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── ERREUR ── -->
+  @if (store.hasError() && !store.isLoading()) {
+    <div class="error-state">
+      <i class="fas fa-exclamation-triangle"></i>
+      <p>{{ store.error() }}</p>
+      <button class="btn btn-primary btn-sm" (click)="store.loadVehicules()">
+        <i class="fas fa-redo"></i> Réessayer
+      </button>
+    </div>
+  }
+
+  <!-- ── VUE CARTES ── -->
+  @if (!store.isLoading() && !store.hasError() && viewMode() === 'cards') {
+    @if (store.vehicules().length === 0) {
+      <div class="empty-state">
+        <i class="fas fa-car"></i>
+        <h3>Aucun véhicule trouvé</h3>
+        <p>Modifiez vos filtres ou ajoutez un nouveau véhicule.</p>
+        <button class="btn btn-green" (click)="goToNew()">
+          <i class="fas fa-plus"></i> Ajouter un véhicule
+        </button>
+      </div>
+    } @else {
+      <div class="vehicules-grid">
+        @for (vehicule of store.vehicules(); track vehicule.id; let idx = $index) {
+          <div
+            class="vehicle-card"
+            [class.animate-delay]="idx < 12"
+            (click)="goToDetail(vehicule.id)"
+          >
+            <!-- En-tête carte -->
+            <div class="vc-head">
+              <div class="vc-plate">{{ vehicule.immatriculation }}</div>
+              <span class="badge" [class]="statutBadgeClass(vehicule.statut_couleur)">
+                <span class="dot" [class]="statutDotClass(vehicule.statut_couleur)"></span>
+                {{ vehicule.statut_display }}
+              </span>
+            </div>
+
+            <!-- Corps carte -->
+            <div class="vc-body">
+              <div class="vc-model">{{ vehicule.marque_libelle }} {{ vehicule.modele_libelle }}</div>
+              <div class="vc-meta">
+                {{ vehicule.annee }} &bull; {{ vehicule.type_carburant_display }}
+                &bull; {{ vehicule.type_vehicule_display }}
+              </div>
+
+              @if (vehicule.agence_detail) {
+                <span class="agency-pill">{{ vehicule.agence_detail.code }}</span>
+              }
+
+              <!-- Stats kilométrage & consommation -->
+              <div class="vc-stats">
+                <div class="vc-stat">
+                  <div class="vc-stat-val">
+                    {{ vehicule.kilometrage_actuel | number:'1.0-0' }}
+                  </div>
+                  <div class="vc-stat-lbl">km total</div>
+                </div>
+                <div class="vc-stat-sep"></div>
+                <div class="vc-stat">
+                  <div class="vc-stat-val">
+                    @if (vehicule.consommation_moyenne !== null) {
+                      {{ vehicule.consommation_moyenne | number:'1.1-1' }}
+                    } @else {
+                      —
+                    }
+                  </div>
+                  <div class="vc-stat-lbl">L/100km</div>
+                </div>
+                <div class="vc-stat-sep"></div>
+                <div class="vc-stat">
+                  <div class="vc-stat-val">
+                    {{ vehicule.dotation_carburant_mensuelle | number:'1.0-0' }}
+                  </div>
+                  <div class="vc-stat-lbl">L/mois</div>
+                </div>
+              </div>
+
+              <!-- Alerte révision -->
+              @if (vehicule.revision_due) {
+                <div class="revision-alert">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  Révision due — {{ vehicule.kilometrage_actuel | number:'1.0-0' }} km
+                </div>
+              }
+            </div>
+
+            <!-- Pied de carte -->
+            <div class="vc-footer">
+              @if (vehicule.chauffeur_nom) {
+                <span class="chauffeur-chip">
+                  <i class="fas fa-user"></i> {{ vehicule.chauffeur_nom }}
+                </span>
+              } @else {
+                <span class="chauffeur-chip empty">
+                  <i class="fas fa-user-slash"></i> Non assigné
+                </span>
+              }
+              <div class="vc-actions">
+                <button
+                  class="btn btn-icon"
+                  title="Modifier"
+                  (click)="goToEdit($event, vehicule.id)"
+                >
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button
+                  class="btn btn-icon btn-icon-danger"
+                  title="Supprimer"
+                  (click)="confirmDelete($event, vehicule.id)"
+                >
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- ── VUE TABLEAU ── -->
+  @if (!store.isLoading() && !store.hasError() && viewMode() === 'table') {
+    <div class="card">
+      <div class="table-container">
+        <table class="ubi-table">
+          <thead>
+            <tr>
+              <th>Immatriculation</th>
+              <th>Désignation</th>
+              <th>Type</th>
+              <th>Agence</th>
+              <th>Kilométrage</th>
+              <th>Conso.</th>
+              <th>Chauffeur</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (store.vehicules().length === 0) {
+              <tr>
+                <td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400)">
+                  <i class="fas fa-car" style="font-size:24px;display:block;margin-bottom:8px"></i>
+                  Aucun véhicule trouvé
+                </td>
+              </tr>
+            }
+            @for (v of store.vehicules(); track v.id) {
+              <tr (click)="goToDetail(v.id)" style="cursor:pointer">
+                <td>
+                  <strong class="plate-text">{{ v.immatriculation }}</strong>
+                </td>
+                <td>
+                  <div class="td-model">{{ v.marque_libelle }} {{ v.modele_libelle }}</div>
+                  <div class="td-sub">{{ v.annee }} &bull; {{ v.type_carburant_display }}</div>
+                </td>
+                <td>{{ v.type_vehicule_display }}</td>
+                <td>
+                  @if (v.agence_detail) {
+                    <span class="agency-pill">{{ v.agence_detail.code }}</span>
+                  }
+                </td>
+                <td>{{ v.kilometrage_actuel | number:'1.0-0' }} km</td>
+                <td>
+                  @if (v.consommation_moyenne !== null) {
+                    {{ v.consommation_moyenne | number:'1.1-1' }} L/100
+                  } @else {
+                    <span style="color:var(--gray-400)">—</span>
+                  }
+                </td>
+                <td>
+                  @if (v.chauffeur_nom) {
+                    {{ v.chauffeur_nom }}
+                  } @else {
+                    <span style="color:var(--gray-400)">—</span>
+                  }
+                </td>
+                <td>
+                  <span class="badge" [class]="statutBadgeClass(v.statut_couleur)">
+                    {{ v.statut_display }}
+                  </span>
+                  @if (v.revision_due) {
+                    <span class="badge badge-warning" style="margin-left:4px">
+                      <i class="fas fa-wrench"></i>
+                    </span>
+                  }
+                </td>
+                <td>
+                  <div class="td-actions">
+                    <button
+                      class="btn btn-icon"
+                      title="Modifier"
+                      (click)="goToEdit($event, v.id)"
+                    >
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button
+                      class="btn btn-icon btn-icon-danger"
+                      title="Supprimer"
+                      (click)="confirmDelete($event, v.id)"
+                    >
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- ── PAGINATION ── -->
+  @if (!store.isLoading() && store.totalVehicules() > store.pagination().pageSize) {
+    <div class="pagination">
+      <button
+        class="page-btn"
+        [disabled]="store.pagination().page === 1"
+        (click)="onPageChange(store.pagination().page - 1)"
+      >
+        <i class="fas fa-chevron-left"></i>
+      </button>
+
+      @for (p of pages; track p) {
+        <button
+          class="page-btn"
+          [class.active]="p === store.pagination().page"
+          (click)="onPageChange(p)"
+        >{{ p }}</button>
+      }
+
+      <button
+        class="page-btn"
+        [disabled]="store.pagination().page === totalPages"
+        (click)="onPageChange(store.pagination().page + 1)"
+      >
+        <i class="fas fa-chevron-right"></i>
+      </button>
+
+      <span class="pagination-info">
+        {{ (store.pagination().page - 1) * store.pagination().pageSize + 1 }}
+        –
+        {{ store.pagination().page * store.pagination().pageSize > store.totalVehicules()
+           ? store.totalVehicules()
+           : store.pagination().page * store.pagination().pageSize }}
+        sur {{ store.totalVehicules() }}
+      </span>
+    </div>
+  }
+
+</div>
+
+<!-- ── MODAL CONFIRMATION SUPPRESSION ── -->
+@if (deleteConfirm()) {
+  <div class="modal-backdrop">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Confirmer la suppression</div>
+      </div>
+      <p style="color:var(--gray-600);font-size:14px;margin-bottom:24px">
+        Êtes-vous sûr de vouloir archiver ce véhicule ?
+        Cette action est irréversible.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="cancelDelete()">Annuler</button>
+        <button class="btn btn-danger" (click)="doDelete(deleteConfirm()!)">
+          <i class="fas fa-trash"></i> Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+}

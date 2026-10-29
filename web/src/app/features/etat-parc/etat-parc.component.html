@@ -1,0 +1,255 @@
+<!-- UbiFleet — État du Parc (Angular 18) -->
+<div class="etat-parc-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-clipboard-list" style="color:var(--green-dark)"></i>
+        État du Parc
+      </h1>
+      <p class="page-subtitle">Tableau de bord des indicateurs de maintenance, documents et disponibilité</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline btn-sm" (click)="loadEtatParc()">
+        <i class="fas fa-sync-alt"></i> Actualiser
+      </button>
+      <a routerLink="/entretien" class="btn btn-outline btn-sm">
+        <i class="fas fa-arrow-left"></i> Entretien
+      </a>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i> Chargement...</div>
+  } @else if (error()) {
+    <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ error() }}</div>
+  } @else {
+
+    <!-- ── KPIs ── -->
+    @if (kpis(); as k) {
+      <div class="kpi-grid">
+        <div class="kpi-card" (click)="filterAlerte.set(''); filterStatut.set('')">
+          <div class="kpi-icon kpi-blue"><i class="fas fa-car"></i></div>
+          <div class="kpi-content">
+            <div class="kpi-val">{{ k.total }}</div>
+            <div class="kpi-label">Véhicules actifs</div>
+          </div>
+        </div>
+        <div class="kpi-card" (click)="filterStatut.set('en_service')">
+          <div class="kpi-icon kpi-green"><i class="fas fa-check-circle"></i></div>
+          <div class="kpi-content">
+            <div class="kpi-val">{{ k.disponibles }}</div>
+            <div class="kpi-label">Disponibles</div>
+          </div>
+        </div>
+        <div class="kpi-card kpi-card-warn" (click)="filterAlerte.set('revision')">
+          <div class="kpi-icon kpi-orange"><i class="fas fa-tools"></i></div>
+          <div class="kpi-content">
+            <div class="kpi-val">{{ k.revision_urgente }}</div>
+            <div class="kpi-label">Révisions urgentes</div>
+            @if (k.revision_attention > 0) {
+              <div class="kpi-sub">+ {{ k.revision_attention }} à surveiller</div>
+            }
+          </div>
+        </div>
+        <div class="kpi-card kpi-card-danger" (click)="filterAlerte.set('docs')">
+          <div class="kpi-icon kpi-red"><i class="fas fa-file-times"></i></div>
+          <div class="kpi-content">
+            <div class="kpi-val">{{ k.docs_expires }}</div>
+            <div class="kpi-label">Documents expirés</div>
+            @if (k.docs_urgents > 0) {
+              <div class="kpi-sub">+ {{ k.docs_urgents }} urgents (≤ 7j)</div>
+            }
+          </div>
+        </div>
+        <div class="kpi-card kpi-card-warn" (click)="filterAlerte.set('pneus')">
+          <div class="kpi-icon kpi-orange"><i class="fas fa-circle-notch"></i></div>
+          <div class="kpi-content">
+            <div class="kpi-val">{{ k.pneus_urgents }}</div>
+            <div class="kpi-label">Pneus urgents</div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Filtres ── -->
+    <div class="filters-bar card">
+      <div class="filters-grid-5">
+        <div class="filter-item filter-search">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Immat., marque, chauffeur..."
+                 (input)="onFilter('texte',$event)" />
+        </div>
+        <div class="filter-item">
+          <select (change)="onFilter('agence',$event)">
+            <option value="">Toutes les agences</option>
+            @for (a of agences(); track a) { <option [value]="a">{{ a }}</option> }
+          </select>
+        </div>
+        <div class="filter-item">
+          <select (change)="onFilter('type',$event)">
+            <option value="">Tous les types</option>
+            @for (t of types(); track t) { <option [value]="t">{{ t }}</option> }
+          </select>
+        </div>
+        <div class="filter-item">
+          <select (change)="onFilter('statut',$event)">
+            <option value="">Tous les statuts</option>
+            <option value="en_service">En service</option>
+            <option value="en_revision">En révision</option>
+            <option value="en_panne">En panne</option>
+            <option value="immobilise">Immobilisé</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <select (change)="onFilter('alerte',$event)">
+            <option value="">Toutes les alertes</option>
+            <option value="revision">Révision urgente</option>
+            <option value="pneus">Pneus urgents</option>
+            <option value="docs">Documents expirés/urgents</option>
+          </select>
+        </div>
+      </div>
+      <div class="filters-footer">
+        <span class="filter-count">{{ vehiculesFiltres().length }} véhicule(s) affiché(s)</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" (click)="resetFiltres()">
+            <i class="fas fa-times"></i> Réinitialiser
+          </button>
+          <button class="btn btn-excel" [disabled]="exporting()" (click)="exportCsv()">
+            @if (exporting()) { <i class="fas fa-circle-notch fa-spin"></i> }
+            @else { <i class="fas fa-file-excel"></i> }
+            Exporter Excel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tableau ── -->
+    @if (vehiculesFiltres().length === 0) {
+      <div class="empty-state"><i class="fas fa-clipboard-check"></i><p>Aucun véhicule correspondant.</p></div>
+    } @else {
+      <div class="card">
+        <div class="table-container table-scroll-x">
+          <table class="ubi-table etat-table">
+            <thead>
+              <tr>
+                <th class="col-sticky">Véhicule</th>
+                <th>Agence</th>
+                <th>Chauffeur</th>
+                <th>Km actuel</th>
+                <th>Statut</th>
+                <th class="col-section-km">Révision</th>
+                <th class="col-section-km">Pneus</th>
+                <th class="col-section-doc">Assurance</th>
+                <th class="col-section-doc">Visite Tech.</th>
+                <th class="col-section-doc">Carte Transp.</th>
+                <th class="col-section-doc">Vignette</th>
+                <th>Âge</th>
+                <th>Commentaire</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (v of vehiculesFiltres(); track v.id) {
+                <tr>
+                  <!-- Véhicule -->
+                  <td class="col-sticky">
+                    <div class="td-immat">
+                      <span class="immat-badge">{{ v.immatriculation }}</span>
+                      <div class="td-sub">{{ v.marque }} {{ v.modele }}</div>
+                      <div class="td-type">{{ v.type_vehicule }}</div>
+                    </div>
+                  </td>
+                  <td style="font-size:12px">{{ v.agence_nom || '—' }}</td>
+                  <td style="font-size:12px">{{ v.chauffeur_nom || '—' }}</td>
+
+                  <!-- Km actuel -->
+                  <td style="text-align:right;font-weight:700;font-family:monospace">
+                    {{ v.kilometrage_actuel | number:'1.0-0' }} km
+                  </td>
+
+                  <!-- Statut véhicule -->
+                  <td>
+                    <span class="badge" [class]="badgeStatutVehicule(v.statut_couleur)">
+                      {{ v.statut_display }}
+                    </span>
+                  </td>
+
+                  <!-- Révision -->
+                  <td>
+                    <div class="ind-cell" [class]="badgeStatut(v.statut_revision)">
+                      <div class="ind-val">{{ formatKm(v.km_restant_revision) }}</div>
+                      @if (v.km_prevu_revision) {
+                        <div class="ind-sub">à {{ v.km_prevu_revision | number:'1.0-0' }} km</div>
+                      }
+                    </div>
+                  </td>
+
+                  <!-- Pneus -->
+                  <td>
+                    <div class="ind-cell" [class]="badgeStatut(v.statut_pneus)">
+                      <div class="ind-val">{{ formatKm(v.km_restant_pneus) }}</div>
+                      @if (v.km_prevu_pneus) {
+                        <div class="ind-sub">à {{ v.km_prevu_pneus | number:'1.0-0' }} km</div>
+                      }
+                    </div>
+                  </td>
+
+                  <!-- Assurance -->
+                  <td>
+                    <div class="ind-cell" [class]="badgeStatut(v.statut_assurance)">
+                      <div class="ind-val">{{ formatJours(v.jr_assurance) }}</div>
+                    </div>
+                  </td>
+
+                  <!-- CT -->
+                  <td>
+                    <div class="ind-cell" [class]="badgeStatut(v.statut_ct)">
+                      <div class="ind-val">{{ formatJours(v.jr_ct) }}</div>
+                    </div>
+                  </td>
+
+                  <!-- Carte transport -->
+                  <td>
+                    <div class="ind-cell" [class]="badgeStatut(v.statut_carte_transport)">
+                      <div class="ind-val">{{ formatJours(v.jr_carte_transport) }}</div>
+                    </div>
+                  </td>
+
+                  <!-- Vignette -->
+                  <td>
+                    <div class="ind-cell" [class]="badgeStatut(v.statut_vignette)">
+                      <div class="ind-val">{{ formatJours(v.jr_vignette) }}</div>
+                    </div>
+                  </td>
+
+                  <!-- Âge -->
+                  <td style="text-align:right;font-size:12px">
+                    @if (v.age_mois !== null) {
+                      {{ v.age_mois | number:'1.0-0' }} mois
+                    } @else { — }
+                  </td>
+
+                  <!-- Commentaire -->
+                  <td style="font-size:11px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                      [title]="v.notes">
+                    {{ v.notes || '—' }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Légende -->
+        <div class="legende">
+          <div class="legende-item ind-ok"><i class="fas fa-check"></i> OK</div>
+          <div class="legende-item ind-attention"><i class="fas fa-exclamation"></i> Attention (≤ 2 000 km / 30j)</div>
+          <div class="legende-item ind-urgent"><i class="fas fa-exclamation-triangle"></i> Urgent (≤ 500 km / 7j)</div>
+          <div class="legende-item ind-depasse"><i class="fas fa-times-circle"></i> Dépassé</div>
+          <div class="legende-item ind-nc"><i class="fas fa-question"></i> Non renseigné</div>
+        </div>
+      </div>
+    }
+  }
+</div>

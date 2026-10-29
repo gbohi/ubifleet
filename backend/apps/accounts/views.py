@@ -1,0 +1,231 @@
+"""UbiFleet — Accounts Views"""
+
+from rest_framework import generics, status, viewsets, filters
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+from django_filters.rest_framework import DjangoFilterBackend
+
+from .models import User, Agence, Role, PermissionRole
+from .serializers import (
+    UserSerializer, UserCreateSerializer, UserUpdateSerializer,
+    AgenceSerializer, ChangePasswordSerializer, RoleSerializer,
+    UbiFleetTokenObtainSerializer, ResetProfileSerializer,
+    PermissionRoleSerializer,
+)
+from .permissions import IsSuperAdmin, IsAdminOrReadOnly, CanManageUsers, IsFleetManager
+
+
+class LoginView(TokenObtainPairView):
+    permission_classes = [AllowAny]
+    serializer_class   = UbiFleetTokenObtainSerializer
+
+
+class LogoutView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            token = RefreshToken(request.data.get('refresh'))
+            token.blacklist()
+            return Response({'detail': 'Déconnexion réussie.'})
+        except Exception:
+            return Response({'detail': 'Token invalide.'}, status=400)
+
+
+class MeView(generics.RetrieveUpdateAPIView):
+    serializer_class   = UserSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+    def get_serializer_class(self):
+        if self.request.method in ('PUT', 'PATCH'):
+            return UserUpdateSerializer
+        return UserSerializer
+
+
+class ChangePasswordView(generics.UpdateAPIView):
+    serializer_class   = ChangePasswordSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = self.get_object()
+        user.set_password(serializer.validated_data['new_password'])
+        user.save()
+        return Response({'detail': 'Mot de passe modifié avec succès.'})
+
+
+class ResetProfileView(generics.UpdateAPIView):
+    serializer_class   = ResetProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({
+            'detail': 'Profil mis à jour.',
+            'user': UserSerializer(instance).data
+        })
+
+
+class RoleViewSet(viewsets.ModelViewSet):
+    """CRUD des rôles — niveau 8 (DG) minimum pour modifier."""
+    queryset           = Role.objects.annotate_nb_users() if hasattr(Role.objects, 'annotate_nb_users') else Role.objects.all()
+    module   = 'roles'
+    serializer_class   = RoleSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends    = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields      = ['nom', 'code', 'description']
+    ordering_fields    = ['niveau', 'nom', 'created_at']
+
+    def get_queryset(self):
+        return Role.objects.all().order_by('-niveau', 'nom')
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [IsSuperAdmin()]
+
+    def destroy(self, request, *args, **kwargs):
+        role = self.get_object()
+        if role.is_system:
+            return Response(
+                {'detail': "Ce rôle système ne peut pas être supprimé."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if role.utilisateurs.exists():
+            return Response(
+                {'detail': f"Ce rôle est attribué à {role.utilisateurs.count()} utilisateur(s). "
+                           "Réaffectez-les avant de supprimer ce rôle."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().destroy(request, *args, **kwargs)
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.select_related('agence', 'role').order_by('-date_joined')
+    module   = 'users'
+    filter_backends  = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['role', 'agence', 'is_active']
+    search_fields    = ['email', 'first_name', 'last_name', 'username']
+    ordering_fields  = ['date_joined', 'last_name']
+
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [IsSuperAdmin()]
+        if self.action in ['list', 'retrieve']:
+            return [CanManageUsers()]
+        return [CanManageUsers()]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return UserCreateSerializer
+        if self.action in ('update', 'partial_update'):
+            return UserUpdateSerializer
+        return UserSerializer
+
+    @action(detail=True, methods=['post'])
+    def toggle_active(self, request, pk=None):
+        user = self.get_object()
+        if user == request.user:
+            return Response({'detail': 'Vous ne pouvez pas vous désactiver vous-même.'}, status=400)
+        user.is_active = not user.is_active
+        user.save()
+        return Response({'detail': f"Utilisateur {'activé' if user.is_active else 'désactivé'}.", 'is_active': user.is_active})
+
+    @action(detail=True, methods=['post'])
+    def reset_password(self, request, pk=None):
+        user = self.get_object()
+        pwd  = request.data.get('new_password')
+        if not pwd or len(pwd) < 8:
+            return Response({'detail': 'Mot de passe trop court (min. 8 caractères).'}, status=400)
+        user.set_password(pwd)
+        user.save()
+        return Response({'detail': 'Mot de passe réinitialisé.'})
+
+
+class AgenceViewSet(viewsets.ModelViewSet):
+    module             = 'agences'
+    queryset           = Agence.objects.filter(is_active=True)
+    serializer_class   = AgenceSerializer
+    permission_classes = [IsAdminOrReadOnly]
+    filter_backends    = [filters.SearchFilter]
+    search_fields      = ['nom', 'code', 'ville']
+
+
+class PermissionRoleViewSet(viewsets.ModelViewSet):
+    """CRUD des permissions — super_admin uniquement."""
+    queryset           = PermissionRole.objects.select_related('role').all().order_by('role__niveau', 'module', 'action')
+    module   = 'permissions'
+    serializer_class   = PermissionRoleSerializer
+    permission_classes = [IsSuperAdmin]
+    filterset_fields   = ['role', 'module', 'action', 'autorise']
+
+    def perform_create(self, serializer):
+        from apps.accounts.permission_cache import invalidate
+        serializer.save(); invalidate()
+
+    def perform_update(self, serializer):
+        from apps.accounts.permission_cache import invalidate
+        serializer.save(); invalidate()
+
+    def perform_destroy(self, instance):
+        from apps.accounts.permission_cache import invalidate
+        instance.delete(); invalidate()
+
+
+class PermissionMetaView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        roles = Role.objects.filter(is_active=True).order_by('-niveau')
+        actions_map = dict(PermissionRole.ACTIONS)
+        return Response({
+            'roles':   RoleSerializer(roles, many=True).data,
+            'modules': [{'value': v, 'label': l} for v, l in PermissionRole.MODULES],
+            'actions': [{'value': v, 'label': l} for v, l in PermissionRole.ACTIONS],
+            # Actions spécifiques par module
+            'module_actions': {
+                module: [
+                    {'value': a, 'label': actions_map.get(a, a)}
+                    for a in actions
+                ]
+                for module, actions in PermissionRole.MODULE_ACTIONS.items()
+            },
+        })
+
+
+class PermissionBulkView(generics.GenericAPIView):
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        from apps.accounts.permission_cache import invalidate
+        items   = request.data if isinstance(request.data, list) else []
+        updated = 0
+        for item in items:
+            role_id = item.get('role')
+            try:
+                role = Role.objects.get(pk=role_id)
+            except Role.DoesNotExist:
+                continue
+            PermissionRole.objects.update_or_create(
+                role=role, module=item['module'], action=item['action'],
+                defaults={'autorise': item['autorise']}
+            )
+            updated += 1
+        invalidate()
+        return Response({'detail': f'{updated} permission(s) mises à jour.'})

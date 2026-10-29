@@ -1,0 +1,330 @@
+<!-- UbiFleet — Chauffeurs Liste (Angular 18) -->
+<div class="chauffeurs-page">
+
+  <!-- EN-TÊTE -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Chauffeurs</h1>
+      <p class="page-subtitle">
+        {{ store.pagination().total }} chauffeur(s) &bull;
+        {{ store.nbActifs() }} actifs &bull;
+        {{ store.nbPermisUrgents() }} permis urgent(s)
+      </p>
+    </div>
+    <div class="header-actions">
+      <!-- Toggle vue -->
+      <div class="view-toggle">
+        <button class="toggle-btn" [class.active]="viewMode() === 'cards'"
+                (click)="viewMode.set('cards')" title="Vue cartes">
+          <i class="fas fa-th-large"></i>
+        </button>
+        <button class="toggle-btn" [class.active]="viewMode() === 'table'"
+                (click)="viewMode.set('table')" title="Vue tableau">
+          <i class="fas fa-list"></i>
+        </button>
+      </div>
+      <button class="btn btn-outline btn-sm">
+        <i class="fas fa-download"></i> Exporter
+      </button>
+      <button class="btn btn-green" (click)="goToNew()">
+        <i class="fas fa-plus"></i> Nouveau chauffeur
+      </button>
+    </div>
+  </div>
+
+  <!-- ALERTE PERMIS -->
+  @if (store.permisExpirant().length > 0) {
+    <div class="permis-alert-banner">
+      <i class="fas fa-exclamation-triangle"></i>
+      <div>
+        <strong>{{ store.permisExpirant().length }} permis expirent bientôt</strong>
+        <span>Vérifiez et renouvelez les permis concernés.</span>
+      </div>
+      <div class="permis-chips">
+        @for (c of store.permisExpirant().slice(0, 3); track c.id) {
+          <span class="permis-chip"
+                [class.urgent]="c.jours_expiration_permis !== null && c.jours_expiration_permis <= 30"
+                (click)="goToDetail(c.id)">
+            {{ c.nom_complet }}
+            @if (c.jours_expiration_permis !== null) {
+              <span>J-{{ c.jours_expiration_permis }}</span>
+            }
+          </span>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- STATS -->
+  <div class="quick-stats">
+    <div class="qs-item">
+      <span class="qs-dot green"></span>
+      <span class="qs-val">{{ store.nbActifs() }}</span>
+      <span class="qs-lbl">Actifs</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot orange"></span>
+      <span class="qs-val">{{ nbEnConge }}</span>
+      <span class="qs-lbl">En congé</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot red"></span>
+      <span class="qs-val">{{ store.nbPermisUrgents() }}</span>
+      <span class="qs-lbl">Permis urgents</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot navy"></span>
+      <span class="qs-val">{{ nbAssignes }}</span>
+      <span class="qs-lbl">Assignés</span>
+    </div>
+  </div>
+
+  <!-- FILTRES -->
+  <div class="filters-bar">
+    <div class="search-box">
+      <i class="fas fa-search"></i>
+      <input type="text" placeholder="Nom, prénom, matricule, permis..."
+             (input)="onSearch($event)" />
+    </div>
+    <select class="form-control filter-select" (change)="onAgenceFilter($event)">
+      <option value="">Toutes les agences</option>
+      @for (a of agences(); track a.id) {
+        <option [value]="a.id">{{ a.nom }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="chip-row">
+    @for (chip of statutChips; track chip.value) {
+      <button class="chip" [class.active]="store.filters().statut === chip.value"
+              (click)="onStatutFilter(chip.value)">{{ chip.label }}</button>
+    }
+  </div>
+
+  <!-- CHARGEMENT -->
+  @if (store.isLoading()) {
+    <div class="loading-state">
+      <i class="fas fa-circle-notch fa-spin"></i> <span>Chargement...</span>
+    </div>
+  }
+
+  <!-- ERREUR -->
+  @if (store.hasError() && !store.isLoading()) {
+    <div class="error-state">
+      <i class="fas fa-exclamation-triangle"></i>
+      <p>{{ store.error() }}</p>
+      <button class="btn btn-primary btn-sm" (click)="store.loadChauffeurs()">
+        <i class="fas fa-redo"></i> Réessayer
+      </button>
+    </div>
+  }
+
+  <!-- ── VUE CARTES ── -->
+  @if (!store.isLoading() && !store.hasError() && viewMode() === 'cards') {
+    @if (store.chauffeurs().length === 0) {
+      <div class="empty-state">
+        <i class="fas fa-id-badge"></i>
+        <h3>Aucun chauffeur trouvé</h3>
+        <p>Modifiez vos filtres ou ajoutez un chauffeur.</p>
+        <button class="btn btn-green" (click)="goToNew()">
+          <i class="fas fa-plus"></i> Ajouter un chauffeur
+        </button>
+      </div>
+    } @else {
+      <div class="chauffeurs-grid">
+        @for (c of store.chauffeurs(); track c.id; let idx = $index) {
+          <div class="chauffeur-card"
+               [style.animation-delay]="idx < 12 ? (idx * 40) + 'ms' : '0ms'"
+               (click)="goToDetail(c.id)">
+            <div class="cc-header">
+              <div class="cc-avatar">{{ c.nom[0] }}{{ c.prenom[0] }}</div>
+              <div class="cc-header-info">
+                <div class="cc-name">{{ c.prenom }} {{ c.nom }}</div>
+                <div class="cc-matricule">{{ c.matricule }}</div>
+              </div>
+              <span class="badge" [class]="statutBadgeClass(c.statut)">
+                {{ c.statut_display }}
+              </span>
+            </div>
+            <div class="cc-body">
+              <div class="cc-info-row">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>{{ c.agence_nom }}</span>
+              </div>
+              @if (c.telephone) {
+                <div class="cc-info-row">
+                  <i class="fas fa-phone"></i>
+                  <span>{{ c.telephone }}</span>
+                </div>
+              }
+              <div class="cc-permis" [class]="permisUrgenceClass(c)">
+                <i class="fas fa-id-card"></i>
+                <span>Permis {{ c.categories_permis }}</span>
+                @if (c.permis_expire) {
+                  <span class="permis-badge expired">EXPIRÉ</span>
+                } @else if (c.jours_expiration_permis !== null && c.jours_expiration_permis <= 60) {
+                  <span class="permis-badge" [class.urgent]="c.jours_expiration_permis <= 30">
+                    J-{{ c.jours_expiration_permis }}
+                  </span>
+                } @else if (c.date_expiration_permis) {
+                  <span class="permis-date">
+                    exp. {{ c.date_expiration_permis | date:'dd/MM/yy' }}
+                  </span>
+                }
+              </div>
+              @if (c.vehicule_actuel) {
+                <div class="cc-vehicule">
+                  <i class="fas fa-car"></i>
+                  <span>{{ c.vehicule_actuel.immatriculation }}</span>
+                  <span class="cc-vehicule-model">{{ c.vehicule_actuel.designation }}</span>
+                </div>
+              } @else {
+                <div class="cc-vehicule empty">
+                  <i class="fas fa-car-side"></i>
+                  <span>Aucun véhicule assigné</span>
+                </div>
+              }
+            </div>
+            <div class="cc-footer">
+              <button class="btn btn-icon" title="Modifier"
+                      (click)="goToEdit($event, c.id)">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="btn btn-icon btn-icon-danger" title="Archiver"
+                      (click)="confirmDelete($event, c.id)">
+                <i class="fas fa-archive"></i>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- ── VUE TABLEAU ── -->
+  @if (!store.isLoading() && !store.hasError() && viewMode() === 'table') {
+    <div class="card">
+      <div class="table-container">
+        <table class="ubi-table">
+          <thead>
+            <tr>
+              <th>Chauffeur</th>
+              <th>Matricule</th>
+              <th>Agence</th>
+              <th>Téléphone</th>
+              <th>Permis</th>
+              <th>Expiration permis</th>
+              <th>Véhicule</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (store.chauffeurs().length === 0) {
+              <tr>
+                <td colspan="9" class="td-empty">
+                  <i class="fas fa-id-badge"></i> Aucun chauffeur trouvé
+                </td>
+              </tr>
+            }
+            @for (c of store.chauffeurs(); track c.id) {
+              <tr (click)="goToDetail(c.id)" class="tr-clickable">
+                <td>
+                  <div class="td-chauffeur">
+                    <div class="td-avatar">{{ c.nom[0] }}{{ c.prenom[0] }}</div>
+                    <div>
+                      <div class="td-name">{{ c.prenom }} {{ c.nom }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>{{ c.matricule }}</td>
+                <td>{{ c.agence_nom }}</td>
+                <td>{{ c.telephone || '—' }}</td>
+                <td><strong>{{ c.categories_permis }}</strong></td>
+                <td>
+                  @if (c.permis_expire) {
+                    <span class="badge badge-danger">EXPIRÉ</span>
+                  } @else if (c.jours_expiration_permis !== null && c.jours_expiration_permis <= 60) {
+                    <span class="badge" [class.badge-danger]="c.jours_expiration_permis <= 30"
+                          [class.badge-warning]="c.jours_expiration_permis > 30">
+                      J-{{ c.jours_expiration_permis }}
+                    </span>
+                  } @else {
+                    <span>{{ c.date_expiration_permis | date:'dd/MM/yyyy' }}</span>
+                  }
+                </td>
+                <td>
+                  @if (c.vehicule_actuel) {
+                    {{ c.vehicule_actuel.immatriculation }}
+                  } @else {
+                    <span style="color:var(--gray-400)">—</span>
+                  }
+                </td>
+                <td>
+                  <span class="badge" [class]="statutBadgeClass(c.statut)">
+                    {{ c.statut_display }}
+                  </span>
+                </td>
+                <td>
+                  <div class="td-actions">
+                    <button class="btn btn-icon" title="Modifier"
+                            (click)="goToEdit($event, c.id)">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-icon btn-icon-danger" title="Archiver"
+                            (click)="confirmDelete($event, c.id)">
+                      <i class="fas fa-archive"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- PAGINATION -->
+  @if (!store.isLoading() && store.pagination().total > store.pagination().pageSize) {
+    <div class="pagination">
+      <button class="page-btn" [disabled]="store.pagination().page === 1"
+              (click)="onPageChange(store.pagination().page - 1)">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+      @for (p of pages; track p) {
+        <button class="page-btn" [class.active]="p === store.pagination().page"
+                (click)="onPageChange(p)">{{ p }}</button>
+      }
+      <button class="page-btn" [disabled]="store.pagination().page === totalPages"
+              (click)="onPageChange(store.pagination().page + 1)">
+        <i class="fas fa-chevron-right"></i>
+      </button>
+      <span class="pagination-info">{{ store.pagination().total }} chauffeur(s)</span>
+    </div>
+  }
+
+</div>
+
+<!-- MODAL CONFIRMATION -->
+@if (deleteConfirm()) {
+  <div class="modal-backdrop" (click)="cancelDelete()">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Archiver le chauffeur</div>
+      </div>
+      <p style="color:var(--gray-600);font-size:14px;margin-bottom:24px">
+        Le chauffeur sera marqué comme "Départ".
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="cancelDelete()">Annuler</button>
+        <button class="btn btn-danger" (click)="doDelete(deleteConfirm()!)">
+          <i class="fas fa-archive"></i> Archiver
+        </button>
+      </div>
+    </div>
+  </div>
+}

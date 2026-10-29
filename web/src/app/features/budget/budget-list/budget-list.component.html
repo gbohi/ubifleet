@@ -1,0 +1,668 @@
+<!-- UbiFleet — Budget & Comptabilité (Angular 18) -->
+<div class="budget-page">
+
+  <!-- EN-TÊTE -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Budget & Comptabilité</h1>
+      <p class="page-subtitle">
+        Suivi des dépenses et budgets — {{ store.filters().annee }}
+      </p>
+    </div>
+    <div class="header-actions">
+      <select class="form-control filter-select" (change)="onAnneeFilter($event)">
+        @for (a of annees; track a) {
+          <option [value]="a" [selected]="store.filters().annee === a.toString()">{{ a }}</option>
+        }
+      </select>
+      <select class="form-control filter-select" (change)="onAgenceFilter($event)">
+        <option value="">Toutes les agences</option>
+        @for (a of agences(); track a.id) {
+          <option [value]="a.id">{{ a.nom }}</option>
+        }
+      </select>
+      <button class="btn btn-outline btn-sm" (click)="openBudgetModal()">
+        <i class="fas fa-plus"></i> Budget
+      </button>
+      <button class="btn btn-green" (click)="openDepenseModal()">
+        <i class="fas fa-plus"></i> Dépense
+      </button>
+    </div>
+  </div>
+
+  <!-- STATS RAPIDES -->
+  <div class="quick-stats">
+    <div class="qs-item">
+      <span class="qs-dot navy"></span>
+      <span class="qs-val">{{ formatFCFA(budgetTotalAlloue) }}</span>
+      <span class="qs-lbl">Budget total alloué</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot orange"></span>
+      <span class="qs-val">{{ formatFCFA(store.totalRealise()) }}</span>
+      <span class="qs-lbl">Réalisé</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot" [class.green]="store.totalRealise() <= budgetTotalAlloue"
+                           [class.red]="store.totalRealise() > budgetTotalAlloue"></span>
+      <span class="qs-val">{{ formatFCFA(budgetTotalAlloue - store.totalRealise()) }}</span>
+      <span class="qs-lbl">Solde disponible</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot blue"></span>
+      <span class="qs-val">{{ store.pagination().total }}</span>
+      <span class="qs-lbl">Dépenses</span>
+    </div>
+  </div>
+
+  <!-- ONGLETS -->
+  <div class="tabs">
+    <button class="tab" [class.active]="activeTab() === 'tableau'"
+            (click)="activeTab.set('tableau')">
+      <i class="fas fa-chart-bar"></i> Tableau de bord
+    </button>
+    <button class="tab" [class.active]="activeTab() === 'depenses'"
+            (click)="activeTab.set('depenses')">
+      <i class="fas fa-receipt"></i> Dépenses ({{ store.pagination().total }})
+    </button>
+    <button class="tab" [class.active]="activeTab() === 'budgets'"
+            (click)="activeTab.set('budgets')">
+      <i class="fas fa-coins"></i> Budgets annuels ({{ budgets().length }})
+    </button>
+  </div>
+
+  <!-- ── TABLEAU DE BORD ── -->
+  @if (activeTab() === 'tableau') {
+    <div class="tab-content">
+
+      @if (store.isLoading()) {
+        <div class="loading-state">
+          <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+        </div>
+      } @else {
+        <!-- Répartition par catégorie -->
+        @if (store.parCategorie().length > 0) {
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+              <div class="card-title">Dépenses par catégorie</div>
+            </div>
+            <div class="card-body">
+              <div class="categorie-grid">
+                @for (cat of store.parCategorie(); track cat.categorie) {
+                  <div class="cat-item">
+                    <div class="cat-header">
+                      <span class="cat-name">{{ cat.categorie_display ?? cat.categorie }}</span>
+                      <span class="cat-amount">{{ formatFCFA(cat.total) }} FCFA</span>
+                    </div>
+                    <div class="progress">
+                      <div class="progress-bar"
+                           [class]="budgetBarClass(cat.total, store.totalRealise())"
+                           [style.width.%]="budgetBarWidth(cat.total, store.totalRealise())">
+                      </div>
+                    </div>
+                    <div class="cat-pct">
+                      {{ store.totalRealise() > 0
+                         ? ((cat.total / store.totalRealise()) * 100).toFixed(1)
+                         : '0' }}% du total
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- Top véhicules -->
+        @if (store.topVehicules().length > 0) {
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Top véhicules — Dépenses</div>
+            </div>
+            <div class="card-body" style="padding:0">
+              <table class="ubi-table">
+                <thead>
+                  <tr>
+                    <th>Véhicule</th>
+                    <th>Total dépensé</th>
+                    <th>Répartition</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (v of store.topVehicules().slice(0, 8); track v.vehicule) {
+                    <tr>
+                      <td><strong>{{ v.vehicule__immatriculation ?? v.vehicule }}</strong></td>
+                      <td>{{ formatFCFA(v.total) }} FCFA</td>
+                      <td style="width:200px">
+                        <div class="progress">
+                          <div class="progress-bar green"
+                               [style.width.%]="budgetBarWidth(v.total, store.topVehicules()[0]?.total)">
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        @if (store.parCategorie().length === 0 && store.topVehicules().length === 0) {
+          <div class="empty-state">
+            <i class="fas fa-chart-bar"></i>
+            <h3>Aucune donnée pour cette période</h3>
+            <p>Sélectionnez une autre année ou ajoutez des dépenses.</p>
+          </div>
+        }
+      }
+    </div>
+  }
+
+  <!-- ── DÉPENSES ── -->
+  @if (activeTab() === 'depenses') {
+    <div class="tab-content">
+
+      <!-- Filtres dépenses -->
+      <div class="card filters-card">
+        <div class="filters-grid-5">
+          <div class="filter-group">
+            <label class="filter-label"><i class="fas fa-calendar"></i> Date du</label>
+            <input type="date" class="form-control" [value]="filtreDepDateMin()"
+                   (input)="onDepFilter('date_min',$event)" />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label"><i class="fas fa-calendar-alt"></i> Au</label>
+            <input type="date" class="form-control" [value]="filtreDepDateMax()"
+                   (input)="onDepFilter('date_max',$event)" />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label"><i class="fas fa-tag"></i> Catégorie</label>
+            <select class="form-control" (change)="onDepFilter('categorie',$event)">
+              <option value="">Toutes</option>
+              @for (cat of categories; track cat.value) {
+                <option [value]="cat.value">{{ cat.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label"><i class="fas fa-building"></i> Agence</label>
+            <select class="form-control" (change)="onDepFilter('agence',$event)">
+              <option value="">Toutes</option>
+              @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label"><i class="fas fa-car"></i> Véhicule</label>
+            <input type="text" class="form-control" placeholder="Immatriculation..."
+                   [value]="filtreDepVehicule()" (input)="onDepFilter('vehicule',$event)" />
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-green btn-sm" (click)="appliquerFiltresDepenses()">
+            <i class="fas fa-search"></i> Filtrer
+          </button>
+          <button class="btn btn-excel btn-sm" (click)="exportDepensesExcel()">
+            <i class="fas fa-file-excel"></i> Excel
+          </button>
+          <button class="btn btn-pdf btn-sm" (click)="exportDepensesPdf()">
+            <i class="fas fa-file-pdf"></i> PDF
+          </button>
+        </div>
+      </div>
+
+      @if (store.isLoading()) {
+        <div class="loading-state">
+          <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
+        </div>
+      } @else {
+        <div class="card">
+          <div class="table-container">
+            <table class="ubi-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Catégorie</th>
+                  <th>Véhicule</th>
+                  <th>Description</th>
+                  <th>Fournisseur</th>
+                  <th>N° Facture</th>
+                  <th>Montant</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @if (store.depenses().length === 0) {
+                  <tr>
+                    <td colspan="8" class="td-empty">
+                      <i class="fas fa-receipt"></i> Aucune dépense trouvée
+                    </td>
+                  </tr>
+                }
+                @for (d of store.depenses(); track d.id) {
+                  <tr>
+                    <td>{{ d.date_depense | date:'dd/MM/yyyy' }}</td>
+                    <td>
+                      <span class="cat-badge" [class]="'cat-' + d.categorie">
+                        {{ d.categorie_display }}
+                      </span>
+                    </td>
+                    <td>{{ d.vehicule_immat || '—' }}</td>
+                    <td>
+                      <div class="td-desc">{{ d.description }}</div>
+                    </td>
+                    <td>{{ d.fournisseur || '—' }}</td>
+                    <td>{{ d.numero_facture || '—' }}</td>
+                    <td><strong>{{ d.montant | number:'1.0-0' }} F</strong></td>
+                    <td>
+                      <div style="display:flex;gap:4px">
+                        <button class="btn btn-icon" title="Voir la facture"
+                                (click)="ouvrirFacture(d)">
+                          <i class="fas fa-file-invoice"></i>
+                        </button>
+                        <button class="btn btn-icon" title="Modifier"
+                                (click)="openDepenseModal(d)">
+                          <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-icon btn-icon-danger" title="Supprimer"
+                                (click)="confirmDeleteDepense(d.id)">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        @if (store.pagination().total > store.pagination().pageSize) {
+          <div class="pagination">
+            <button class="page-btn" [disabled]="store.pagination().page === 1"
+                    (click)="onPageChange(store.pagination().page - 1)">
+              <i class="fas fa-chevron-left"></i>
+            </button>
+            @for (p of pages; track p) {
+              <button class="page-btn" [class.active]="p === store.pagination().page"
+                      (click)="onPageChange(p)">{{ p }}</button>
+            }
+            <button class="page-btn" [disabled]="store.pagination().page === totalPages"
+                    (click)="onPageChange(store.pagination().page + 1)">
+              <i class="fas fa-chevron-right"></i>
+            </button>
+            <span class="pagination-info">{{ store.pagination().total }} dépense(s)</span>
+          </div>
+        }
+      }
+    </div>
+  }
+
+  <!-- ── BUDGETS ANNUELS ── -->
+  @if (activeTab() === 'budgets') {
+    <div class="tab-content">
+
+      <!-- Filtres budgets -->
+      <div class="card filters-card">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div class="filter-group">
+            <label class="filter-label"><i class="fas fa-calendar"></i> Année</label>
+            <select class="form-control" style="width:120px" (change)="onBudFilter('annee',$event)">
+              @for (a of annees; track a) { <option [value]="a">{{ a }}</option> }
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label"><i class="fas fa-building"></i> Agence</label>
+            <select class="form-control" style="width:200px" (change)="onBudFilter('agence',$event)">
+              <option value="">Toutes</option>
+              @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
+            </select>
+          </div>
+          <button class="btn btn-excel btn-sm" (click)="exportBudgetsExcel()">
+            <i class="fas fa-file-excel"></i> Excel
+          </button>
+          <button class="btn btn-pdf btn-sm" (click)="exportBudgetsPdf()">
+            <i class="fas fa-file-pdf"></i> PDF
+          </button>
+          <button class="btn btn-green btn-sm" (click)="openBudgetModal()">
+            <i class="fas fa-plus"></i> Nouveau budget
+          </button>
+        </div>
+      </div>
+
+      @if (budgets().length === 0) {
+        <div class="empty-state">
+          <i class="fas fa-coins"></i>
+          <h3>Aucun budget défini</h3>
+          <p>Créez un budget annuel par agence.</p>
+          <button class="btn btn-green" (click)="openBudgetModal()">
+            <i class="fas fa-plus"></i> Créer un budget
+          </button>
+        </div>
+      } @else {
+        <div class="budgets-grid">
+          @for (b of budgets(); track b.id) {
+            <div class="budget-card">
+              <div class="budget-card-header">
+                <div class="budget-agence">{{ b.agence_nom }}</div>
+                <div class="budget-annee">{{ b.annee }}</div>
+                <button class="btn btn-icon" title="Modifier" (click)="openBudgetModal(b)">
+                  <i class="fas fa-edit"></i>
+                </button>
+              </div>
+
+              <!-- Total budget -->
+              <div class="budget-total">
+                <span class="budget-total-label">Budget total</span>
+                <span class="budget-total-val">{{ formatFCFA(b.budget_total) }} FCFA</span>
+              </div>
+
+              <!-- Lignes budget par catégorie -->
+              <div class="budget-lines">
+                @if (b.budget_carburant > 0) {
+                  <div class="budget-line">
+                    <span class="bl-name">Carburant</span>
+                    <div class="progress bl-progress">
+                      <div class="progress-bar"
+                           [class]="budgetBarClass(b.realise['carburant'], b.budget_carburant)"
+                           [style.width.%]="budgetBarWidth(b.realise['carburant'], b.budget_carburant)">
+                      </div>
+                    </div>
+                    <span class="bl-amounts">
+                      {{ formatFCFA(b.realise['carburant']) }} /
+                      {{ formatFCFA(b.budget_carburant) }}
+                    </span>
+                  </div>
+                }
+                @if (b.budget_entretien > 0) {
+                  <div class="budget-line">
+                    <span class="bl-name">Entretien</span>
+                    <div class="progress bl-progress">
+                      <div class="progress-bar"
+                           [class]="budgetBarClass(b.realise['entretien'], b.budget_entretien)"
+                           [style.width.%]="budgetBarWidth(b.realise['entretien'], b.budget_entretien)">
+                      </div>
+                    </div>
+                    <span class="bl-amounts">
+                      {{ formatFCFA(b.realise['entretien']) }} /
+                      {{ formatFCFA(b.budget_entretien) }}
+                    </span>
+                  </div>
+                }
+                @if (b.budget_assurances > 0) {
+                  <div class="budget-line">
+                    <span class="bl-name">Assurances</span>
+                    <div class="progress bl-progress">
+                      <div class="progress-bar"
+                           [class]="budgetBarClass(b.realise['assurances'], b.budget_assurances)"
+                           [style.width.%]="budgetBarWidth(b.realise['assurances'], b.budget_assurances)">
+                      </div>
+                    </div>
+                    <span class="bl-amounts">
+                      {{ formatFCFA(b.realise['assurances']) }} /
+                      {{ formatFCFA(b.budget_assurances) }}
+                    </span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+
+</div>
+
+<!-- MODAL Budget annuel -->
+@if (showBudgetModal()) {
+  <div class="modal-backdrop" (click)="closeBudgetModal()">
+    <div class="modal-container modal-lg" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          {{ editBudgetId() ? 'Modifier le budget' : 'Créer un budget annuel' }}
+        </div>
+        <button class="modal-close" (click)="closeBudgetModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      @if (budgetError()) {
+        <div class="alert-error-sm">
+          <i class="fas fa-exclamation-triangle"></i> {{ budgetError() }}
+        </div>
+      }
+
+      <form [formGroup]="budgetForm" (ngSubmit)="saveBudget()" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Agence *</label>
+            <select formControlName="agence" class="form-control"
+                    [class.is-invalid]="bf['agence'].invalid && bf['agence'].touched">
+              <option value="">-- Sélectionner --</option>
+              @for (a of agences(); track a.id) {
+                <option [value]="a.id">{{ a.nom }}</option>
+              }
+            </select>
+            @if (bf['agence'].invalid && bf['agence'].touched) {
+              <div class="form-error"><i class="fas fa-times-circle"></i> Requis.</div>
+            }
+          </div>
+          <div class="form-group">
+            <label class="form-label">Année *</label>
+            <select formControlName="annee" class="form-control">
+              @for (a of annees; track a) {
+                <option [value]="a">{{ a }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="budget-form-grid">
+          @for (cat of categories; track cat.value) {
+            <div class="form-group">
+              <label class="form-label">{{ cat.label }} (FCFA)</label>
+              <input type="number" [formControlName]="'budget_' + cat.value"
+                     class="form-control" min="0" placeholder="0" />
+            </div>
+          }
+        </div>
+
+        <div class="form-group" style="margin-top:8px">
+          <label class="form-label">Notes</label>
+          <textarea formControlName="notes" class="form-control" rows="2"
+                    placeholder="Observations sur ce budget..."></textarea>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button type="button" class="btn btn-outline" (click)="closeBudgetModal()">
+            Annuler
+          </button>
+          <button type="submit" class="btn btn-green" [disabled]="budgetForm.invalid || budgetSaving()">
+            @if (budgetSaving()) { <i class="fas fa-circle-notch fa-spin"></i> }
+            @else { <i class="fas fa-save"></i> }
+            {{ editBudgetId() ? 'Modifier' : 'Créer' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- MODAL Dépense -->
+@if (showDepenseModal()) {
+  <div class="modal-backdrop" (click)="closeDepenseModal()">
+    <div class="modal-container modal-lg" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          {{ editDepenseId() ? 'Modifier la dépense' : 'Saisir une dépense' }}
+        </div>
+        <button class="modal-close" (click)="closeDepenseModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      @if (depenseError()) {
+        <div class="alert-error-sm">
+          <i class="fas fa-exclamation-triangle"></i> {{ depenseError() }}
+        </div>
+      }
+
+      <form [formGroup]="depenseForm" (ngSubmit)="saveDepense()" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Agence *</label>
+            <select formControlName="agence" class="form-control"
+                    [class.is-invalid]="df['agence'].invalid && df['agence'].touched">
+              <option value="">-- Sélectionner --</option>
+              @for (a of agences(); track a.id) {
+                <option [value]="a.id">{{ a.nom }}</option>
+              }
+            </select>
+            @if (df['agence'].invalid && df['agence'].touched) {
+              <div class="form-error"><i class="fas fa-times-circle"></i> Requis.</div>
+            }
+          </div>
+          <div class="form-group">
+            <label class="form-label">Catégorie *</label>
+            <select formControlName="categorie" class="form-control">
+              @for (c of categories; track c.value) {
+                <option [value]="c.value">{{ c.label }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Date *</label>
+            <input type="date" formControlName="date_depense" class="form-control"
+                   [class.is-invalid]="df['date_depense'].invalid && df['date_depense'].touched" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Montant (FCFA) *</label>
+            <input type="number" formControlName="montant" class="form-control"
+                   [class.is-invalid]="df['montant'].invalid && df['montant'].touched"
+                   min="0.01" step="1" placeholder="0" />
+            @if (df['montant'].invalid && df['montant'].touched) {
+              <div class="form-error"><i class="fas fa-times-circle"></i> Montant requis.</div>
+            }
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Description *</label>
+          <input formControlName="description" class="form-control"
+                 [class.is-invalid]="df['description'].invalid && df['description'].touched"
+                 placeholder="Nature de la dépense" />
+          @if (df['description'].invalid && df['description'].touched) {
+            <div class="form-error"><i class="fas fa-times-circle"></i> Requis.</div>
+          }
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Fournisseur</label>
+            <input formControlName="fournisseur" class="form-control"
+                   placeholder="Nom du fournisseur" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">N° Facture</label>
+            <input formControlName="numero_facture" class="form-control"
+                   placeholder="ex: FACT-2024-001" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button type="button" class="btn btn-outline" (click)="closeDepenseModal()">
+            Annuler
+          </button>
+          <button type="submit" class="btn btn-green"
+                  [disabled]="depenseForm.invalid || depenseSaving()">
+            @if (depenseSaving()) { <i class="fas fa-circle-notch fa-spin"></i> }
+            @else { <i class="fas fa-save"></i> }
+            {{ editDepenseId() ? 'Modifier' : 'Saisir' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- MODAL Confirmation suppression dépense -->
+@if (deleteDepenseId()) {
+  <div class="modal-backdrop" (click)="cancelDeleteDepense()">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header"><div class="modal-title">Supprimer la dépense</div></div>
+      <p style="font-size:14px;color:var(--gray-600);margin-bottom:24px">
+        Cette action est irréversible.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="cancelDeleteDepense()">Annuler</button>
+        <button class="btn btn-danger" (click)="doDeleteDepense(deleteDepenseId()!)">
+          <i class="fas fa-trash"></i> Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- MODAL Facture dépense -->
+@if (factureDepense(); as d) {
+  <div class="modal-backdrop" (click)="fermerFacture()">
+    <div class="modal-container modal-lg facture-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-file-invoice"></i> Reçu de dépense</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-green btn-sm" (click)="imprimerFacture(d)">
+            <i class="fas fa-print"></i> Imprimer / PDF
+          </button>
+          <button class="modal-close" (click)="fermerFacture()"><i class="fas fa-times"></i></button>
+        </div>
+      </div>
+      <div class="facture-body">
+        <div class="facture-header-row">
+          <div>
+            <div class="facture-logo">Ubi<span>Fleet</span></div>
+            <div style="color:var(--gray-500);font-size:12px">Gestion de flotte automobile</div>
+          </div>
+          <div style="text-align:right">
+            <div class="facture-ref">REÇU DE DÉPENSE</div>
+            <div style="color:var(--gray-500);font-size:12px">N° {{ d.numero_facture || ('DEP-' + d.id.substring(0,8).toUpperCase()) }}</div>
+            <div style="color:var(--gray-500);font-size:12px">Date : {{ d.date_depense | date:'dd/MM/yyyy' }}</div>
+            <span class="cat-badge" [class]="'cat-' + d.categorie" style="margin-top:6px;display:inline-block">
+              {{ d.categorie_display }}
+            </span>
+          </div>
+        </div>
+
+        <div class="facture-section">
+          <div class="facture-section-title">Informations</div>
+          <div class="facture-grid-2">
+            <div>
+              <div class="facture-field"><label>Véhicule</label><span>{{ d.vehicule_immat || '—' }}</span></div>
+              <div class="facture-field"><label>Agence</label><span>{{ d.agence_nom || '—' }}</span></div>
+              <div class="facture-field"><label>Fournisseur</label><span>{{ d.fournisseur || '—' }}</span></div>
+            </div>
+            <div>
+              <div class="facture-field"><label>Date de la dépense</label><span>{{ d.date_depense | date:'dd/MM/yyyy' }}</span></div>
+              <div class="facture-field"><label>N° facture fournisseur</label><span>{{ d.numero_facture || '—' }}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="facture-section">
+          <div class="facture-section-title">Description</div>
+          <p style="margin:0;font-size:14px;font-weight:500">{{ d.description }}</p>
+        </div>
+
+        <div class="facture-montant-box">
+          <div class="facture-montant-label">MONTANT TOTAL</div>
+          <div class="facture-montant-val">{{ d.montant | number:'1.0-0' }} FCFA</div>
+        </div>
+      </div>
+    </div>
+  </div>
+}

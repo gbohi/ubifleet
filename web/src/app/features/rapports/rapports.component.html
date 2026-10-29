@@ -1,0 +1,862 @@
+<!-- UbiFleet — Rapports & Statistiques (Angular 18) -->
+<div class="rapports-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-chart-line" style="color:var(--green-dark)"></i>
+        Rapports & Statistiques
+      </h1>
+      <p class="page-subtitle">Analyse des performances de la flotte</p>
+    </div>
+  </div>
+
+  <!-- Filtres globaux -->
+  <div class="global-filters card">
+    <div class="filters-row">
+      <div class="filter-item">
+        <i class="fas fa-calendar"></i>
+        <select (change)="onFiltre('mois',$event)">
+          @for (m of [1,2,3,4,5,6,7,8,9,10,11,12]; track m) {
+            <option [value]="m" [selected]="m === filtreMois()">{{ moisNoms[m-1] }}</option>
+          }
+        </select>
+      </div>
+      <div class="filter-item">
+        <i class="fas fa-calendar-alt"></i>
+        <select (change)="onFiltre('annee',$event)">
+          @for (a of annees; track a) {
+            <option [value]="a" [selected]="a === filtreAnnee()">{{ a }}</option>
+          }
+        </select>
+      </div>
+      <div class="filter-item">
+        <i class="fas fa-building"></i>
+        <select (change)="onFiltre('agence',$event)">
+          <option value="">Toutes les agences</option>
+          @for (a of agences(); track a.id) {
+            <option [value]="a.id">{{ a.nom }}</option>
+          }
+        </select>
+      </div>
+      <button class="btn btn-green btn-sm" (click)="refreshCurrent()">
+        <i class="fas fa-sync-alt"></i> Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- Onglets -->
+  <div class="tab-bar">
+    <button class="tab" [class.active]="activeTab()==='dashboard'"    (click)="onTabChange('dashboard')">
+      <i class="fas fa-tachometer-alt"></i> Tableau de bord
+    </button>
+    <button class="tab" [class.active]="activeTab()==='carburant'"   (click)="onTabChange('carburant')">
+      <i class="fas fa-gas-pump"></i> Carburant
+    </button>
+    <button class="tab" [class.active]="activeTab()==='couts'"       (click)="onTabChange('couts')">
+      <i class="fas fa-coins"></i> Coûts
+    </button>
+    <button class="tab" [class.active]="activeTab()==='multiagences'"(click)="onTabChange('multiagences')">
+      <i class="fas fa-sitemap"></i> Multi-agences
+    </button>
+    <button class="tab" [class.active]="activeTab()==='sinistres'"   (click)="onTabChange('sinistres')">
+      <i class="fas fa-car-crash"></i> Sinistres
+    </button>
+    <button class="tab" [class.active]="activeTab()==='interventions'"(click)="onTabChange('interventions')">
+      <i class="fas fa-tools"></i> Interventions
+    </button>
+    <button class="tab" [class.active]="activeTab()==='pneus'"       (click)="onTabChange('pneus')">
+      <i class="fas fa-circle-notch"></i> Pneus
+    </button>
+    <button class="tab" [class.active]="activeTab()==='effectif'"    (click)="onTabChange('effectif')">
+      <i class="fas fa-th-large"></i> Effectif parc
+    </button>
+  </div>
+
+  <!-- ══ DASHBOARD ══ -->
+  @if (activeTab() === 'dashboard') {
+    @if (dashLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (dashError()) {
+      <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ dashError() }}</div>
+    } @else {
+      @if (dashData(); as d) {
+
+        <!-- KPIs parc -->
+        <div class="kpi-grid-4">
+          <div class="kpi-card">
+            <div class="kpi-icon blue"><i class="fas fa-car"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.parc.total }}</div><div class="kpi-label">Véhicules actifs</div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon green"><i class="fas fa-check-circle"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.parc.en_service }}</div><div class="kpi-label">En service</div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon orange"><i class="fas fa-wrench"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.parc.en_revision }}</div><div class="kpi-label">En révision</div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon red"><i class="fas fa-car-crash"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.sinistres.en_cours }}</div><div class="kpi-label">Sinistres en cours</div></div>
+          </div>
+        </div>
+
+        <!-- Carburant + Entretien -->
+        <div class="section-grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i class="fas fa-gas-pump"></i> Carburant — {{ nomMois(d.periode.mois) }} {{ d.periode.annee }}</div>
+            </div>
+            <div class="card-body">
+              <div class="stat-list">
+                <div class="stat-row"><span>Volume total</span><strong>{{ dispatcheur(d.carburant.volume) | number:'1.2-2' }} L</strong></div>
+                <div class="stat-row"><span>Montant total</span><strong>{{ dispatcheur(d.carburant.montant) | number:'1.0-0' }} FCFA</strong></div>
+                <div class="stat-row"><span>Nombre de pleins</span><strong>{{ d.carburant.nb_pleins }}</strong></div>
+                <div class="stat-row"><span>Conso. moyenne</span><strong>{{ dispatcheur(d.carburant.conso_moy) | number:'1.1-1' }} L/100km</strong></div>
+                <div class="stat-row warn"><span>Anomalies détectées</span><strong>{{ d.carburant.anomalies }}</strong></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i class="fas fa-tools"></i> Entretien — {{ nomMois(d.periode.mois) }} {{ d.periode.annee }}</div>
+            </div>
+            <div class="card-body">
+              <div class="stat-list">
+                <div class="stat-row"><span>Interventions planifiées</span><strong>{{ d.entretien.planifiees }}</strong></div>
+                <div class="stat-row"><span>Terminées</span><strong>{{ d.entretien.terminees }}</strong></div>
+                <div class="stat-row"><span>En cours</span><strong>{{ d.entretien.en_cours }}</strong></div>
+                <div class="stat-row"><span>Coût total</span><strong>{{ dispatcheur(d.entretien.cout) | number:'1.0-0' }} FCFA</strong></div>
+              </div>
+              @if (d.assurances_critiques > 0) {
+                <div class="alert-warn">
+                  <i class="fas fa-shield-alt"></i>
+                  {{ d.assurances_critiques }} assurance(s) expirant dans 30 jours
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- Graphique coûts 12 mois -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><i class="fas fa-chart-line"></i> Évolution des coûts — 12 derniers mois</div>
+          </div>
+          <div class="chart-container">
+            <canvas #chartCoutsCanvas></canvas>
+          </div>
+        </div>
+
+        <!-- Top 10 consommateurs -->
+        @if (d.top_consommation.length > 0) {
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i class="fas fa-gas-pump"></i> Top 10 consommateurs — {{ nomMois(d.periode.mois) }}</div>
+            </div>
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Immatriculation</th><th>Marque / Modèle</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Montant (FCFA)</th></tr></thead>
+                <tbody>
+                  @for (v of d.top_consommation; track $index) {
+                    <tr>
+                      <td><span class="immat-badge">{{ v.vehicule__immatriculation }}</span></td>
+                      <td style="font-size:12px">{{ v.vehicule__marque }} {{ v.vehicule__modele }}</td>
+                      <td style="text-align:right;font-weight:700">{{ dispatcheur(v.litres) | number:'1.2-2' }}</td>
+                      <td style="text-align:right">{{ dispatcheur(v.montant) | number:'1.0-0' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+      }
+    }
+  }
+
+  <!-- ══ CARBURANT ══ -->
+  @if (activeTab() === 'carburant') {
+    @if (carbLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (carbError()) {
+      <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ carbError() }}</div>
+    } @else {
+      @if (carbData(); as d) {
+
+        <div class="kpi-grid-4" style="margin-bottom:16px">
+          <div class="kpi-card"><div class="kpi-icon blue"><i class="fas fa-tint"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ dispatcheur(d.global?.total_litres) | number:'1.0-0' }}</div><div class="kpi-label">Litres (L)</div></div></div>
+          <div class="kpi-card"><div class="kpi-icon green"><i class="fas fa-coins"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ dispatcheur(d.global?.total_fcfa) | number:'1.0-0' }}</div><div class="kpi-label">FCFA total</div></div></div>
+          <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-gas-pump"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.global?.nb_pleins ?? 0 }}</div><div class="kpi-label">Nb pleins</div></div></div>
+          <div class="kpi-card"><div class="kpi-icon red"><i class="fas fa-tachometer-alt"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ dispatcheur(d.global?.conso_moy) | number:'1.1-1' }}</div><div class="kpi-label">L/100km moyen</div></div></div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+          <button class="btn btn-excel" (click)="exportCarburantCsv()">
+            <i class="fas fa-file-excel"></i> Exporter CSV
+          </button>
+        </div>
+
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-header"><div class="card-title">Consommation par véhicule</div></div>
+          <div class="table-container">
+            <table class="ubi-table">
+              <thead><tr><th>Immatriculation</th><th>Agence</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Montant</th><th style="text-align:center">Nb pleins</th><th style="text-align:center">Conso moy</th></tr></thead>
+              <tbody>
+                @for (v of d.par_vehicule; track $index) {
+                  <tr>
+                    <td><span class="immat-badge">{{ v.vehicule__immatriculation }}</span>
+                      <div style="font-size:11px;color:var(--gray-400)">{{ v.vehicule__marque }} {{ v.vehicule__modele }}</div></td>
+                    <td style="font-size:12px">{{ v.agence__nom ?? '—' }}</td>
+                    <td style="text-align:right;font-weight:700">{{ dispatcheur(v.total_litres) | number:'1.2-2' }} L</td>
+                    <td style="text-align:right">{{ dispatcheur(v.total_fcfa) | number:'1.0-0' }}</td>
+                    <td style="text-align:center">{{ v.nb_pleins }}</td>
+                    <td style="text-align:center">
+                      @if (v.conso_moy) { <span class="badge badge-navy">{{ dispatcheur(v.conso_moy) | number:'1.1-1' }} L/100</span> }
+                      @else { — }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        @if (d.anomalies?.length > 0) {
+          <div class="card">
+            <div class="card-header"><div class="card-title"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Anomalies de consommation</div></div>
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Véhicule</th><th>Date</th><th style="text-align:right">Volume (L)</th><th style="text-align:center">Conso calculée</th></tr></thead>
+                <tbody>
+                  @for (a of d.anomalies; track $index) {
+                    <tr class="row-anomalie">
+                      <td><span class="immat-badge">{{ a.vehicule__immatriculation }}</span></td>
+                      <td>{{ a.date_plein | date:'dd/MM/yyyy' }}</td>
+                      <td style="text-align:right">{{ dispatcheur(a.volume_litres) | number:'1.2-2' }} L</td>
+                      <td style="text-align:center"><span class="badge badge-danger">{{ dispatcheur(a.consommation_calculee) | number:'1.1-1' }} L/100</span></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+      }
+    }
+  }
+
+  <!-- ══ COÛTS ══ -->
+  @if (activeTab() === 'couts') {
+    @if (coutsLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (coutsError()) {
+      <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ coutsError() }}</div>
+    } @else {
+      @if (coutsData(); as d) {
+
+        <div class="kpi-full card" style="margin-bottom:16px">
+          <div class="kpi-icon green"><i class="fas fa-coins"></i></div>
+          <div class="kpi-info">
+            <div class="kpi-val-xl">{{ dispatcheur(d.total) | number:'1.0-0' }} FCFA</div>
+            <div class="kpi-label">Coût total {{ d.annee }}</div>
+          </div>
+        </div>
+
+        <div class="section-grid-2">
+          <div class="card">
+            <div class="card-header"><div class="card-title"><i class="fas fa-chart-pie"></i> Par catégorie</div></div>
+            <div class="chart-container"><canvas #chartParCatCanvas></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title"><i class="fas fa-building"></i> Par agence</div></div>
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Agence</th><th style="text-align:right">Total (FCFA)</th><th>Part</th></tr></thead>
+                <tbody>
+                  @for (a of d.par_agence; track $index) {
+                    <tr>
+                      <td><strong>{{ a.agence__nom }}</strong>
+                        @if (a.agence__code) { <span style="font-size:10px;color:var(--gray-400)"> ({{ a.agence__code }})</span> }
+                      </td>
+                      <td style="text-align:right;font-weight:700">{{ dispatcheur(a.total) | number:'1.0-0' }}</td>
+                      <td>
+                        <div class="mini-bar">
+                          <div class="mini-fill" [style.background]="getColor($index)"
+                               [style.width.%]="d.total > 0 ? (a.total / d.total) * 100 : 0"></div>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="card-header"><div class="card-title"><i class="fas fa-car"></i> Top véhicules les plus coûteux</div></div>
+          <div class="table-container">
+            <table class="ubi-table">
+              <thead><tr><th>Immatriculation</th><th style="text-align:right">Coût total (FCFA)</th></tr></thead>
+              <tbody>
+                @for (v of d.top_vehicules; track $index) {
+                  <tr>
+                    <td><span class="immat-badge">{{ v.vehicule__immatriculation }}</span>
+                      <span style="font-size:11px;color:var(--gray-400);margin-left:8px">{{ v.vehicule__marque }} {{ v.vehicule__modele }}</span></td>
+                    <td style="text-align:right;font-weight:700;color:var(--navy)">{{ dispatcheur(v.total) | number:'1.0-0' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      }
+    }
+  }
+
+  <!-- ══ MULTI-AGENCES ══ -->
+  @if (activeTab() === 'multiagences') {
+    @if (maLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (maError()) {
+      <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ maError() }}</div>
+    } @else {
+      @if (maData(); as d) {
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><i class="fas fa-sitemap"></i> Comparaison des agences — {{ d.annee }}</div>
+          </div>
+          <div class="table-container">
+            <table class="ubi-table ma-table">
+              <thead>
+                <tr>
+                  <th>Agence</th>
+                  <th style="text-align:center">Véhicules</th>
+                  <th style="text-align:right">Coût total (FCFA)</th>
+                  <th style="text-align:right">Coût / véhicule</th>
+                  <th style="text-align:right">Carburant (L)</th>
+                  <th style="text-align:right">Carburant (FCFA)</th>
+                  <th>Part coût</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (a of d.agences; track a.agence_id; let i = $index) {
+                  <tr>
+                    <td>
+                      <div class="agence-dot-row">
+                        <div class="agence-dot" [style.background]="getColor(i)"></div>
+                        <div>
+                          <div style="font-weight:700">{{ a.agence_nom }}</div>
+                          <div style="font-size:10px;color:var(--gray-400)">{{ a.agence_code }}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style="text-align:center;font-weight:700">{{ a.nb_vehicules }}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--navy)">{{ dispatcheur(a.cout_total) | number:'1.0-0' }}</td>
+                    <td style="text-align:right">{{ dispatcheur(a.cout_par_vehicule) | number:'1.0-0' }}</td>
+                    <td style="text-align:right">{{ dispatcheur(a.carburant_litres) | number:'1.0-0' }}</td>
+                    <td style="text-align:right">{{ dispatcheur(a.carburant_fcfa) | number:'1.0-0' }}</td>
+                    <td>
+                      <div class="mini-bar">
+                        <div class="mini-fill" [style.background]="getColor(i)"
+                             [style.width.%]="getMaxVal(d.agences,'cout_total') > 0 ? (a.cout_total / getMaxVal(d.agences,'cout_total')) * 100 : 0">
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      }
+    }
+  }
+
+
+
+  <!-- ══ SINISTRES ══ -->
+  @if (activeTab() === 'sinistres') {
+    <div class="filters-avances card" style="margin-bottom:12px">
+      <div class="filters-grid-4">
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-calendar"></i> Date début</label>
+          <input type="date" class="form-control" [value]="filtreDebut()" (input)="onFiltre2('debut',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin</label>
+          <input type="date" class="form-control" [value]="filtreFin()" (input)="onFiltre2('fin',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
+          <input type="text" class="form-control" placeholder="ex: AA-940-NG"
+                 [value]="filtreImmat()" (input)="onFiltre2('immat',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-building"></i> Agence</label>
+          <select class="form-control" (change)="onFiltre2('agence',$event)">
+            <option value="">Toutes</option>
+            @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-user"></i> Chauffeur</label>
+          <select class="form-control" (change)="onFiltre2('chauff',$event)">
+            <option value="">Tous</option>
+            @for (c of chauffeurs(); track c.id) { <option [value]="c.id">{{ c.nom_complet }}</option> }
+          </select>
+        </div>
+        <div class="filter-group" style="align-self:flex-end">
+          <button class="btn btn-green btn-sm" (click)="loadSinistres()">
+            <i class="fas fa-sync-alt"></i> Appliquer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    @if (sinLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (sinError()) {
+      <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ sinError() }}</div>
+    } @else {
+      @if (sinData(); as d) {
+        <!-- KPIs -->
+        <div class="kpi-grid-4" style="margin-bottom:12px">
+          <div class="kpi-card"><div class="kpi-icon red"><i class="fas fa-car-crash"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.total }}</div><div class="kpi-label">Total sinistres</div></div></div>
+          @for (t of d.par_type.slice(0,3); track $index) {
+            <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-exclamation"></i></div>
+              <div class="kpi-info"><div class="kpi-val">{{ t.nb }}</div><div class="kpi-label">{{ t.libelle }}</div></div></div>
+          }
+        </div>
+
+        <div class="section-grid-2">
+          <!-- Par type -->
+          <div class="card">
+            <div class="card-header"><div class="card-title"><i class="fas fa-tags"></i> Par type de sinistre</div></div>
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Type</th><th style="text-align:center">Nb</th><th style="text-align:right">Coût (FCFA)</th></tr></thead>
+                <tbody>
+                  @for (t of d.par_type; track $index) {
+                    <tr>
+                      <td><strong>{{ t.libelle }}</strong></td>
+                      <td style="text-align:center"><span class="badge badge-danger">{{ t.nb }}</span></td>
+                      <td style="text-align:right">{{ t.cout | number:'1.0-0' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <!-- Par statut -->
+          <div class="card">
+            <div class="card-header"><div class="card-title"><i class="fas fa-info-circle"></i> Par statut</div></div>
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Statut</th><th style="text-align:center">Nb</th></tr></thead>
+                <tbody>
+                  @for (s of d.par_statut; track $index) {
+                    <tr><td>{{ s.statut }}</td><td style="text-align:center">{{ s.nb }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Évolution mensuelle -->
+        <div class="card" style="margin-top:12px">
+          <div class="card-header"><div class="card-title"><i class="fas fa-chart-bar"></i> Évolution mensuelle</div></div>
+          <div class="chart-container"><canvas #chartSinCanvas></canvas></div>
+          @if (d.par_mois.length > 0) {
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Mois</th><th style="text-align:center">Nb sinistres</th><th style="text-align:right">Coût (FCFA)</th></tr></thead>
+                <tbody>
+                  @for (m of d.par_mois; track $index) {
+                    <tr>
+                      <td>{{ m.mois_nom }} {{ m.date_sinistre__year }}</td>
+                      <td style="text-align:center;font-weight:700">{{ m.nb }}</td>
+                      <td style="text-align:right">{{ m.cout | number:'1.0-0' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      }
+    }
+  }
+
+  <!-- ══ INTERVENTIONS ══ -->
+  @if (activeTab() === 'interventions') {
+    <div class="filters-avances card" style="margin-bottom:12px">
+      <div class="filters-grid-4">
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-calendar"></i> Date début</label>
+          <input type="date" class="form-control" [value]="filtreDebut()" (input)="onFiltre2('debut',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin</label>
+          <input type="date" class="form-control" [value]="filtreFin()" (input)="onFiltre2('fin',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
+          <input type="text" class="form-control" placeholder="ex: AA-940-NG"
+                 [value]="filtreImmat()" (input)="onFiltre2('immat',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-building"></i> Agence</label>
+          <select class="form-control" (change)="onFiltre2('agence',$event)">
+            <option value="">Toutes</option>
+            @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-layer-group"></i> Catégorie</label>
+          <select class="form-control" (change)="onFiltre2('categ',$event)">
+            <option value="">Toutes catégories</option>
+            <option value="preventif">Entretien préventif</option>
+            <option value="curatif">Réparation curative</option>
+            <option value="pneus">Pneus</option>
+            <option value="carrosserie">Carrosserie</option>
+            <option value="controle">Contrôle réglementaire</option>
+            <option value="autre">Autre</option>
+          </select>
+        </div>
+        <div class="filter-group" style="align-self:flex-end">
+          <button class="btn btn-green btn-sm" (click)="loadInterventions()">
+            <i class="fas fa-sync-alt"></i> Appliquer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    @if (intLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (intError()) {
+      <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ intError() }}</div>
+    } @else {
+      @if (intData(); as d) {
+        <div class="kpi-grid-4" style="margin-bottom:12px">
+          <div class="kpi-card"><div class="kpi-icon blue"><i class="fas fa-tools"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.total }}</div><div class="kpi-label">Total interventions</div></div></div>
+          <div class="kpi-card"><div class="kpi-icon green"><i class="fas fa-coins"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ dispatcheur(d.cout_total) | number:'1.0-0' }}</div><div class="kpi-label">Coût total (FCFA)</div></div></div>
+          @for (s of d.par_statut.slice(0,2); track $index) {
+            <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-wrench"></i></div>
+              <div class="kpi-info"><div class="kpi-val">{{ s.nb }}</div><div class="kpi-label">{{ s.statut }}</div></div></div>
+          }
+        </div>
+
+        <div class="section-grid-2">
+          <!-- Par catégorie -->
+          <div class="card">
+            <div class="card-header"><div class="card-title"><i class="fas fa-layer-group"></i> Par catégorie</div></div>
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Catégorie</th><th style="text-align:center">Nb</th><th style="text-align:right">Coût (FCFA)</th></tr></thead>
+                <tbody>
+                  @for (cat of d.par_categorie; track $index) {
+                    <tr>
+                      <td><strong>{{ cat.libelle }}</strong></td>
+                      <td style="text-align:center"><span class="badge badge-navy">{{ cat.nb }}</span></td>
+                      <td style="text-align:right">{{ cat.cout | number:'1.0-0' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <!-- Top types -->
+          <div class="card">
+            <div class="card-header"><div class="card-title"><i class="fas fa-list"></i> Top types d'intervention</div></div>
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Type</th><th>Catégorie</th><th style="text-align:center">Nb</th><th style="text-align:right">Coût</th></tr></thead>
+                <tbody>
+                  @for (t of d.par_type; track $index) {
+                    <tr>
+                      <td>{{ t.type_intervention__nom }}</td>
+                      <td style="font-size:11px;color:var(--gray-400)">{{ t.type_intervention__categorie }}</td>
+                      <td style="text-align:center">{{ t.nb }}</td>
+                      <td style="text-align:right">{{ t.cout | number:'1.0-0' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Évolution mensuelle -->
+        <div class="card" style="margin-top:12px">
+          <div class="card-header"><div class="card-title"><i class="fas fa-chart-bar"></i> Évolution mensuelle</div></div>
+          <div class="chart-container"><canvas #chartIntCanvas></canvas></div>
+          @if (d.par_mois.length > 0) {
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Mois</th><th style="text-align:center">Nb</th><th style="text-align:right">Coût (FCFA)</th></tr></thead>
+                <tbody>
+                  @for (m of d.par_mois; track $index) {
+                    <tr>
+                      <td>{{ m.mois_nom }} {{ m.date_planifiee__year }}</td>
+                      <td style="text-align:center;font-weight:700">{{ m.nb }}</td>
+                      <td style="text-align:right">{{ m.cout | number:'1.0-0' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      }
+    }
+  }
+
+  <!-- ══ PNEUS ══ -->
+  @if (activeTab() === 'pneus') {
+    <div class="filters-avances card" style="margin-bottom:12px">
+      <div class="filters-grid-4">
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-calendar"></i> Date montage début</label>
+          <input type="date" class="form-control" [value]="filtreDebut()" (input)="onFiltre2('debut',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-calendar-alt"></i> Date montage fin</label>
+          <input type="date" class="form-control" [value]="filtreFin()" (input)="onFiltre2('fin',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
+          <input type="text" class="form-control" placeholder="ex: AA-940-NG"
+                 [value]="filtreImmat()" (input)="onFiltre2('immat',$event)" />
+        </div>
+        <div class="filter-group">
+          <label class="form-label"><i class="fas fa-building"></i> Agence</label>
+          <select class="form-control" (change)="onFiltre2('agence',$event)">
+            <option value="">Toutes</option>
+            @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
+          </select>
+        </div>
+        <div class="filter-group" style="align-self:flex-end">
+          <button class="btn btn-green btn-sm" (click)="loadPneus()">
+            <i class="fas fa-sync-alt"></i> Appliquer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    @if (pnLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (pnError()) {
+      <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ pnError() }}</div>
+    } @else {
+      @if (pnData(); as d) {
+        <div class="kpi-grid-4" style="margin-bottom:12px">
+          <div class="kpi-card"><div class="kpi-icon blue"><i class="fas fa-circle-notch"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.total }}</div><div class="kpi-label">Total pneus</div></div></div>
+          <div class="kpi-card"><div class="kpi-icon green"><i class="fas fa-coins"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ dispatcheur(d.cout_total) | number:'1.0-0' }}</div><div class="kpi-label">Coût total (FCFA)</div></div></div>
+          @for (s of d.par_statut.slice(0,2); track $index) {
+            <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-circle-notch"></i></div>
+              <div class="kpi-info"><div class="kpi-val">{{ s.nb }}</div><div class="kpi-label">{{ s.libelle }}</div></div></div>
+          }
+        </div>
+
+        <div class="section-grid-2">
+          <!-- Statut camembert -->
+          <div class="card">
+            <div class="card-header"><div class="card-title"><i class="fas fa-chart-pie"></i> Par statut</div></div>
+            <div class="chart-container"><canvas #chartPneusCanvas></canvas></div>
+          </div>
+          <!-- Par position -->
+          <div class="card">
+            <div class="card-header"><div class="card-title"><i class="fas fa-map-marker-alt"></i> Par position</div></div>
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Position</th><th style="text-align:center">Nb</th><th style="text-align:right">Coût (FCFA)</th></tr></thead>
+                <tbody>
+                  @for (p of d.par_position; track $index) {
+                    <tr>
+                      <td>{{ p.libelle }}</td>
+                      <td style="text-align:center;font-weight:700">{{ p.nb }}</td>
+                      <td style="text-align:right">{{ p.cout | number:'1.0-0' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Par marque + urgents -->
+        <div class="section-grid-2" style="margin-top:12px">
+          @if (d.par_marque.length > 0) {
+            <div class="card">
+              <div class="card-header"><div class="card-title"><i class="fas fa-tag"></i> Par marque (top 10)</div></div>
+              <div class="table-container">
+                <table class="ubi-table">
+                  <thead><tr><th>Marque</th><th style="text-align:center">Nb</th><th style="text-align:right">Coût</th></tr></thead>
+                  <tbody>
+                    @for (m of d.par_marque; track $index) {
+                      <tr><td>{{ m.marque }}</td><td style="text-align:center">{{ m.nb }}</td>
+                        <td style="text-align:right">{{ m.cout | number:'1.0-0' }}</td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
+          @if (d.urgents.length > 0) {
+            <div class="card">
+              <div class="card-header"><div class="card-title"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Pneus à changer</div></div>
+              <div class="table-container">
+                <table class="ubi-table">
+                  <thead><tr><th>Véhicule</th><th>Position</th><th style="text-align:right">Km remplacement</th></tr></thead>
+                  <tbody>
+                    @for (u of d.urgents; track $index) {
+                      <tr>
+                        <td><span class="immat-badge">{{ u.vehicule__immatriculation }}</span></td>
+                        <td>{{ u.position_libelle }}</td>
+                        <td style="text-align:right;font-family:monospace">{{ u.kilometrage_remplacement | number:'1.0-0' }} km</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Évolution mensuelle -->
+        @if (d.par_mois.length > 0) {
+          <div class="card" style="margin-top:12px">
+            <div class="card-header"><div class="card-title"><i class="fas fa-chart-bar"></i> Montages par mois</div></div>
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead><tr><th>Mois</th><th style="text-align:center">Nb</th><th style="text-align:right">Coût (FCFA)</th></tr></thead>
+                <tbody>
+                  @for (m of d.par_mois; track $index) {
+                    <tr>
+                      <td>{{ m.mois_nom }} {{ m.date_montage__year }}</td>
+                      <td style="text-align:center;font-weight:700">{{ m.nb }}</td>
+                      <td style="text-align:right">{{ m.cout | number:'1.0-0' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+      }
+    }
+  }
+
+
+  <!-- ══ ONGLET EFFECTIF PARC ══ -->
+  @if (activeTab() === 'effectif') {
+    <div class="analyse-header" style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="form-group" style="margin:0">
+          <label class="form-label"><i class="fas fa-building"></i> Agence</label>
+          <select class="form-control" [value]="effAgence()" (change)="onFiltreEffectif('agence', $event)">
+            <option value="">Toutes les agences</option>
+            @for (a of agences(); track a.id) {
+              <option [value]="a.id">{{ a.nom }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label"><i class="fas fa-toggle-on"></i> Véhicules</label>
+          <select class="form-control" [value]="effActif()" (change)="onFiltreEffectif('actif', $event)">
+            <option value="true">Actifs uniquement</option>
+            <option value="false">Tous (actifs + archivés)</option>
+          </select>
+        </div>
+      </div>
+      @if (effData()) {
+        <button class="btn btn-outline" (click)="exportEffectifCsv()">
+          <i class="fas fa-file-csv"></i> Exporter CSV
+        </button>
+      }
+    </div>
+
+    @if (effLoading()) {
+      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+    } @else if (effError()) {
+      <div class="alert alert-error">{{ effError() }}</div>
+    } @else if (effData()) {
+      @if (effData(); as d) {
+      <!-- Total -->
+      <div class="card" style="margin-bottom:16px;padding:16px 20px;display:flex;align-items:center;gap:14px">
+        <div style="width:46px;height:46px;border-radius:12px;background:var(--navy);color:white;display:flex;align-items:center;justify-content:center;font-size:20px">
+          <i class="fas fa-car"></i>
+        </div>
+        <div>
+          <div style="font-size:26px;font-weight:800;color:var(--navy)">{{ d.total }}</div>
+          <div style="font-size:12px;color:var(--gray-500)">véhicules au total</div>
+        </div>
+      </div>
+
+      <!-- 7 tableaux en grille -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px">
+        @for (g of effGroupes(); track g.titre) {
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i [class]="g.icone"></i> {{ g.titre }}</div>
+              <span style="background:var(--gray-100);color:var(--gray-500);padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600">
+                {{ g.rows.length }}
+              </span>
+            </div>
+            @if (g.rows.length === 0) {
+              <div class="empty-state" style="padding:24px"><p>Aucune donnée</p></div>
+            } @else {
+              <div class="table-container">
+                <table class="ubi-table">
+                  <thead>
+                    <tr>
+                      <th>Valeur</th>
+                      <th style="text-align:center;width:80px">Nombre</th>
+                      <th style="width:140px">Part</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of g.rows; track r.label) {
+                      <tr>
+                        <td>{{ r.label }}</td>
+                        <td style="text-align:center"><strong>{{ r.nb }}</strong></td>
+                        <td>
+                          <div style="display:flex;align-items:center;gap:8px">
+                            <div style="flex:1;height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden">
+                              <div [style.width.%]="r.pct" style="height:100%;background:var(--green-dark);border-radius:3px"></div>
+                            </div>
+                            <span style="font-size:11px;color:var(--gray-500);min-width:38px;text-align:right">{{ r.pct }}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        }
+      </div>
+      }
+    }
+  }
+
+</div>

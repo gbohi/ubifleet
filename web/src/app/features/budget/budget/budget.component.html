@@ -1,0 +1,26 @@
+<!-- UbiFleet — Budget & Comptabilité (Angular 18) -->
+<div class="page-wrapper">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Budget & Comptabilité</h1>
+      <p class="page-subtitle">Module prêt à être développé</p>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="card">
+      <div class="card-body" style="padding: 40px; text-align: center;">
+        <i class="fas fa-circle-notch fa-spin" style="font-size: 32px; color: var(--green-dark);"></i>
+      </div>
+    </div>
+  } @else {
+    <div class="card">
+      <div class="card-body" style="padding: 40px; text-align: center;">
+        <i class="fas fa-tools" style="font-size: 48px; color: var(--gray-300); margin-bottom: 16px; display: block;"></i>
+        <p style="color: var(--gray-400); font-size: 15px;">
+          Le module <strong>Budget & Comptabilité</strong> est prêt à être développé.
+        </p>
+      </div>
+    </div>
+  }
+</div>
