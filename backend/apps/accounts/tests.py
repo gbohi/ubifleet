@@ -159,3 +159,43 @@ class SecuriteComptesTests(APITestCase):
                                 [{'cle': 'alerte_ct_jours', 'valeur': '15'}], format='json')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(Parametre.objects.get(cle='alerte_ct_jours').valeur, '15')
+
+
+class MesAccesTests(APITestCase):
+    """L'endpoint /auth/me/acces/ reflète les permissions réelles de l'API."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from apps.core.testing import NIVEAUX_ROLES
+        cls.roles = {c: Role.objects.create(code=c, nom=c, niveau=n) for c, n in NIVEAUX_ROLES.items()}
+
+    def acces(self, code_role):
+        from apps.accounts.permission_cache import invalidate
+        invalidate()
+        user = User.objects.create_user(
+            email=f'{code_role}@acces.ci', username=f'acces_{code_role}', password='Motdepasse!2026',
+            first_name='A', last_name='B', role=self.roles[code_role],
+        )
+        self.client.force_authenticate(user)
+        resp = self.client.get(reverse('mes_acces'))
+        self.assertEqual(resp.status_code, 200)
+        return resp.data
+
+    def test_chauffeur(self):
+        a = self.acces('chauffeur')
+        self.assertTrue(a['dashboard'] and a['demandes'] and a['alertes'])
+        self.assertFalse(a['vehicules'] or a['utilisateurs'] or a['parametres'] or a['alertes_generer'])
+
+    def test_responsable_flotte(self):
+        a = self.acces('responsable_flotte')
+        self.assertTrue(a['vehicules'] and a['utilisateurs'] and a['parametres'] and a['alertes_generer'])
+        self.assertFalse(a['roles'] or a['permissions'])
+
+    def test_super_admin_voit_tout(self):
+        self.assertTrue(all(self.acces('super_admin').values()))
+
+    def test_regle_db_prise_en_compte(self):
+        from .models import PermissionRole
+        PermissionRole.objects.create(role=self.roles['chauffeur'], module='vehicules',
+                                      action='list', autorise=True)
+        self.assertTrue(self.acces('chauffeur')['vehicules'])

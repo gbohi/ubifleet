@@ -7,6 +7,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils.module_loading import import_string
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import User, Agence, Role, PermissionRole
@@ -237,3 +238,50 @@ class PermissionBulkView(generics.GenericAPIView):
             updated += 1
         invalidate()
         return Response({'detail': f'{updated} permission(s) mises à jour.'})
+
+
+# Écrans de l'interface → (vue API qui les alimente, action). Le droit
+# d'accès est évalué avec les permissions réelles de la vue (y compris les
+# règles PermissionRole en base), pour que le menu reflète exactement ce que
+# l'API autorise.
+ACCES_ECRANS = {
+    'dashboard':             ('apps.rapports.views.DashboardDGView', None),
+    'vehicules':             ('apps.vehicules.views.VehiculeViewSet', 'list'),
+    'releves_km':            ('apps.vehicules.views.ReleveKilometrageViewSet', 'list'),
+    'carburant':             ('apps.carburant.views.PleinViewSet', 'list'),
+    'restitution_mensuelle': ('apps.vehicules.views.ConsommationKmView', 'list'),
+    'transactions_total':    ('apps.total_import.views.TransactionCarburantViewSet', 'list'),
+    'entretien':             ('apps.entretien.views.InterventionViewSet', 'list'),
+    'etat_parc':             ('apps.vehicules.views.VehiculeViewSet', 'etat_parc'),
+    'sinistres':             ('apps.sinistres.views.SinistreViewSet', 'list'),
+    'budget':                ('apps.budget.views.BudgetViewSet', 'list'),
+    'grand_livre':           ('apps.grand_livre.views.LigneGrandLivreViewSet', 'list'),
+    'chauffeurs':            ('apps.chauffeurs.views.ChauffeurViewSet', 'list'),
+    'demandes':              ('apps.demandes.views.DemandeViewSet', 'list'),
+    'controle':              ('apps.controle.views.FicheControleViewSet', 'list'),
+    'rapports':              ('apps.rapports.views.RapportCarburantView', None),
+    'alertes':               ('apps.alertes.views.AlerteViewSet', 'list'),
+    'alertes_generer':       ('apps.alertes.views.AlerteViewSet', 'generer'),
+    'utilisateurs':          ('apps.accounts.views.UserViewSet', 'list'),
+    'roles':                 ('apps.accounts.views.RoleViewSet', 'create'),
+    'permissions':           ('apps.accounts.views.PermissionRoleViewSet', 'list'),
+    'parametres':            ('apps.parametrage.views.ParametreViewSet', 'bulk_update'),
+}
+
+
+def peut_acceder(request, chemin_vue, action):
+    view = import_string(chemin_vue)()
+    view.request, view.args, view.kwargs, view.format_kwarg = request, (), {}, None
+    view.action = action
+    return all(p.has_permission(request, view) for p in view.get_permissions())
+
+
+class MesAccesView(generics.GenericAPIView):
+    """Écrans accessibles à l'utilisateur connecté : {cle: bool}."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({
+            cle: peut_acceder(request, chemin, action)
+            for cle, (chemin, action) in ACCES_ECRANS.items()
+        })

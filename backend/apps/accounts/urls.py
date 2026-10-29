@@ -18,6 +18,7 @@ urlpatterns = [
     path('me/',                views.MeView.as_view(),              name='me'),
     path('me/password/',       views.ChangePasswordView.as_view(),  name='change_password'),
     path('me/profile/',        views.ResetProfileView.as_view(),    name='reset_profile'),
+    path('me/acces/',          views.MesAccesView.as_view(),        name='mes_acces'),
     path('permissions/meta/',  views.PermissionMetaView.as_view(),  name='permissions-meta'),
     path('permissions/bulk/',  views.PermissionBulkView.as_view(),  name='permissions-bulk'),
     path('', include(router.urls)),
