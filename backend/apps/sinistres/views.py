@@ -147,6 +147,14 @@ class AssureurViewSet(viewsets.ModelViewSet):
     queryset = Assureur.objects.filter(is_active=True)
     serializer_class = AssureurSerializer
     module   = 'sinistres'
-    permission_classes = [IsAuthenticated]
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'gestionnaire',
+        'update': 'gestionnaire',
+        'partial_update': 'gestionnaire',
+        'destroy': 'responsable_flotte',
+    }
     filter_backends = [filters.SearchFilter]
     search_fields = ['nom']

@@ -148,7 +148,15 @@ class TypeInterventionViewSet(viewsets.ModelViewSet):
     queryset = TypeIntervention.objects.filter(is_active=True)
     module   = 'parametres'
     serializer_class = TypeInterventionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'responsable_flotte',
+        'update': 'responsable_flotte',
+        'partial_update': 'responsable_flotte',
+        'destroy': 'responsable_flotte',
+    }
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['nom']
     filterset_fields = ['categorie']
@@ -157,7 +165,15 @@ class TypeInterventionViewSet(viewsets.ModelViewSet):
 class PrestataireViewSet(viewsets.ModelViewSet):
     serializer_class = PrestataireSerializer
     module   = 'parametres'
-    permission_classes = [IsAuthenticated]
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'gestionnaire',
+        'update': 'gestionnaire',
+        'partial_update': 'gestionnaire',
+        'destroy': 'responsable_flotte',
+    }
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['nom', 'ville']
     filterset_fields = ['agence', 'is_active']
@@ -169,7 +185,16 @@ class PrestataireViewSet(viewsets.ModelViewSet):
 class PneusViewSet(viewsets.ModelViewSet):
     serializer_class = PneusSerializer
     module   = 'entretien'
-    permission_classes = [IsAuthenticated]
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'gestionnaire',
+        'update': 'gestionnaire',
+        'partial_update': 'gestionnaire',
+        'destroy': 'responsable_flotte',
+        'a_changer': 'operateur',
+    }
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['vehicule', 'statut', 'position']
 
@@ -204,7 +229,16 @@ def get_urlpatterns():
 class DocumentInterventionViewSet(viewsets.ModelViewSet):
     """Upload et gestion des documents liés à une intervention."""
     serializer_class   = DocumentInterventionSerializer
-    permission_classes = [IsAuthenticated]
+    module             = 'entretien'
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'gestionnaire',
+        'update': 'gestionnaire',
+        'partial_update': 'gestionnaire',
+        'destroy': 'responsable_flotte',
+    }
     parser_classes     = [MultiPartParser, FormParser]
     pagination_class   = None
 

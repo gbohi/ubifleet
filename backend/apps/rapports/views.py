@@ -7,6 +7,18 @@ from django.db.models import Sum, Avg, Count, Q, F
 from django.utils import timezone
 import datetime
 
+from apps.accounts.permissions import IsOperateur, IsFleetManager
+
+
+def agence_autorisee(request):
+    """Agence à appliquer aux rapports. En dessous du niveau responsable
+    flotte, un utilisateur rattaché à une agence ne voit que la sienne,
+    quel que soit le paramètre ?agence= transmis."""
+    user = request.user
+    if not user.is_admin_level() and user.agence_id:
+        return str(user.agence_id)
+    return request.query_params.get('agence')
+
 
 class DashboardDGView(APIView):
     """
@@ -26,7 +38,7 @@ class DashboardDGView(APIView):
 
         mois = int(request.query_params.get('mois', timezone.now().month))
         annee = int(request.query_params.get('annee', timezone.now().year))
-        agence_id = request.query_params.get('agence')
+        agence_id = agence_autorisee(request)
 
         user = request.user
         agence_filter = {}
@@ -150,7 +162,7 @@ class DashboardDGView(APIView):
 
 class RapportCarburantView(APIView):
     """Rapport détaillé carburant."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOperateur]
 
     def get(self, request):
         from apps.carburant.models import PleinsCarburant
@@ -158,7 +170,7 @@ class RapportCarburantView(APIView):
 
         mois = int(request.query_params.get('mois', timezone.now().month))
         annee = int(request.query_params.get('annee', timezone.now().year))
-        agence_id = request.query_params.get('agence')
+        agence_id = agence_autorisee(request)
 
         qs = PleinsCarburant.objects.filter(date_plein__month=mois, date_plein__year=annee)
         if agence_id:
@@ -212,13 +224,13 @@ class RapportCarburantView(APIView):
 
 class RapportCoutsView(APIView):
     """Rapport coûts global par poste, véhicule, agence."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOperateur]
 
     def get(self, request):
         from apps.budget.models import DepenseVehicule
 
         annee = int(request.query_params.get('annee', timezone.now().year))
-        agence_id = request.query_params.get('agence')
+        agence_id = agence_autorisee(request)
 
         qs = DepenseVehicule.objects.filter(date_depense__year=annee)
         if agence_id:
@@ -252,7 +264,7 @@ class RapportCoutsView(APIView):
 
 class RapportMultiAgencesView(APIView):
     """Comparaison des performances entre agences."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsFleetManager]
 
     def get(self, request):
         from apps.vehicules.models import Vehicule
@@ -294,7 +306,7 @@ class RapportMultiAgencesView(APIView):
 
 class RapportSinistresView(APIView):
     """Statistiques sinistres par type et par mois."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOperateur]
 
     def get(self, request):
         from apps.sinistres.models import Sinistre
@@ -303,7 +315,7 @@ class RapportSinistresView(APIView):
         date_debut    = request.query_params.get('date_debut')
         date_fin      = request.query_params.get('date_fin')
         immatriculation = request.query_params.get('immatriculation', '').strip()
-        agence_id     = request.query_params.get('agence')
+        agence_id     = agence_autorisee(request)
         chauffeur_id  = request.query_params.get('chauffeur')
 
         qs = Sinistre.objects.all()
@@ -362,7 +374,7 @@ class RapportSinistresView(APIView):
 
 class RapportInterventionsView(APIView):
     """Statistiques interventions/entretien par type et par mois."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOperateur]
 
     def get(self, request):
         from apps.entretien.models import Intervention
@@ -370,7 +382,7 @@ class RapportInterventionsView(APIView):
         date_debut      = request.query_params.get('date_debut')
         date_fin        = request.query_params.get('date_fin')
         immatriculation = request.query_params.get('immatriculation', '').strip()
-        agence_id       = request.query_params.get('agence')
+        agence_id       = agence_autorisee(request)
         categorie       = request.query_params.get('categorie')
 
         qs = Intervention.objects.select_related('type_intervention')
@@ -439,7 +451,7 @@ class RapportInterventionsView(APIView):
 
 class RapportPneusView(APIView):
     """Statistiques pneus par statut, position et par mois."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOperateur]
 
     def get(self, request):
         from apps.entretien.models import SuiviPneus
@@ -447,7 +459,7 @@ class RapportPneusView(APIView):
         date_debut      = request.query_params.get('date_debut')
         date_fin        = request.query_params.get('date_fin')
         immatriculation = request.query_params.get('immatriculation', '').strip()
-        agence_id       = request.query_params.get('agence')
+        agence_id       = agence_autorisee(request)
 
         qs = SuiviPneus.objects.select_related('vehicule', 'vehicule__agence')
         if date_debut:
@@ -531,7 +543,7 @@ class RapportEffectifParcView(APIView):
     carburant, statut, affectation/usage.
     Filtres optionnels : agence, actif (défaut: véhicules actifs uniquement)
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsOperateur]
 
     def get(self, request):
         from apps.vehicules.models import Vehicule
@@ -544,7 +556,7 @@ class RapportEffectifParcView(APIView):
             qs = qs.filter(is_active=True)
 
         # Filtre agence (paramètre ou restriction utilisateur)
-        agence_id = request.query_params.get('agence')
+        agence_id = agence_autorisee(request)
         user = request.user
         if agence_id:
             qs = qs.filter(agence_id=agence_id)

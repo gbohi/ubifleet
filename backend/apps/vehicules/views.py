@@ -7,6 +7,8 @@ from django.db.models import F
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from django_filters import rest_framework as df
+from datetime import date
+
 from django.utils import timezone
 from django.db.models import Count, Avg, Sum, Q
 
@@ -524,7 +526,15 @@ class HistoriqueImmatriculationViewSet(viewsets.ReadOnlyModelViewSet):
     """Liste en lecture seule des changements d'immatriculation."""
     serializer_class = HistoriqueImmatriculationSerializer
     module   = 'vehicules'
-    permission_classes = [IsAuthenticated]
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'gestionnaire',
+        'update': 'gestionnaire',
+        'partial_update': 'gestionnaire',
+        'destroy': 'responsable_flotte',
+    }
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['vehicule']
     ordering_fields  = ['date_changement', 'created_at']
@@ -544,7 +554,9 @@ class ConsommationKmView(viewsets.ViewSet):
     - Volume carburant   : Sum(volume) depuis TransactionCarburant Total sur la même période
     Paramètres : date_debut, date_fin, vehicule (optionnel), agence (optionnel)
     """
-    permission_classes = [IsAuthenticated]
+    module             = 'vehicules'
+    permission_classes = [RoleBasedPermission]
+    role_map           = {'list': 'operateur'}
 
     def list(self, request):
         from django.db.models import Min, Max, Sum
@@ -691,6 +703,7 @@ class TypeDocumentVehiculeViewSet(viewsets.ModelViewSet):
         'partial_update': 'responsable_flotte',
         'destroy':        'responsable_flotte',
     }
+    permission_classes = [RoleBasedPermission]
 
     def get_queryset(self):
         qs = TypeDocumentVehicule.objects.all()
@@ -741,7 +754,16 @@ class AffectationVehiculeViewSet(viewsets.ModelViewSet):
 
 class HistoriqueStatutVehiculeViewSet(viewsets.ModelViewSet):
     """Historique des changements de statut d'un véhicule."""
-    permission_classes = [IsAuthenticated]
+    module             = 'vehicules'
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'gestionnaire',
+        'update': 'responsable_flotte',
+        'partial_update': 'responsable_flotte',
+        'destroy': 'responsable_flotte',
+    }
     pagination_class   = None
 
     def get_serializer_class(self):

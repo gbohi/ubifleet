@@ -120,7 +120,10 @@ class RoleBasedPermission(BasePermission):
     2. super_admin (niveau >= 10) → toujours autorisé
     3. Cherche la règle (role_id, module, action) en DB (via cache)
     4. Règle trouvée → applique autorise=True/False
-    5. Pas de règle → fallback sur DEFAULT_ACTION_NIVEAU
+    5. Pas de règle → fallback sur role_map de la vue, puis DEFAULT_ACTION_NIVEAU
+
+    `permission_actions` (optionnel sur la vue) traduit le nom d'action DRF
+    vers le nom stocké en DB, ex. {'valider': 'valider_fiche'}.
     """
 
     def has_permission(self, request, view):
@@ -143,7 +146,8 @@ class RoleBasedPermission(BasePermission):
 
         # 1. Chercher en DB (via cache)
         from apps.accounts.permission_cache import is_allowed
-        db_result = is_allowed(role.id, module, action)
+        db_action = getattr(view, 'permission_actions', {}).get(action, action)
+        db_result = is_allowed(role.id, module, db_action)
 
         if db_result is not None:
             return db_result

@@ -7,7 +7,24 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Parametre
 from .serializers import ParametreSerializer
-from apps.accounts.permissions import IsSuperAdmin, IsFleetManager
+from apps.accounts.permissions import IsSuperAdmin, IsFleetManager, RoleBasedPermission
+
+
+class ReferentielPermissionMixin:
+    """Référentiels du paramétrage : lecture pour tous les utilisateurs
+    (listes déroulantes des formulaires), modification réservée au
+    responsable flotte et plus."""
+    module             = 'parametres'
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'chauffeur',
+        'retrieve': 'chauffeur',
+        'create': 'responsable_flotte',
+        'update': 'responsable_flotte',
+        'partial_update': 'responsable_flotte',
+        'destroy': 'responsable_flotte',
+        'import_excel': 'responsable_flotte',
+    }
 
 
 class ParametreViewSet(viewsets.ModelViewSet):
@@ -116,9 +133,8 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
 
-class TourneeViewSet(viewsets.ModelViewSet):
+class TourneeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
     serializer_class   = TourneeSerializer
-    permission_classes = [IsAuthenticated]
     pagination_class   = None
 
     def get_queryset(self):
@@ -296,9 +312,8 @@ class StatutVehiculeSerializer(drf_s2.ModelSerializer):
         fields = ['id', 'code', 'libelle', 'couleur', 'actif']
 
 
-class AffectationUsageViewSet(viewsets.ModelViewSet):
+class AffectationUsageViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
     serializer_class   = AffectationUsageSerializer
-    permission_classes = [IsAuthenticated]
     pagination_class   = None
 
     def get_queryset(self):
@@ -309,9 +324,8 @@ class AffectationUsageViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class StatutVehiculeViewSet(viewsets.ModelViewSet):
+class StatutVehiculeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
     serializer_class   = StatutVehiculeSerializer
-    permission_classes = [IsAuthenticated]
     pagination_class   = None
 
     def get_queryset(self):
@@ -341,9 +355,8 @@ class ModeleVehiculeSerializer(drf_s2.ModelSerializer):
         fields = ['id', 'marque', 'marque_libelle', 'libelle', 'actif']
 
 
-class MarqueVehiculeViewSet(viewsets.ModelViewSet):
+class MarqueVehiculeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
     serializer_class   = MarqueVehiculeSerializer
-    permission_classes = [IsAuthenticated]
     pagination_class   = None
 
     def get_queryset(self):
@@ -354,9 +367,8 @@ class MarqueVehiculeViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class ModeleVehiculeViewSet(viewsets.ModelViewSet):
+class ModeleVehiculeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
     serializer_class   = ModeleVehiculeSerializer
-    permission_classes = [IsAuthenticated]
     pagination_class   = None
 
     def get_queryset(self):

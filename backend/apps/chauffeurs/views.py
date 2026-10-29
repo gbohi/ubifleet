@@ -4,7 +4,6 @@ import datetime
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from apps.accounts.permissions import RoleBasedPermission
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
@@ -30,11 +29,12 @@ class ChauffeurViewSet(viewsets.ModelViewSet):
         'update': 'gestionnaire',
         'partial_update': 'gestionnaire',
         'destroy': 'responsable_flotte',
+        'permis_expirant': 'operateur',
+        'historique_conduite': 'operateur',
     }
 
     def get_permissions(self):
         return [RoleBasedPermission()]
-    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['agence', 'statut']
     search_fields = ['nom', 'prenom', 'matricule', 'numero_permis']

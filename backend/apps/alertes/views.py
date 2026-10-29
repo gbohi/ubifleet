@@ -3,7 +3,7 @@
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from apps.accounts.permissions import RoleBasedPermission
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count
 from django.utils import timezone
@@ -23,7 +23,23 @@ class AlerteViewSet(viewsets.ModelViewSet):
     """
     serializer_class = AlerteSerializer
     module   = 'alertes'
-    permission_classes = [IsAuthenticated]
+    permission_classes = [RoleBasedPermission]
+    # Consultation et traitement : tout utilisateur, sur ses alertes (agence
+    # ou personnelles, cf. get_queryset). Création / modification /
+    # suppression manuelles et génération globale : responsable flotte.
+    role_map = {
+        'list': 'chauffeur',
+        'retrieve': 'chauffeur',
+        'resume': 'chauffeur',
+        'traiter': 'chauffeur',
+        'ignorer': 'chauffeur',
+        'marquer_toutes_lues': 'chauffeur',
+        'create': 'responsable_flotte',
+        'update': 'responsable_flotte',
+        'partial_update': 'responsable_flotte',
+        'destroy': 'responsable_flotte',
+        'generer': 'responsable_flotte',
+    }
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['agence', 'type_alerte', 'priorite', 'statut', 'vehicule']
     ordering_fields = ['created_at', 'priorite', 'date_echeance']

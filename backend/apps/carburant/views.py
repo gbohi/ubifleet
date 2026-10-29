@@ -667,17 +667,6 @@ class DotationViewSet(viewsets.ModelViewSet):
         'destroy': 'responsable_flotte',
     }
 
-    role_map = {
-            'list': 'operateur',
-            'retrieve': 'operateur',
-            'create': 'operateur',
-            'update': 'gestionnaire',
-            'partial_update': 'gestionnaire',
-            'destroy': 'responsable_flotte',
-            'valider': 'operateur',
-            'anomalies': 'operateur',
-        }
-
     def get_permissions(self):
         return [RoleBasedPermission()]
 
@@ -688,7 +677,15 @@ class DotationViewSet(viewsets.ModelViewSet):
 class StationViewSet(viewsets.ModelViewSet):
     serializer_class = StationSerializer
     module   = 'carburant'
-    permission_classes = [IsAuthenticated]
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'gestionnaire',
+        'update': 'gestionnaire',
+        'partial_update': 'gestionnaire',
+        'destroy': 'responsable_flotte',
+    }
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['nom', 'ville']
     filterset_fields = ['agence', 'est_partenaire', 'is_active']

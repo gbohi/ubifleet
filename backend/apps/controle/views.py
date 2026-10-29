@@ -2,11 +2,13 @@
 
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from apps.accounts.permissions import RoleBasedPermission
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .models import ElementControle, FicheControle, PointControleDetail, PhotoControle
@@ -17,11 +19,34 @@ from .serializers import (
 )
 
 
+def fiches_visibles(user):
+    """Fiches accessibles : toutes pour le niveau responsable flotte et plus,
+    sinon celles de l'agence de l'utilisateur."""
+    qs = FicheControle.objects.all()
+    if not user.is_admin_level() and user.agence:
+        qs = qs.filter(agence=user.agence)
+    return qs
+
+
+def verifier_fiche_visible(user, fiche):
+    if fiche is not None and not fiches_visibles(user).filter(pk=fiche.pk).exists():
+        raise PermissionDenied("Cette fiche de contrôle n'appartient pas à votre agence.")
+
+
 class ElementControleViewSet(viewsets.ModelViewSet):
     """CRUD éléments de contrôle — référentiel configurable."""
     serializer_class   = ElementControleSerializer
     pagination_class   = None
-    permission_classes = [IsAuthenticated]
+    module             = 'controle'
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'responsable_flotte',
+        'update': 'responsable_flotte',
+        'partial_update': 'responsable_flotte',
+        'destroy': 'responsable_flotte',
+    }
 
     def get_queryset(self):
         qs = ElementControle.objects.all()
@@ -36,7 +61,21 @@ class ElementControleViewSet(viewsets.ModelViewSet):
 
 class FicheControleViewSet(viewsets.ModelViewSet):
     """CRUD fiches de contrôle."""
-    permission_classes = [IsAuthenticated]
+    module             = 'controle'
+    permission_classes = [RoleBasedPermission]
+    permission_actions = {'valider': 'valider_fiche'}
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'operateur',
+        'update': 'operateur',
+        'partial_update': 'operateur',
+        'destroy': 'responsable_flotte',
+        'valider': 'operateur',
+        'rapport': 'operateur',
+        'stats': 'operateur',
+        'bulk_save': 'operateur',
+    }
     filter_backends    = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields   = ['vehicule', 'agence', 'type_controle', 'statut_global', 'chauffeur']
     ordering_fields    = ['date_heure', 'kilometrage', 'created_at']
@@ -50,12 +89,9 @@ class FicheControleViewSet(viewsets.ModelViewSet):
         return FicheControleListSerializer
 
     def get_queryset(self):
-        qs = FicheControle.objects.select_related(
+        qs = fiches_visibles(self.request.user).select_related(
             'vehicule', 'chauffeur', 'agence', 'created_by'
         ).prefetch_related('points', 'photos')
-        user = self.request.user
-        if not user.is_admin_level() and user.agence:
-            qs = qs.filter(agence=user.agence)
 
         # Filtres additionnels
         date_debut = self.request.query_params.get('date_debut')
@@ -124,17 +160,34 @@ class FicheControleViewSet(viewsets.ModelViewSet):
 class PointControleDetailViewSet(viewsets.ModelViewSet):
     """CRUD points de contrôle d'une fiche."""
     serializer_class   = PointControleDetailSerializer
-    permission_classes = [IsAuthenticated]
     pagination_class   = None
+    module             = 'controle'
+    permission_classes = [RoleBasedPermission]
+    permission_actions = {'valider': 'valider_fiche'}
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'operateur',
+        'update': 'operateur',
+        'partial_update': 'operateur',
+        'destroy': 'responsable_flotte',
+        'valider': 'operateur',
+        'rapport': 'operateur',
+        'stats': 'operateur',
+        'bulk_save': 'operateur',
+    }
 
     def get_queryset(self):
-        qs = PointControleDetail.objects.select_related('element', 'fiche')
+        qs = PointControleDetail.objects.select_related('element', 'fiche').filter(
+            fiche__in=fiches_visibles(self.request.user)
+        )
         fiche_id = self.request.query_params.get('fiche')
         if fiche_id:
             qs = qs.filter(fiche__id=fiche_id)
         return qs
 
     def perform_create(self, serializer):
+        verifier_fiche_visible(self.request.user, serializer.validated_data.get('fiche'))
         point = serializer.save()
         # Recalculer le statut global de la fiche
         fiche = point.fiche
@@ -149,8 +202,8 @@ class PointControleDetailViewSet(viewsets.ModelViewSet):
         if not fiche_id:
             return Response({'detail': 'fiche_id requis.'}, status=400)
         try:
-            fiche = FicheControle.objects.get(id=fiche_id)
-        except FicheControle.DoesNotExist:
+            fiche = fiches_visibles(request.user).get(id=fiche_id)
+        except (FicheControle.DoesNotExist, ValueError, ValidationError):
             return Response({'detail': 'Fiche introuvable.'}, status=404)
 
         saved = []
@@ -175,13 +228,31 @@ class PointControleDetailViewSet(viewsets.ModelViewSet):
 class PhotoControleViewSet(viewsets.ModelViewSet):
     """Upload / suppression des photos d'une fiche."""
     serializer_class   = PhotoControleSerializer
-    permission_classes = [IsAuthenticated]
     parser_classes     = [MultiPartParser, FormParser, JSONParser]
     pagination_class   = None
+    module             = 'controle'
+    permission_classes = [RoleBasedPermission]
+    permission_actions = {'valider': 'valider_fiche'}
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'create': 'operateur',
+        'update': 'operateur',
+        'partial_update': 'operateur',
+        'destroy': 'responsable_flotte',
+        'valider': 'operateur',
+        'rapport': 'operateur',
+        'stats': 'operateur',
+        'bulk_save': 'operateur',
+    }
 
     def get_queryset(self):
-        qs = PhotoControle.objects.all()
+        qs = PhotoControle.objects.filter(fiche__in=fiches_visibles(self.request.user))
         fiche_id = self.request.query_params.get('fiche')
         if fiche_id:
             qs = qs.filter(fiche__id=fiche_id)
         return qs
+
+    def perform_create(self, serializer):
+        verifier_fiche_visible(self.request.user, serializer.validated_data.get('fiche'))
+        serializer.save()
