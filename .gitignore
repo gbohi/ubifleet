@@ -33,9 +33,9 @@ build/
 *.db
 
 # Fichiers générés par Django
-/ubifleet_backend/media/
-/ubifleet_backend/staticfiles/
-/ubifleet_backend/static_root/
+/backend/media/
+/backend/staticfiles/
+/backend/static_root/
 *.log
 
 # Tests / couverture
@@ -49,11 +49,11 @@ coverage.xml
 
 # ─── Node / Angular ───────────────────────────────────────────
 node_modules/
-/ubifleet-angular/dist/
-/ubifleet-angular/.angular/
-/ubifleet-angular/tmp/
-/ubifleet-angular/out-tsc/
-/ubifleet-angular/bazel-out/
+/web/dist/
+/web/.angular/
+/web/tmp/
+/web/out-tsc/
+/web/bazel-out/
 npm-debug.log*
 yarn-error.log*
 .npm/
