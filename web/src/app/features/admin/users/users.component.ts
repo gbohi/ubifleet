@@ -1,12 +1,13 @@
 // UbiFleet — Gestion Utilisateurs (Angular 18)
 import {
   Component, inject, OnInit,
-  ChangeDetectionStrategy, signal
+  ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { UserApiService, AgenceApiService, RoleApiService } from '../../../core/services/api.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { UbiUser, Role, Agence } from '../../../core/models';
 
 @Component({
@@ -22,6 +23,10 @@ export class UsersComponent implements OnInit {
   private userApi   = inject(UserApiService);
   private agenceApi = inject(AgenceApiService);
   private roleApi   = inject(RoleApiService);
+  private auth      = inject(AuthService);
+
+  // « Toutes les agences » n'est proposé qu'aux utilisateurs eux-mêmes sans agence
+  peutChoisirToutesAgences = computed(() => !this.auth.currentUser()?.agence);
 
   users        = signal<UbiUser[]>([]);
   total        = signal(0);

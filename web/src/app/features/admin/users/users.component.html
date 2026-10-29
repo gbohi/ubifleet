@@ -213,7 +213,9 @@
           <div class="form-group">
             <label class="form-label">Agence</label>
             <select formControlName="agence" class="form-control">
-              <option [value]="null">— Toutes les agences —</option>
+              @if (peutChoisirToutesAgences()) {
+                <option [value]="null">— Toutes les agences —</option>
+              }
               @for (a of agences(); track a.id) {
                 <option [value]="a.id">{{ a.nom }}</option>
               }
