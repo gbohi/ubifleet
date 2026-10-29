@@ -2,6 +2,7 @@
 
 from rest_framework import generics, status, viewsets, filters
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -15,7 +16,9 @@ from .serializers import (
     UbiFleetTokenObtainSerializer, ResetProfileSerializer,
     PermissionRoleSerializer,
 )
-from .permissions import IsSuperAdmin, IsAdminOrReadOnly, CanManageUsers, IsFleetManager
+from .permissions import (
+    IsSuperAdmin, IsAdminOrReadOnly, CanManageUsers, IsFleetManager, can_manage_user,
+)
 
 
 class LoginView(TokenObtainPairView):
@@ -35,17 +38,14 @@ class LogoutView(generics.GenericAPIView):
             return Response({'detail': 'Token invalide.'}, status=400)
 
 
-class MeView(generics.RetrieveUpdateAPIView):
+class MeView(generics.RetrieveAPIView):
+    """Lecture seule : la mise à jour du profil passe par /me/profile/,
+    qui n'expose ni le rôle ni le statut actif (anti auto-promotion)."""
     serializer_class   = UserSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
         return self.request.user
-
-    def get_serializer_class(self):
-        if self.request.method in ('PUT', 'PATCH'):
-            return UserUpdateSerializer
-        return UserSerializer
 
 
 class ChangePasswordView(generics.UpdateAPIView):
@@ -127,9 +127,17 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'destroy':
             return [IsSuperAdmin()]
-        if self.action in ['list', 'retrieve']:
-            return [CanManageUsers()]
         return [CanManageUsers()]
+
+    def get_object(self):
+        """Interdit de modifier un compte de niveau égal ou supérieur au sien
+        (hors super admin), pour empêcher toute prise de contrôle."""
+        user = super().get_object()
+        if self.action not in ('retrieve',) and not can_manage_user(self.request.user, user):
+            raise PermissionDenied(
+                "Vous ne pouvez pas agir sur un compte de niveau égal ou supérieur au vôtre."
+            )
+        return user
 
     def get_serializer_class(self):
         if self.action == 'create':

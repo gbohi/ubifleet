@@ -42,6 +42,22 @@ def has_min_niveau(user, niveau: int) -> bool:
     return get_user_niveau(user) >= niveau
 
 
+def can_assign_role(user, role) -> bool:
+    """Un utilisateur ne peut attribuer qu'un rôle de niveau strictement
+    inférieur au sien ; seul le super admin attribue n'importe quel rôle."""
+    if has_min_niveau(user, NIVEAU_SUPER_ADMIN):
+        return True
+    return role is None or role.niveau < get_user_niveau(user)
+
+
+def can_manage_user(user, target) -> bool:
+    """Un utilisateur ne peut gérer qu'un compte de niveau strictement
+    inférieur au sien ; seul le super admin gère tous les comptes."""
+    if has_min_niveau(user, NIVEAU_SUPER_ADMIN):
+        return True
+    return get_user_niveau(target) < get_user_niveau(user)
+
+
 # ── Permissions fixes (pour l'admin système) ─────────────────────────
 
 class IsSuperAdmin(BasePermission):

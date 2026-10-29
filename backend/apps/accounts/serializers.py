@@ -4,6 +4,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.password_validation import validate_password
 from .models import User, Agence, Role, PermissionRole
+from .permissions import can_assign_role
 
 
 class AgenceSerializer(serializers.ModelSerializer):
@@ -66,7 +67,20 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'date_joined']
 
 
-class UserCreateSerializer(serializers.ModelSerializer):
+class RoleAssignmentMixin:
+    """Refuse l'attribution d'un rôle de niveau égal ou supérieur à celui
+    de l'utilisateur connecté (hors super admin)."""
+
+    def validate_role(self, value):
+        request = self.context.get('request')
+        if request and not can_assign_role(request.user, value):
+            raise serializers.ValidationError(
+                "Vous ne pouvez pas attribuer un rôle de niveau égal ou supérieur au vôtre."
+            )
+        return value
+
+
+class UserCreateSerializer(RoleAssignmentMixin, serializers.ModelSerializer):
     password  = serializers.CharField(write_only=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True)
 
@@ -88,7 +102,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         return User.objects.create_user(**validated_data)
 
 
-class UserUpdateSerializer(serializers.ModelSerializer):
+class UserUpdateSerializer(RoleAssignmentMixin, serializers.ModelSerializer):
     class Meta:
         model  = User
         fields = [

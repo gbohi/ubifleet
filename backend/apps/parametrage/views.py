@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Parametre
 from .serializers import ParametreSerializer
-from apps.accounts.permissions import IsSuperAdmin
+from apps.accounts.permissions import IsSuperAdmin, IsFleetManager
 
 
 class ParametreViewSet(viewsets.ModelViewSet):
@@ -24,7 +24,7 @@ class ParametreViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         # bulk_update pour les admins (niveau >= 6)
         if self.action == 'bulk_update':
-            return [IsAuthenticated()]
+            return [IsFleetManager()]
         return [IsSuperAdmin()]
 
     @action(detail=False, methods=['get'])
