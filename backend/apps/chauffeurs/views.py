@@ -5,6 +5,9 @@ from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.accounts.permissions import RoleBasedPermission
+from apps.core.agences import (
+    AgenceMixin, agence_effective, agence_pour_creation, controler_agence, filtrer_par_agence,
+)
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Sum, Count
@@ -43,13 +46,17 @@ class ChauffeurViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Chauffeur.objects.select_related('agence', 'user').prefetch_related('vehicule_attitré')
-        user = self.request.user
-        if not user.is_admin_level() and user.agence:
-            qs = qs.filter(agence=user.agence)
-        return qs
+        return filtrer_par_agence(qs, self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        user = self.request.user
+        controler_agence(user, serializer.validated_data)
+        serializer.save(created_by=user,
+                        agence=agence_pour_creation(user, serializer.validated_data.get('agence')))
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
 
     @action(detail=False, methods=['get'])
     def permis_expirant(self, request):

@@ -54,11 +54,19 @@ class WorkflowDemandesTests(UtilisateursMixin, APITestCase):
         self.assertEqual(self.client.delete(self.url(d)).status_code, 404)
         self.assertTrue(Demande.objects.filter(pk=d.pk).exists())
 
-    def test_validateur_d_une_autre_agence_voit_la_demande(self):
+    def test_validateur_d_une_autre_agence_ne_voit_pas_la_demande(self):
         d = self.creer_demande(statut=Demande.Statut.SOUMISE)
         gest_b = self.creer_utilisateur('gest_b', 'gestionnaire', self.agence_b)
         self.client.force_authenticate(gest_b)
-        self.assertEqual(self.client.get(self.url(d)).status_code, 200)
+        self.assertEqual(self.client.get(self.url(d)).status_code, 404)
+        self.assertEqual(self.client.post(self.url(d, 'valider')).status_code, 404)
+        self.assertEqual(self.client.get(reverse('demande-a-valider')).data, [])
+
+    def test_validateur_toutes_agences(self):
+        d = self.creer_demande(statut=Demande.Statut.SOUMISE)
+        gest_global = self.creer_utilisateur('gest_global', 'gestionnaire', None)
+        self.client.force_authenticate(gest_global)
+        self.assertEqual(self.client.post(self.url(d, 'valider')).status_code, 200)
 
     # ── Modification ──────────────────────────────────────────────────
     def test_seul_le_demandeur_modifie(self):

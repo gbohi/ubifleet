@@ -3,6 +3,7 @@
 from datetime import time as datetime_time
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -17,6 +18,10 @@ from .serializers import (
     DotationSerializer, StationSerializer, RapprochementSerializer
 )
 from apps.accounts.permissions import IsFleetManager, RoleBasedPermission
+from apps.core.agences import (
+    AgenceMixin, agence_pour_creation, controler_agence,
+    filtrer_par_agence, filtrer_transactions_total, voit_toutes_agences,
+)
 
 
 class PleinFilter(FilterSet):
@@ -69,15 +74,17 @@ class PleinViewSet(viewsets.ModelViewSet):
         qs = PleinsCarburant.objects.select_related(
             'vehicule', 'chauffeur', 'station', 'agence', 'valide_par'
         )
-        user = self.request.user
-        if not user.is_admin_level() and user.agence:
-            qs = qs.filter(agence=user.agence)
-        return qs
+        return filtrer_par_agence(qs, self.request.user)
 
     def perform_create(self, serializer):
         user = self.request.user
-        agence = serializer.validated_data.get('agence') or user.agence
+        controler_agence(user, serializer.validated_data)
+        agence = agence_pour_creation(user, serializer.validated_data.get('agence'))
         serializer.save(created_by=user, agence=agence)
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def valider(self, request, pk=None):
@@ -434,10 +441,10 @@ class PleinViewSet(viewsets.ModelViewSet):
             }
 
         # ── Côté Total ───────────────────────────────────────────────
-        qs_total = TransactionCarburant.objects.filter(
+        qs_total = filtrer_transactions_total(TransactionCarburant.objects.filter(
             date_transaction__gte=date_debut,
             date_transaction__lte=date_fin,
-        ).exclude(immatriculation='').exclude(immatriculation__isnull=True)
+        ).exclude(immatriculation='').exclude(immatriculation__isnull=True), request.user)
         if immat:
             qs_total = qs_total.filter(immatriculation__icontains=immat)
 
@@ -652,7 +659,7 @@ class PleinViewSet(viewsets.ModelViewSet):
         })
 
 
-class DotationViewSet(viewsets.ModelViewSet):
+class DotationViewSet(AgenceMixin, viewsets.ModelViewSet):
     serializer_class = DotationSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['vehicule', 'mois', 'annee']
@@ -670,8 +677,10 @@ class DotationViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         return [RoleBasedPermission()]
 
+    champ_agence = 'vehicule__agence'
+
     def get_queryset(self):
-        return DotationCarburant.objects.select_related('vehicule')
+        return self.filtrer_agence(DotationCarburant.objects.select_related('vehicule'))
 
 
 class StationViewSet(viewsets.ModelViewSet):
@@ -691,10 +700,33 @@ class StationViewSet(viewsets.ModelViewSet):
     filterset_fields = ['agence', 'est_partenaire', 'is_active']
 
     def get_queryset(self):
-        return Station.objects.filter(is_active=True)
+        # Stations de son agence et stations communes (sans agence)
+        qs = Station.objects.filter(is_active=True)
+        user = self.request.user
+        if not voit_toutes_agences(user):
+            qs = qs.filter(Q(agence__isnull=True) | Q(agence_id=user.agence_id))
+        return qs
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(agence=agence_pour_creation(user, serializer.validated_data.get('agence')))
+
+    def _verifier_station_modifiable(self, station):
+        # Une station commune n'est modifiable que par « Toutes les agences »
+        if station.agence_id is None and not voit_toutes_agences(self.request.user):
+            raise PermissionDenied("Station commune : modification réservée aux utilisateurs « Toutes les agences ».")
+
+    def perform_update(self, serializer):
+        self._verifier_station_modifiable(serializer.instance)
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._verifier_station_modifiable(instance)
+        instance.delete()
 
 
-class RapprochementViewSet(viewsets.ModelViewSet):
+class RapprochementViewSet(AgenceMixin, viewsets.ModelViewSet):
     serializer_class = RapprochementSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['agence', 'station', 'mois', 'annee', 'statut']
@@ -712,5 +744,7 @@ class RapprochementViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         return [RoleBasedPermission()]
 
+    agence_a_la_creation = True
+
     def get_queryset(self):
-        return RapprochementCarburant.objects.select_related('agence', 'station')
+        return self.filtrer_agence(RapprochementCarburant.objects.select_related('agence', 'station'))

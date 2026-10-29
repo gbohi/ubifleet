@@ -5,6 +5,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from apps.accounts.permissions import RoleBasedPermission
+from apps.core.agences import (
+    AgenceMixin, agence_effective, agence_pour_creation, controler_agence, filtrer_par_agence,
+)
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from django_filters import rest_framework as df
 from django.db.models import Sum, Count
@@ -34,7 +37,7 @@ class DepenseFilter(FilterSet):
 from .serializers import BudgetAnnuelSerializer, DepenseSerializer
 
 
-class BudgetViewSet(viewsets.ModelViewSet):
+class BudgetViewSet(AgenceMixin, viewsets.ModelViewSet):
     """
     CRUD budgets annuels.
     GET /budgets/tableau_de_bord/ — synthèse budgétaire multi-agences
@@ -58,19 +61,19 @@ class BudgetViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['agence', 'annee']
 
+    agence_a_la_creation = True
+
     def get_queryset(self):
-        return BudgetAnnuel.objects.select_related('agence')
+        return self.filtrer_agence(BudgetAnnuel.objects.select_related('agence'))
 
     @action(detail=False, methods=['get'])
     def tableau_de_bord(self, request):
         annee = request.query_params.get('annee', timezone.now().year)
-        agence_id = request.query_params.get('agence')
+        agence_id = agence_effective(request.user, request.query_params.get('agence'))
 
         qs = DepenseVehicule.objects.filter(date_depense__year=annee)
         if agence_id:
             qs = qs.filter(agence_id=agence_id)
-        elif not request.user.is_admin_level() and request.user.agence:
-            qs = qs.filter(agence=request.user.agence)
 
         global_agg = qs.aggregate(total=Sum('montant'))
         par_categorie = list(
@@ -142,13 +145,16 @@ class DepenseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = DepenseVehicule.objects.select_related('vehicule', 'agence')
-        user = self.request.user
-        if not user.is_admin_level() and user.agence:
-            qs = qs.filter(agence=user.agence)
-        return qs
+        return filtrer_par_agence(qs, self.request.user)
 
     def perform_create(self, serializer):
+        user = self.request.user
+        controler_agence(user, serializer.validated_data)
         serializer.save(
-            created_by=self.request.user,
-            agence=serializer.validated_data.get('agence') or self.request.user.agence
+            created_by=user,
+            agence=agence_pour_creation(user, serializer.validated_data.get('agence'))
         )
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()

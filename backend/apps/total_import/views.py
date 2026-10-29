@@ -2,6 +2,7 @@
 
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
@@ -11,6 +12,7 @@ from .models import TransactionCarburant, ImportTotal
 from .serializers import TransactionCarburantSerializer, ImportTotalSerializer
 from .importeur import importer_fichier
 from apps.accounts.permissions import RoleBasedPermission, IsGestionnaire
+from apps.core.agences import filtrer_par_agence, filtrer_transactions_total, voit_toutes_agences
 
 
 class ImportTotalViewSet(viewsets.ReadOnlyModelViewSet):
@@ -31,6 +33,10 @@ class ImportTotalViewSet(viewsets.ReadOnlyModelViewSet):
         POST /total-import/upload/
         Paramètre : fichier (multipart)
         """
+        if not voit_toutes_agences(request.user):
+            raise PermissionDenied(
+                "L'import concerne toutes les agences : réservé aux utilisateurs « Toutes les agences »."
+            )
         fichier = request.FILES.get('fichier')
         if not fichier:
             return Response(
@@ -121,6 +127,9 @@ class TransactionCarburantViewSet(viewsets.ReadOnlyModelViewSet):
     ]
     ordering_fields  = ['date_transaction', 'heure_transaction', 'montant', 'volume']
 
+    def get_queryset(self):
+        return filtrer_transactions_total(super().get_queryset(), self.request.user)
+
     @action(detail=False, methods=['get'])
     def consommation(self, request):
         """
@@ -141,10 +150,10 @@ class TransactionCarburantViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         # Toutes les transactions sur la période (pas de filtre sur statut)
-        qs = TransactionCarburant.objects.filter(
+        qs = filtrer_transactions_total(TransactionCarburant.objects.filter(
             date_transaction__gte=date_debut,
             date_transaction__lte=date_fin,
-        ).exclude(immatriculation='').exclude(immatriculation__isnull=True)
+        ).exclude(immatriculation='').exclude(immatriculation__isnull=True), request.user)
         if immat:     qs = qs.filter(immatriculation__icontains=immat)
         if chauffeur: qs = qs.filter(nom_chauffeur__icontains=chauffeur)
 
@@ -206,10 +215,10 @@ class TransactionCarburantViewSet(viewsets.ReadOnlyModelViewSet):
                 status=400
             )
 
-        qs = TransactionCarburant.objects.filter(
+        qs = filtrer_transactions_total(TransactionCarburant.objects.filter(
             date_transaction__gte=date_debut,
             date_transaction__lte=date_fin,
-        )
+        ), request.user)
         if immat:     qs = qs.filter(immatriculation__icontains=immat)
         if num_chauf: qs = qs.filter(numero_chauffeur__icontains=num_chauf)
 
@@ -335,10 +344,10 @@ class ReconciliationViewSet(viewsets.ViewSet):
             return Response({'detail': 'date_debut et date_fin sont requis.'}, status=400)
 
         # ── Transactions Total ──────────────────────────────────────────
-        qs_total = TransactionCarburant.objects.filter(
+        qs_total = filtrer_transactions_total(TransactionCarburant.objects.filter(
             date_transaction__gte=date_debut,
             date_transaction__lte=date_fin,
-        ).exclude(immatriculation='').exclude(immatriculation__isnull=True)
+        ).exclude(immatriculation='').exclude(immatriculation__isnull=True), request.user)
 
         if immat:     qs_total = qs_total.filter(immatriculation__icontains=immat)
         if num_chauf: qs_total = qs_total.filter(numero_chauffeur__icontains=num_chauf)
@@ -350,10 +359,10 @@ class ReconciliationViewSet(viewsets.ViewSet):
         ))
 
         # ── Pleins UbiFleet ─────────────────────────────────────────────
-        qs_ubi = PleinsCarburant.objects.filter(
+        qs_ubi = filtrer_par_agence(PleinsCarburant.objects.filter(
             date_plein__gte=date_debut,
             date_plein__lte=date_fin,
-        ).select_related('vehicule', 'chauffeur', 'station')
+        ).select_related('vehicule', 'chauffeur', 'station'), request.user)
 
         if immat: qs_ubi = qs_ubi.filter(vehicule__immatriculation__icontains=immat)
 

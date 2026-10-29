@@ -6,6 +6,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from apps.accounts.permissions import RoleBasedPermission
+from apps.core.agences import (
+    AgenceMixin, agence_effective, agence_pour_creation, controler_agence, filtrer_par_agence,
+)
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Sum, Count
 from django.utils import timezone
@@ -46,16 +49,19 @@ class SinistreViewSet(viewsets.ModelViewSet):
         qs = Sinistre.objects.select_related(
             'vehicule', 'chauffeur', 'contrat_assurance', 'agence'
         ).prefetch_related('pièces_jointes')
-        user = self.request.user
-        if not user.is_admin_level() and user.agence:
-            qs = qs.filter(agence=user.agence)
-        return qs
+        return filtrer_par_agence(qs, self.request.user)
 
     def perform_create(self, serializer):
+        user = self.request.user
+        controler_agence(user, serializer.validated_data)
         serializer.save(
-            created_by=self.request.user,
-            agence=serializer.validated_data.get('agence') or self.request.user.agence
+            created_by=user,
+            agence=agence_pour_creation(user, serializer.validated_data.get('agence'))
         )
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     def changer_statut(self, request, pk=None):
@@ -96,7 +102,7 @@ class SinistreViewSet(viewsets.ModelViewSet):
         })
 
 
-class ContratAssuranceViewSet(viewsets.ModelViewSet):
+class ContratAssuranceViewSet(AgenceMixin, viewsets.ModelViewSet):
     """
     CRUD contrats d'assurance.
     GET /contrats/expirant_bientot/ — contrats expirant dans 30 jours
@@ -121,8 +127,10 @@ class ContratAssuranceViewSet(viewsets.ModelViewSet):
     filterset_fields = ['vehicule', 'assureur', 'type_contrat', 'is_active']
     search_fields = ['numero_police', 'vehicule__immatriculation']
 
+    champ_agence = 'vehicule__agence'
+
     def get_queryset(self):
-        return ContratAssurance.objects.select_related('vehicule', 'assureur')
+        return self.filtrer_agence(ContratAssurance.objects.select_related('vehicule', 'assureur'))
 
     @action(detail=False, methods=['get'])
     def expirant_bientot(self, request):

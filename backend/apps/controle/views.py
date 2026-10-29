@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from apps.accounts.permissions import RoleBasedPermission
+from apps.core.agences import agence_pour_creation, controler_agence, filtrer_par_agence
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q
@@ -20,12 +21,9 @@ from .serializers import (
 
 
 def fiches_visibles(user):
-    """Fiches accessibles : toutes pour le niveau responsable flotte et plus,
-    sinon celles de l'agence de l'utilisateur."""
-    qs = FicheControle.objects.all()
-    if not user.is_admin_level() and user.agence:
-        qs = qs.filter(agence=user.agence)
-    return qs
+    """Fiches accessibles : celles de l'agence de l'utilisateur (toutes s'il
+    n'est rattaché à aucune agence)."""
+    return filtrer_par_agence(FicheControle.objects.all(), user)
 
 
 def verifier_fiche_visible(user, fiche):
@@ -104,8 +102,13 @@ class FicheControleViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        agence = serializer.validated_data.get('agence') or getattr(user, 'agence', None)
+        controler_agence(user, serializer.validated_data)
+        agence = agence_pour_creation(user, serializer.validated_data.get('agence'))
         serializer.save(created_by=user, agence=agence)
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     def valider(self, request, pk=None):

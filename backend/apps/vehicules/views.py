@@ -9,6 +9,8 @@ from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from django_filters import rest_framework as df
 from datetime import date
 
+from django.shortcuts import get_object_or_404
+
 from django.utils import timezone
 from django.db.models import Count, Avg, Sum, Q
 
@@ -22,6 +24,10 @@ from .serializers import (
     TypeDocumentVehiculeSerializer,
 )
 from apps.accounts.permissions import IsFleetManager, IsAgenceUser, RoleBasedPermission
+from apps.core.agences import (
+    agence_effective, agence_pour_creation, controler_agence,
+    filtrer_par_agence, filtrer_transactions_total,
+)
 
 
 class VehiculeFilter(FilterSet):
@@ -78,10 +84,7 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         qs = Vehicule.objects.select_related(
             'agence', 'chauffeur_attitré', 'created_by'
         ).filter(is_active=True)
-        user = self.request.user
-        if not user.is_admin_level() and user.agence:
-            qs = qs.filter(agence=user.agence)
-        return qs
+        return filtrer_par_agence(qs, self.request.user)
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -91,7 +94,14 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         return VehiculeListSerializer
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        user = self.request.user
+        controler_agence(user, serializer.validated_data)
+        serializer.save(created_by=user,
+                        agence=agence_pour_creation(user, serializer.validated_data.get('agence')))
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
 
     def destroy(self, request, *args, **kwargs):
         """Soft delete."""
@@ -475,12 +485,15 @@ class DocumentVehiculeViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return DocumentVehicule.objects.filter(
+        return filtrer_par_agence(DocumentVehicule.objects.filter(
             vehicule__id=self.kwargs.get('vehicule_pk')
-        )
+        ), self.request.user, 'vehicule__agence')
 
     def perform_create(self, serializer):
-        vehicule = Vehicule.objects.get(pk=self.kwargs['vehicule_pk'])
+        vehicule = get_object_or_404(
+            filtrer_par_agence(Vehicule.objects.all(), self.request.user),
+            pk=self.kwargs['vehicule_pk'],
+        )
         serializer.save(vehicule=vehicule, created_by=self.request.user)
 
 
@@ -508,11 +521,16 @@ class ReleveKilometrageViewSet(viewsets.ModelViewSet):
     ordering_fields  = ['date_releve', 'kilometrage', 'created_at']
 
     def get_queryset(self):
-        return ReleveKilometrage.objects.select_related(
+        return filtrer_par_agence(ReleveKilometrage.objects.select_related(
             'vehicule', 'created_by'
-        ).all()
+        ), self.request.user, 'vehicule__agence')
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
 
     def perform_create(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
         serializer.save(created_by=self.request.user)
         # Mettre à jour le kilométrage du véhicule si le relevé est plus récent
         instance = serializer.instance
@@ -540,9 +558,9 @@ class HistoriqueImmatriculationViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields  = ['date_changement', 'created_at']
 
     def get_queryset(self):
-        return HistoriqueImmatriculation.objects.select_related(
+        return filtrer_par_agence(HistoriqueImmatriculation.objects.select_related(
             'vehicule', 'created_by'
-        ).all()
+        ), self.request.user, 'vehicule__agence')
 
 
 
@@ -565,16 +583,16 @@ class ConsommationKmView(viewsets.ViewSet):
         date_debut = request.query_params.get('date_debut')
         date_fin   = request.query_params.get('date_fin')
         vehicule_id= request.query_params.get('vehicule', '').strip()
-        agence_id  = request.query_params.get('agence', '').strip()
+        agence_id  = agence_effective(request.user, request.query_params.get('agence', '').strip())
 
         if not date_debut or not date_fin:
             return Response({'detail': 'date_debut et date_fin sont requis.'}, status=400)
 
         # ── Distance parcourue depuis relevés km ─────────────────────
-        qs_releves = ReleveKilometrage.objects.filter(
+        qs_releves = filtrer_par_agence(ReleveKilometrage.objects.filter(
             date_releve__gte=date_debut,
             date_releve__lte=date_fin,
-        ).select_related('vehicule')
+        ).select_related('vehicule'), request.user, 'vehicule__agence')
         if vehicule_id:
             # Filtrer par immatriculation (courante ou ancienne)
             from apps.vehicules.models import HistoriqueImmatriculation
@@ -611,10 +629,10 @@ class ConsommationKmView(viewsets.ViewSet):
             }
 
         # ── Volume carburant depuis TransactionCarburant Total ────────
-        qs_total = TransactionCarburant.objects.filter(
+        qs_total = filtrer_transactions_total(TransactionCarburant.objects.filter(
             date_transaction__gte=date_debut,
             date_transaction__lte=date_fin,
-        ).exclude(immatriculation='').exclude(immatriculation__isnull=True)
+        ).exclude(immatriculation='').exclude(immatriculation__isnull=True), request.user)
         if vehicule_id:
             # Chercher par immatriculation courante ou ancienne
             immat = vehicule_id.upper().strip()
@@ -744,12 +762,17 @@ class AffectationVehiculeViewSet(viewsets.ModelViewSet):
     ordering_fields    = ['date_debut', 'created_at']
 
     def get_queryset(self):
-        return AffectationVehicule.objects.select_related(
+        return filtrer_par_agence(AffectationVehicule.objects.select_related(
             'vehicule', 'chauffeur', 'created_by'
-        ).all()
+        ), self.request.user, 'vehicule__agence')
 
     def perform_create(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
         serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
 
 
 class HistoriqueStatutVehiculeViewSet(viewsets.ModelViewSet):
@@ -778,7 +801,12 @@ class HistoriqueStatutVehiculeViewSet(viewsets.ModelViewSet):
         vehicule_id = self.request.query_params.get('vehicule') or self.kwargs.get('vehicule_pk')
         if vehicule_id:
             qs = qs.filter(vehicule__id=vehicule_id)
-        return qs
+        return filtrer_par_agence(qs, self.request.user, 'vehicule__agence')
 
     def perform_create(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
         serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()

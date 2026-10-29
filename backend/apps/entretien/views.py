@@ -18,6 +18,9 @@ from .serializers import (
     PrestataireSerializer, PneusSerializer
 )
 from apps.accounts.permissions import IsFleetManager, RoleBasedPermission
+from apps.core.agences import (
+    AgenceMixin, agence_effective, agence_pour_creation, controler_agence, filtrer_par_agence,
+)
 
 
 class InterventionViewSet(viewsets.ModelViewSet):
@@ -56,16 +59,19 @@ class InterventionViewSet(viewsets.ModelViewSet):
         qs = Intervention.objects.select_related(
             'vehicule', 'type_intervention', 'prestataire', 'agence'
         )
-        user = self.request.user
-        if not user.is_admin_level() and user.agence:
-            qs = qs.filter(agence=user.agence)
-        return qs
+        return filtrer_par_agence(qs, self.request.user)
 
     def perform_create(self, serializer):
+        user = self.request.user
+        controler_agence(user, serializer.validated_data)
         serializer.save(
-            created_by=self.request.user,
-            agence=serializer.validated_data.get('agence') or self.request.user.agence
+            created_by=user,
+            agence=agence_pour_creation(user, serializer.validated_data.get('agence'))
         )
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     def demarrer(self, request, pk=None):
@@ -162,7 +168,7 @@ class TypeInterventionViewSet(viewsets.ModelViewSet):
     filterset_fields = ['categorie']
 
 
-class PrestataireViewSet(viewsets.ModelViewSet):
+class PrestataireViewSet(AgenceMixin, viewsets.ModelViewSet):
     serializer_class = PrestataireSerializer
     module   = 'parametres'
     permission_classes = [RoleBasedPermission]
@@ -178,11 +184,18 @@ class PrestataireViewSet(viewsets.ModelViewSet):
     search_fields = ['nom', 'ville']
     filterset_fields = ['agence', 'is_active']
 
+    agence_a_la_creation = True
+
     def get_queryset(self):
-        return Prestataire.objects.filter(is_active=True)
+        # Prestataires de son agence et prestataires communs (sans agence)
+        qs = Prestataire.objects.filter(is_active=True)
+        user = self.request.user
+        if user.agence_id:
+            qs = qs.filter(Q(agence__isnull=True) | Q(agence_id=user.agence_id))
+        return qs
 
 
-class PneusViewSet(viewsets.ModelViewSet):
+class PneusViewSet(AgenceMixin, viewsets.ModelViewSet):
     serializer_class = PneusSerializer
     module   = 'entretien'
     permission_classes = [RoleBasedPermission]
@@ -198,8 +211,10 @@ class PneusViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['vehicule', 'statut', 'position']
 
+    champ_agence = 'vehicule__agence'
+
     def get_queryset(self):
-        return SuiviPneus.objects.select_related('vehicule')
+        return self.filtrer_agence(SuiviPneus.objects.select_related('vehicule'))
 
     @action(detail=False, methods=['get'])
     def a_changer(self, request):
@@ -226,7 +241,7 @@ def get_urlpatterns():
     return [path('', include(router.urls))]
 
 
-class DocumentInterventionViewSet(viewsets.ModelViewSet):
+class DocumentInterventionViewSet(AgenceMixin, viewsets.ModelViewSet):
     """Upload et gestion des documents liés à une intervention."""
     serializer_class   = DocumentInterventionSerializer
     module             = 'entretien'
@@ -250,7 +265,6 @@ class DocumentInterventionViewSet(viewsets.ModelViewSet):
         type_doc = self.request.query_params.get('type_doc')
         if type_doc:
             qs = qs.filter(type_doc=type_doc)
-        return qs
+        return self.filtrer_agence(qs)
 
-    def perform_create(self, serializer):
-        serializer.save()
+    champ_agence = 'intervention__agence'

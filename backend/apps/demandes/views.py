@@ -22,24 +22,22 @@ from .serializers import (
     DemandeListSerializer, DemandeDetailSerializer, DemandeWriteSerializer,
 )
 from apps.accounts.permissions import IsSuperAdmin, RoleBasedPermission
+from apps.core.agences import (
+    agence_pour_creation, controler_agence, filtrer_par_agence, voit_toutes_agences,
+)
 
 
 # ── Règles d'accès aux demandes ───────────────────────────────────────
 
 def demandes_visibles(user):
-    """Demandes qu'un utilisateur peut consulter : les siennes, celles de son
-    agence, celles qu'il a validées ou dont il est validateur potentiel
-    (rôle requis sur un niveau du type). Toutes à partir du niveau
-    responsable flotte."""
+    """Demandes consultables : celles de son agence (toutes sans agence de
+    rattachement), plus ses propres demandes et celles qu'il a traitées."""
     qs = Demande.objects.all()
-    if user.is_admin_level():
+    if voit_toutes_agences(user):
         return qs
-    filtre = Q(demandeur=user) | Q(validations__validateur=user)
-    if user.agence_id:
-        filtre |= Q(agence_id=user.agence_id)
-    if user.role_id:
-        filtre |= Q(type_demande__niveaux__role_min_id=user.role_id)
-    return qs.filter(filtre).distinct()
+    return qs.filter(
+        Q(agence_id=user.agence_id) | Q(demandeur=user) | Q(validations__validateur=user)
+    ).distinct()
 
 
 def verifier_modifiable(user, demande):
@@ -394,8 +392,8 @@ class DemandeViewSet(viewsets.ModelViewSet):
                            validations__decision='approuve').distinct()
         elif vue == 'agence' and getattr(user, 'agence', None):
             qs = qs.filter(agence=user.agence)
-        elif vue == 'toutes' and user.is_admin_level():
-            pass
+        elif vue == 'toutes':
+            qs = filtrer_par_agence(qs, user)
         else:
             qs = qs.filter(demandeur=user)
 
@@ -410,11 +408,13 @@ class DemandeViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user   = self.request.user
-        agence = serializer.validated_data.get('agence') or getattr(user, 'agence', None)
+        controler_agence(user, serializer.validated_data)
+        agence = agence_pour_creation(user, serializer.validated_data.get('agence'))
         serializer.save(demandeur=user, created_by=user, agence=agence)
 
     def perform_update(self, serializer):
         verifier_modifiable(self.request.user, serializer.instance)
+        controler_agence(self.request.user, serializer.validated_data)
         serializer.save()
 
     def perform_destroy(self, instance):
@@ -569,11 +569,12 @@ class DemandeViewSet(viewsets.ModelViewSet):
         user      = request.user
         user_role = getattr(user, 'role', None)
 
-        # Seul le super admin (niveau 10) voit toutes les demandes en attente
+        # Le super admin voit toutes les demandes en attente (de son agence
+        # s'il est rattaché à une agence)
         if user.is_super_admin:
-            qs = Demande.objects.filter(
+            qs = filtrer_par_agence(Demande.objects.filter(
                 statut__in=['soumise', 'en_validation']
-            ).select_related('type_demande', 'demandeur', 'agence')
+            ), user).select_related('type_demande', 'demandeur', 'agence')
             return Response(DemandeListSerializer(qs, many=True).data)
 
         if not user_role:
@@ -592,9 +593,9 @@ class DemandeViewSet(viewsets.ModelViewSet):
         for type_id, niveau in niveaux:
             filtre |= Q(type_demande_id=type_id, niveau_actuel=niveau)
 
-        qs = Demande.objects.filter(
+        qs = filtrer_par_agence(Demande.objects.filter(
             statut__in=['soumise', 'en_validation']
-        ).filter(filtre).exclude(demandeur=user).select_related(
+        ), user).filter(filtre).exclude(demandeur=user).select_related(
             'type_demande', 'demandeur', 'agence'
         ).distinct()
 

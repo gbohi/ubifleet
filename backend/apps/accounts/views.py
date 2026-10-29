@@ -20,6 +20,10 @@ from .serializers import (
 from .permissions import (
     IsSuperAdmin, IsAdminOrReadOnly, CanManageUsers, IsFleetManager, can_manage_user,
 )
+from apps.core.agences import (
+    MESSAGE_AUTRE_AGENCE, agence_pour_creation, controler_agence,
+    filtrer_par_agence, voit_toutes_agences,
+)
 
 
 class LoginView(TokenObtainPairView):
@@ -119,6 +123,24 @@ class RoleViewSet(viewsets.ModelViewSet):
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.select_related('agence', 'role').order_by('-date_joined')
+
+    def get_queryset(self):
+        # Un gestionnaire rattaché à une agence ne voit que ses utilisateurs
+        return filtrer_par_agence(super().get_queryset(), self.request.user)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(agence=agence_pour_creation(user, serializer.validated_data.get('agence')))
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        # Rattaché à une agence : impossible de passer un compte en
+        # « Toutes les agences » (agence vide) ou dans une autre agence.
+        if not voit_toutes_agences(user) and 'agence' in serializer.validated_data \
+                and serializer.validated_data['agence'] is None:
+            raise PermissionDenied(MESSAGE_AUTRE_AGENCE)
+        controler_agence(user, serializer.validated_data)
+        serializer.save()
     module   = 'users'
     filter_backends  = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['role', 'agence', 'is_active']
@@ -168,12 +190,37 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 class AgenceViewSet(viewsets.ModelViewSet):
+    """Lecture pour tous (listes déroulantes). Un utilisateur rattaché à une
+    agence ne voit et ne peut modifier que la sienne, et ne peut pas en créer."""
     module             = 'agences'
     queryset           = Agence.objects.filter(is_active=True)
     serializer_class   = AgenceSerializer
     permission_classes = [IsAdminOrReadOnly]
     filter_backends    = [filters.SearchFilter]
     search_fields      = ['nom', 'code', 'ville']
+
+    def get_queryset(self):
+        # Rattaché à une agence : seule la sienne apparaît (listes, filtres)
+        return filtrer_par_agence(super().get_queryset(), self.request.user, 'pk')
+
+    def _verifier_modifiable(self, agence=None):
+        user = self.request.user
+        if voit_toutes_agences(user):
+            return
+        if agence is None or agence.pk != user.agence_id:
+            raise PermissionDenied(MESSAGE_AUTRE_AGENCE)
+
+    def perform_create(self, serializer):
+        self._verifier_modifiable()
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._verifier_modifiable(serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._verifier_modifiable(instance)
+        instance.delete()
 
 
 class PermissionRoleViewSet(viewsets.ModelViewSet):

@@ -4,6 +4,7 @@ from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.accounts.permissions import RoleBasedPermission
+from apps.core.agences import controler_agence, voit_toutes_agences
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count
 from django.utils import timezone
@@ -54,13 +55,21 @@ class AlerteViewSet(viewsets.ModelViewSet):
 
         # Alertes générales (existantes) : filtrées par agence comme avant
         filtre_general = Q(destinataire__isnull=True)
-        if not user.is_admin_level() and user.agence:
-            filtre_general &= Q(agence=user.agence)
+        if not voit_toutes_agences(user):
+            filtre_general &= Q(agence_id=user.agence_id)
 
         # Alertes personnelles (nouvelles) : ciblées vers cet utilisateur
         filtre_personnel = Q(destinataire=user)
 
         return qs.filter(filtre_general | filtre_personnel)
+
+    def perform_create(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     def traiter(self, request, pk=None):

@@ -8,6 +8,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import Parametre
 from .serializers import ParametreSerializer
 from apps.accounts.permissions import IsSuperAdmin, IsFleetManager, RoleBasedPermission
+from apps.core.agences import controler_agence, filtrer_par_agence, voit_toutes_agences
 
 
 class ReferentielPermissionMixin:
@@ -138,7 +139,7 @@ class TourneeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
     pagination_class   = None
 
     def get_queryset(self):
-        qs = Tournee.objects.select_related('agence')
+        qs = filtrer_par_agence(Tournee.objects.select_related('agence'), self.request.user)
         actif = self.request.query_params.get('actif')
         if actif is not None:
             qs = qs.filter(actif=(actif.lower() == 'true'))
@@ -146,6 +147,14 @@ class TourneeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
         if agence:
             qs = qs.filter(agence__id=agence)
         return qs
+
+    def perform_create(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        controler_agence(self.request.user, serializer.validated_data)
+        serializer.save()
 
     @action(detail=False, methods=['post'],
             parser_classes=[MultiPartParser, FormParser])
@@ -227,7 +236,7 @@ class TourneeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
 
         # ── Index des agences (par code et par nom, insensible à la casse) ──
         agences = {}
-        for a in Agence.objects.all():
+        for a in filtrer_par_agence(Agence.objects.all(), request.user, 'pk'):
             agences[(a.code or '').strip().lower()] = a
             agences[(a.nom or '').strip().lower()]  = a
 
@@ -275,6 +284,12 @@ class TourneeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
                 'km_theorique': en_entier(cell(i_km)),
                 'actif':        en_booleen(cell(i_actif)),
             }
+
+            existante = Tournee.objects.filter(code=code[:20]).first()
+            if existante and not voit_toutes_agences(request.user) \
+                    and existante.agence_id != request.user.agence_id:
+                erreurs.append(f'Ligne {num} : la tournée « {code} » appartient à une autre agence.')
+                continue
 
             try:
                 obj, cree = Tournee.objects.update_or_create(

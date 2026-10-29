@@ -8,16 +8,13 @@ from django.utils import timezone
 import datetime
 
 from apps.accounts.permissions import IsOperateur, IsFleetManager
+from apps.core.agences import agence_effective, voit_toutes_agences
 
 
 def agence_autorisee(request):
-    """Agence à appliquer aux rapports. En dessous du niveau responsable
-    flotte, un utilisateur rattaché à une agence ne voit que la sienne,
-    quel que soit le paramètre ?agence= transmis."""
-    user = request.user
-    if not user.is_admin_level() and user.agence_id:
-        return str(user.agence_id)
-    return request.query_params.get('agence')
+    """Agence à appliquer aux rapports : un utilisateur rattaché à une agence
+    ne voit que la sienne, quel que soit le paramètre ?agence= transmis."""
+    return agence_effective(request.user, request.query_params.get('agence'))
 
 
 class DashboardDGView(APIView):
@@ -40,12 +37,9 @@ class DashboardDGView(APIView):
         annee = int(request.query_params.get('annee', timezone.now().year))
         agence_id = agence_autorisee(request)
 
-        user = request.user
         agence_filter = {}
         if agence_id:
             agence_filter['agence_id'] = agence_id
-        elif not user.is_admin_level() and user.agence:
-            agence_filter['agence'] = user.agence
 
         # Parc
         vehicules = Vehicule.objects.filter(is_active=True, **agence_filter)
@@ -175,8 +169,6 @@ class RapportCarburantView(APIView):
         qs = PleinsCarburant.objects.filter(date_plein__month=mois, date_plein__year=annee)
         if agence_id:
             qs = qs.filter(agence_id=agence_id)
-        elif not request.user.is_admin_level() and request.user.agence:
-            qs = qs.filter(agence=request.user.agence)
 
         par_vehicule = list(
             qs.values(
@@ -235,8 +227,6 @@ class RapportCoutsView(APIView):
         qs = DepenseVehicule.objects.filter(date_depense__year=annee)
         if agence_id:
             qs = qs.filter(agence_id=agence_id)
-        elif not request.user.is_admin_level() and request.user.agence:
-            qs = qs.filter(agence=request.user.agence)
 
         return Response({
             'annee': annee,
@@ -274,6 +264,8 @@ class RapportMultiAgencesView(APIView):
 
         annee = int(request.query_params.get('annee', timezone.now().year))
         agences = Agence.objects.filter(is_active=True)
+        if not voit_toutes_agences(request.user):
+            agences = agences.filter(pk=request.user.agence_id)
         result = []
 
         for agence in agences:
@@ -557,11 +549,8 @@ class RapportEffectifParcView(APIView):
 
         # Filtre agence (paramètre ou restriction utilisateur)
         agence_id = agence_autorisee(request)
-        user = request.user
         if agence_id:
             qs = qs.filter(agence_id=agence_id)
-        elif not user.is_admin_level() and user.agence:
-            qs = qs.filter(agence=user.agence)
 
         total = qs.count()
 

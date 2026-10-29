@@ -1,6 +1,7 @@
 """UbiFleet — Grand Livre Views"""
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
@@ -10,6 +11,7 @@ from .models import ImportGrandLivre, LigneGrandLivre
 from .serializers import ImportGrandLivreSerializer, LigneGrandLivreSerializer
 from .importeur import importer_grand_livre
 from apps.accounts.permissions import IsGestionnaire
+from apps.core.agences import filtrer_grand_livre, voit_toutes_agences
 
 
 class ImportGrandLivreViewSet(viewsets.ReadOnlyModelViewSet):
@@ -26,6 +28,10 @@ class ImportGrandLivreViewSet(viewsets.ReadOnlyModelViewSet):
     )
     def upload(self, request):
         """POST /grand-livre/imports/upload/"""
+        if not voit_toutes_agences(request.user):
+            raise PermissionDenied(
+                "L'import concerne toutes les agences : réservé aux utilisateurs « Toutes les agences »."
+            )
         fichier = request.FILES.get('fichier')
         if not fichier:
             return Response({'detail': 'Aucun fichier fourni.'}, status=400)
@@ -84,6 +90,9 @@ class LigneGrandLivreViewSet(viewsets.ReadOnlyModelViewSet):
         'libelle_ecriture', 'code_agence', 'libelle_agence',
     ]
     ordering_fields  = ['date_analytique', 'date_comptable', 'compte', 'debit', 'credit']
+
+    def get_queryset(self):
+        return filtrer_grand_livre(super().get_queryset(), self.request.user)
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
