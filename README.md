@@ -68,4 +68,8 @@ docker compose up -d
 
 - Les migrations sont versionnées et livrées avec le code.
 - Toujours vérifier `migrate --plan` avant d'appliquer en production.
+- L'historique des migrations a été consolidé (`0001_squashed` par app, qui
+  remplace les anciennes migrations via `replaces`). Sur une base existante,
+  `migrate --plan` ne doit afficher aucune opération : Django enregistre
+  simplement les migrations consolidées, sans exécuter de SQL.
 - Le fichier `.env` n'est jamais commité ; se référer à `.env.example`.

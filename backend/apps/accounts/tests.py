@@ -145,7 +145,7 @@ class SecuriteComptesTests(APITestCase):
 
     # ── /parametrage/bulk_update/ ─────────────────────────────────────
     def test_bulk_update_parametres_refuse_sous_niveau_6(self):
-        Parametre.objects.create(cle='alerte_ct_jours', valeur='30', type_valeur='int', categorie='alertes')
+        Parametre.objects.update_or_create(cle='alerte_ct_jours', defaults={'valeur': '30'})
         self.client.force_authenticate(self.gest)
         resp = self.client.post('/api/v1/parametrage/bulk_update/',
                                 [{'cle': 'alerte_ct_jours', 'valeur': '1'}], format='json')
@@ -153,7 +153,7 @@ class SecuriteComptesTests(APITestCase):
         self.assertEqual(Parametre.objects.get(cle='alerte_ct_jours').valeur, '30')
 
     def test_bulk_update_parametres_ok_pour_flotte(self):
-        Parametre.objects.create(cle='alerte_ct_jours', valeur='30', type_valeur='int', categorie='alertes')
+        Parametre.objects.update_or_create(cle='alerte_ct_jours', defaults={'valeur': '30'})
         self.client.force_authenticate(self.flotte)
         resp = self.client.post('/api/v1/parametrage/bulk_update/',
                                 [{'cle': 'alerte_ct_jours', 'valeur': '15'}], format='json')
