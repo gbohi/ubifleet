@@ -1194,7 +1194,7 @@ export class ParametresComponent implements OnInit {
 
   exportStations(): void {
     this.exporterCsv('stations',
-      ['Nom', 'Ville', 'Agence', 'Partenaire', 'Pleins', 'Active'],
+      ['Nom', 'Ville', 'Agence', 'Partenaire', 'Prises de carburant', 'Active'],
       this.stations().map((x: any) => [x.nom, x.ville ?? '', x.agence_nom ?? 'Toutes', this.ouiNon(x.est_partenaire),
                                         x.nb_utilisations ?? 0, this.ouiNon(x.is_active)]));
   }

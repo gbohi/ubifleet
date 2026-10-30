@@ -132,14 +132,14 @@
           <span class="fiche-section-num">2</span>
           Carburant
           <span class="fiche-section-stats">
-            {{ pleins().length }} plein(s) &bull;
+            {{ pleins().length }} prise(s) de carburant &bull;
             Volume total : {{ totalVolume | number:'1.0-0' }} L &bull;
             Dépenses : {{ totalDepenseCarburant | number:'1.0-0' }} FCFA &bull;
             Conso. moy. : {{ consommationMoyenne | number:'1.1-1' }} L/100km
           </span>
         </div>
         @if (pleins().length === 0) {
-          <div class="fiche-empty">Aucun plein enregistré</div>
+          <div class="fiche-empty">Aucune prise de carburant enregistrée</div>
         } @else {
           <table class="fiche-table">
             <thead>
@@ -166,7 +166,7 @@
               }
               @if (pleins().length > 20) {
                 <tr class="tr-more">
-                  <td colspan="8">... et {{ pleins().length - 20 }} plein(s) supplémentaire(s)</td>
+                  <td colspan="8">... et {{ pleins().length - 20 }} prise(s) de carburant supplémentaire(s)</td>
                 </tr>
               }
             </tbody>

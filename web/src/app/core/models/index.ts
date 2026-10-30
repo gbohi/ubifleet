@@ -363,6 +363,8 @@ export interface Alerte {
   chauffeur_nom: string | null;
   agence: string;
   agence_nom: string;
+  /** Prise de carburant à l'origine d'une alerte « Consommation anormale ». */
+  plein?: string | null;
   date_echeance: string | null;
   created_at: string;
 }

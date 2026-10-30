@@ -16,7 +16,7 @@ class Alerte(UbiFleetBaseModel):
         PERMIS_EXPIRE = 'permis_expire', 'Permis expiré'
         BUDGET_DEPASSE = 'budget_depasse', 'Budget dépassé'
         PNEU_USURE = 'pneu_usure', 'Pneu à changer'
-        PLEIN_ANOMALIE = 'plein_anomalie', 'Anomalie plein carburant'
+        PLEIN_ANOMALIE = 'plein_anomalie', 'Anomalie prise de carburant'
         SINISTRE_OUVERT = 'sinistre_ouvert', 'Sinistre en attente de traitement'
         DEMANDE_A_VALIDER = 'demande_a_valider', 'Demande à valider'
 
@@ -50,6 +50,12 @@ class Alerte(UbiFleetBaseModel):
     agence = models.ForeignKey(
         'accounts.Agence', on_delete=models.CASCADE,
         related_name='alertes'
+    )
+    # Prise de carburant à l'origine d'une alerte « Consommation anormale »
+    plein = models.ForeignKey(
+        'carburant.PleinsCarburant', null=True, blank=True,
+        on_delete=models.CASCADE, related_name='alertes',
+        verbose_name='Prise de carburant'
     )
 
     date_echeance = models.DateField(null=True, blank=True)

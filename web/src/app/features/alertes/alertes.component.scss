@@ -72,6 +72,7 @@
     i { font-size: 10px; }
   }
   .meta-echeance { color: #dc2626; font-weight: 600; }
+  .meta-lien { color: var(--navy); font-weight: 600; text-decoration: none; &:hover { text-decoration: underline; } }
 }
 .alerte-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
 

@@ -344,7 +344,7 @@ export class TotalImportComponent implements OnInit, OnDestroy {
   exportConsoCsv(): void {
     const sep = ';'; const eol = '\r\n';
     const hdrs = ['Immatriculation','Km début','Km fin','Km parcourus',
-                  'Volume (L)','Montant (FCFA)','Nb pleins','Conso L/100km'].join(sep);
+                  'Volume (L)','Montant (FCFA)','Nb prises de carburant','Conso L/100km'].join(sep);
     const data = this.consoSorted().map(r =>
       [r.immatriculation, r.km_debut, r.km_fin, r.km_parcourus,
        r.volume_total, r.montant_total, r.nb_pleins, r.conso_100 ?? 'N/A'].join(sep)
@@ -397,7 +397,7 @@ export class TotalImportComponent implements OnInit, OnDestroy {
         tension: 0.35, fill: false,
       };
     });
-    const labels: Record<string, string> = { volume: 'Volume (litres)', montant: 'Montant (FCFA)', nb: 'Nb pleins' };
+    const labels: Record<string, string> = { volume: 'Volume (litres)', montant: 'Montant (FCFA)', nb: 'Nb prises de carburant' };
     const Chart = (window as any)['Chart'];
     if (!Chart) { this.loadChartJs(() => this.renderChart()); return; }
     if (this.evoChart) { this.evoChart.destroy(); this.evoChart = null; }
@@ -413,7 +413,7 @@ export class TotalImportComponent implements OnInit, OnDestroy {
             const v = ctx.parsed.y;
             if (metrique === 'volume')  return `${ctx.dataset.label}: ${v.toFixed(2)} L`;
             if (metrique === 'montant') return `${ctx.dataset.label}: ${v.toLocaleString('fr-FR')} FCFA`;
-            return `${ctx.dataset.label}: ${v} plein(s)`;
+            return `${ctx.dataset.label}: ${v} prise(s) de carburant`;
           }}}
         },
         scales: {

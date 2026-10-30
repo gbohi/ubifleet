@@ -1,6 +1,5 @@
 """UbiFleet — Carburant Models"""
 
-from datetime import time as datetime_time
 from django.db import models
 from apps.core.models import UbiFleetBaseModel
 
@@ -63,21 +62,8 @@ class DotationCarburant(UbiFleetBaseModel):
         return round((float(self.volume_consomme) / float(self.volume_alloue)) * 100, 1)
 
 
-def motif_anomalie(vehicule, consommation, moyenne=None):
-    """Motif si la consommation dépasse la moyenne du véhicule de plus du seuil
-    paramétré (Paramètres › Carburant & consommation), sinon chaîne vide."""
-    from apps.parametrage.echeances import seuil_conso_anomalie
-    if consommation is None:
-        return ''
-    moyenne = moyenne if moyenne is not None else vehicule.consommation_moyenne()
-    marge = 1 + seuil_conso_anomalie() / 100
-    if moyenne and float(consommation) > float(moyenne) * marge:
-        return f"Consommation anormale: {consommation} L/100km (moyenne: {moyenne} L/100km)"
-    return ''
-
-
 class PleinsCarburant(UbiFleetBaseModel):
-    """Enregistrement d'un plein de carburant."""
+    """Prise de carburant (le modèle garde son nom historique « plein »)."""
 
     class StatutValidation(models.TextChoices):
         EN_ATTENTE = 'en_attente', 'En attente'
@@ -102,10 +88,10 @@ class PleinsCarburant(UbiFleetBaseModel):
         Station, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='pleins'
     )
-    date_plein = models.DateField(verbose_name="Date du plein")
+    date_plein = models.DateField(verbose_name="Date de la prise")
     heure_plein = models.TimeField(
         null=True, blank=True,
-        verbose_name="Heure du plein"
+        verbose_name="Heure de la prise"
     )
     volume_litres = models.DecimalField(
         max_digits=8, decimal_places=2,
@@ -122,7 +108,7 @@ class PleinsCarburant(UbiFleetBaseModel):
     )
     kilometrage_depart = models.PositiveIntegerField(
         null=True, blank=True,
-        verbose_name="Kilométrage départ (km du plein précédent)"
+        verbose_name="Kilométrage départ (km de la prise précédente)"
     )
     kilometrage_releve = models.PositiveIntegerField(
         verbose_name="Kilométrage relevé"
@@ -146,7 +132,7 @@ class PleinsCarburant(UbiFleetBaseModel):
         null=True, blank=True,
         verbose_name="Photo tableau de bord"
     )
-    # Plus de circuit de validation : un plein enregistré est valide, sauf
+    # Plus de circuit de validation : une prise enregistrée est valide, sauf
     # consommation anormale détectée à l'enregistrement (statut « anomalie »).
     statut_validation = models.CharField(
         max_length=15, choices=StatutValidation.choices,
@@ -173,8 +159,8 @@ class PleinsCarburant(UbiFleetBaseModel):
     notes = models.TextField(blank=True)
 
     class Meta:
-        verbose_name = "Plein de carburant"
-        verbose_name_plural = "Pleins de carburant"
+        verbose_name = "Prise de carburant"
+        verbose_name_plural = "Prises de carburant"
         ordering = ['-date_plein', '-created_at']
 
     def __str__(self):
@@ -187,36 +173,17 @@ class PleinsCarburant(UbiFleetBaseModel):
             if prix:
                 self.prix_litre = prix.prix
 
-        # Calcul automatique consommation + auto-remplir kilometrage_depart
-        if self.statut_validation != self.StatutValidation.REJETE:
-            self.statut_validation, self.motif_anomalie = self.StatutValidation.VALIDE, ''
-        if self.kilometrage_releve and self.vehicule:
-            from django.db.models import Q
-
-            heure_actuelle = self.heure_plein or datetime_time.min
-
-            dernier_plein = PleinsCarburant.objects.filter(
-                vehicule=self.vehicule
-            ).filter(
-                Q(date_plein__lt=self.date_plein) |
-                Q(date_plein=self.date_plein, heure_plein__lt=heure_actuelle)
-            ).exclude(
-                pk=self.pk
-            ).order_by('-date_plein', '-heure_plein').first()
-
-            if dernier_plein:
-                # Auto-remplir km départ = km retour du plein précédent
-                if not self.kilometrage_depart:
-                    self.kilometrage_depart = dernier_plein.kilometrage_releve
-
-                km_parcourus = self.kilometrage_releve - dernier_plein.kilometrage_releve
-                if km_parcourus > 0:
-                    self.consommation_calculee = round(
-                        (float(self.volume_litres) / km_parcourus) * 100, 2
-                    )
-                    motif = motif_anomalie(self.vehicule, self.consommation_calculee)
-                    if motif:
-                        self.statut_validation, self.motif_anomalie = self.StatutValidation.ANOMALIE, motif
+        # Consommation et anomalie (cf. anomalies.py) ; le km de départ est
+        # celui de la prise précédente. Les prises suivantes sont recalculées
+        # par recalculer_consommations après l'enregistrement.
+        if self.kilometrage_releve and self.vehicule_id and self.date_plein:
+            from .anomalies import evaluer, ordre_chronologique, statut_et_motif
+            autres = PleinsCarburant.objects.filter(vehicule_id=self.vehicule_id).exclude(pk=self.pk)
+            ev = evaluer(sorted([*autres, self], key=ordre_chronologique))[self.pk]
+            if ev.depart is not None and not self.kilometrage_depart:
+                self.kilometrage_depart = ev.depart
+            self.consommation_calculee = ev.conso
+            self.statut_validation, self.motif_anomalie = statut_et_motif(self, ev)
 
         # MAJ kilométrage véhicule
         if self.vehicule and self.kilometrage_releve > self.vehicule.kilometrage_actuel:

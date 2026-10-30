@@ -68,8 +68,8 @@
             <div class="p-head">
               <div>
                 <h2>Stations <span class="p-chip">{{ stations().length }}</span></h2>
-                <p>Stations-service où sont faits les pleins. Une station sans agence est commune à toutes les agences.</p>
-                <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant (saisie des pleins)</span><span class="p-chip">Rapprochements</span></div>
+                <p>Stations-service où sont faites les prises de carburant. Une station sans agence est commune à toutes les agences.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant (saisie des prises de carburant)</span><span class="p-chip">Rapprochements</span></div>
               </div>
               <div class="p-actions">
                 <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
@@ -81,7 +81,7 @@
             </div>
             <div class="p-table-wrap">
               <table class="p-table">
-                <thead><tr><th>Station</th><th class="p-hide-m">Ville</th><th>Agence</th><th class="num">Pleins</th><th class="p-col-toggle">Active</th><th class="p-col-actions"></th></tr></thead>
+                <thead><tr><th>Station</th><th class="p-hide-m">Ville</th><th>Agence</th><th class="num">Prises</th><th class="p-col-toggle">Active</th><th class="p-col-actions"></th></tr></thead>
                 <tbody>
                   @for (x of filtrer(stations(), 'nom', 'ville', 'agence_nom'); track x.id) {
                     <tr [class.inactif]="!x.is_active">

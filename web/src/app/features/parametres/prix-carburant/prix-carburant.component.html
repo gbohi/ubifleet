@@ -4,11 +4,11 @@
     <div>
       <h2>Prix du carburant</h2>
       <p>
-        Historique daté par type de carburant. Lors de la saisie d'un plein, le prix proposé est celui
-        en vigueur à la date du plein pour le carburant du véhicule. Un prix passé ne se modifie pas :
+        Historique daté par type de carburant. Lors de la saisie d'une prise de carburant, le prix proposé est celui
+        en vigueur à la date de la prise pour le carburant du véhicule. Un prix passé ne se modifie pas :
         ajoutez un nouveau prix avec sa date d'effet.
       </p>
-      <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant (saisie des pleins)</span><span class="p-chip">Suivi des tournées</span></div>
+      <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant (saisie des prises de carburant)</span><span class="p-chip">Suivi des tournées</span></div>
     </div>
   </div>
 
@@ -80,7 +80,7 @@
               </td>
             </tr>
           } @empty {
-            <tr><td colspan="6" class="p-empty">Aucun prix pour ce carburant : les pleins seront saisis sans prix proposé.</td></tr>
+            <tr><td colspan="6" class="p-empty">Aucun prix pour ce carburant : les prises de carburant seront saisies sans prix proposé.</td></tr>
           }
         </tbody>
       </table>

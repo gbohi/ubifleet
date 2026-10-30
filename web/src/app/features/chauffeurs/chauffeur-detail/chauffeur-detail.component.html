@@ -106,14 +106,14 @@
         </div>
       </div>
 
-      <!-- Pleins (historique) -->
+      <!-- Prises de carburant (historique) -->
       @if (historique()) {
         <div class="kpi-card">
           <div class="kpi-icon navy">
             <i class="fas fa-gas-pump"></i>
           </div>
           <div>
-            <div class="kpi-val">{{ historique().pleins?.nb || 0 }} pleins</div>
+            <div class="kpi-val">{{ historique().pleins?.nb || 0 }} prise(s) de carburant</div>
             <div class="kpi-lbl">
               {{ historique().pleins?.total_litres | number:'1.0-0' }} L total
             </div>
@@ -262,7 +262,7 @@
               <div class="card-body">
                 <div class="histo-stat">
                   <span class="histo-val">{{ historique().pleins?.nb || 0 }}</span>
-                  <span class="histo-lbl">Pleins effectués</span>
+                  <span class="histo-lbl">Prises de carburant</span>
                 </div>
                 <div class="histo-stat">
                   <span class="histo-val">

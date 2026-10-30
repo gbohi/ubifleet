@@ -12,7 +12,7 @@ import { DomaineSaisie, FenetreSaisieService } from '../../../core/services/fene
 interface Domaine { code: DomaineSaisie; cle: string; titre: string; icone: string; donnees: string; }
 
 const DOMAINES: Domaine[] = [
-  { code: 'carburant', cle: 'fenetre_saisie_carburant_jours', titre: 'Pleins de carburant',
+  { code: 'carburant', cle: 'fenetre_saisie_carburant_jours', titre: 'Prises de carburant',
     icone: 'fas fa-gas-pump', donnees: 'pleins' },
   { code: 'releves', cle: 'fenetre_saisie_releves_jours', titre: 'Relevés kilométriques',
     icone: 'fas fa-tachometer-alt', donnees: 'relevés' },

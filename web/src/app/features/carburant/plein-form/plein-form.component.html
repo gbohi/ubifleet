@@ -1,4 +1,4 @@
-<!-- UbiFleet — Saisie Plein Carburant (Angular 18) -->
+<!-- UbiFleet — Saisie d'une prise de carburant (Angular 18) -->
 <div class="form-page">
 
   <div class="breadcrumb">
@@ -6,13 +6,13 @@
       <i class="fas fa-gas-pump"></i> Carburant
     </a>
     <i class="fas fa-chevron-right bc-sep"></i>
-    <span class="bc-current">{{ isEditMode() ? 'Modifier' : 'Saisir un plein' }}</span>
+    <span class="bc-current">{{ isEditMode() ? 'Modifier' : 'Saisir une prise de carburant' }}</span>
   </div>
 
   <div class="page-header">
     <div>
-      <h1 class="page-title">{{ isEditMode() ? 'Modifier le plein' : 'Saisir un plein' }}</h1>
-      <p class="page-subtitle">Enregistrer un plein de carburant</p>
+      <h1 class="page-title">{{ isEditMode() ? 'Modifier la prise de carburant' : 'Saisir une prise de carburant' }}</h1>
+      <p class="page-subtitle">Enregistrer une prise de carburant</p>
     </div>
     <button class="btn btn-outline btn-sm" (click)="cancel()">
       <i class="fas fa-times"></i> Annuler
@@ -40,15 +40,22 @@
     @if (verrouille()) {
       <div class="alert alert-warning">
         <i class="fas fa-lock"></i>
-        Ce plein est figé : sa date est sortie de la fenêtre de saisie. Il ne peut plus être modifié,
+        Cette prise de carburant est figée : sa date est sortie de la fenêtre de saisie. Elle ne peut plus être modifiée,
         sauf par un utilisateur disposant du droit « Saisie hors délai ».
       </div>
     }
     @else if (lectureSeule()) {
       <div class="alert alert-warning">
         <i class="fas fa-lock"></i>
-        Consultation seule : seul l'auteur du plein (tant qu'il est dans la fenêtre de saisie) ou un rôle
-        autorisé peut le modifier.
+        Consultation seule : seul l'auteur de la prise de carburant (tant qu'elle est dans la fenêtre de saisie) ou un rôle
+        autorisé peut la modifier.
+      </div>
+    }
+    @if (anomalie()) {
+      <div class="alert alert-error">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span><strong>Consommation anormale.</strong> {{ anomalie() }}
+        Vérifiez le volume et le kilométrage : une correction recalcule la consommation et clôture l'alerte si elle redevient normale.</span>
       </div>
     }
     @if (infoHorsDelai()) {
@@ -64,7 +71,7 @@
             <div class="section-icon"><i class="fas fa-car"></i></div>
             <div>
               <div class="section-title">Véhicule & Chauffeur</div>
-              <div class="section-sub">Véhicule, chauffeur et tournée concernés par le plein</div>
+              <div class="section-sub">Véhicule, chauffeur et tournée concernés par la prise de carburant</div>
             </div>
           </div>
           <div class="section-body">
@@ -111,19 +118,19 @@
           </div>
         </div>
 
-        <!-- Section Plein -->
+        <!-- Section Prise de carburant -->
         <div class="form-section">
           <div class="section-header">
             <div class="section-icon"><i class="fas fa-gas-pump"></i></div>
             <div>
-              <div class="section-title">Données du plein</div>
+              <div class="section-title">Données de la prise de carburant</div>
               <div class="section-sub">Volume, prix et kilométrage</div>
             </div>
           </div>
           <div class="section-body">
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Date du plein *</label>
+                <label class="form-label">Date de la prise *</label>
                 <input type="date" formControlName="date_plein" class="form-control"
                        [attr.min]="fenetres.min('carburant')" [attr.max]="fenetres.max('carburant')"
                        [class.is-invalid]="f['date_plein'].invalid && (f['date_plein'].touched || dateErreur())" />
@@ -140,7 +147,7 @@
                 }
               </div>
               <div class="form-group">
-                <label class="form-label">Heure du plein *</label>
+                <label class="form-label">Heure de la prise *</label>
                 <input type="time" formControlName="heure_plein" class="form-control"
                        [class.is-invalid]="f['heure_plein'].invalid && f['heure_plein'].touched" />
                 @if (f['heure_plein'].invalid && f['heure_plein'].touched) {
@@ -148,7 +155,7 @@
                     <i class="fas fa-times-circle"></i> L'heure est requise.
                   </div>
                 } @else if (heureManquante() && !f['heure_plein'].value) {
-                  <div class="form-hint hint-warning"><i class="fas fa-clock"></i> Ce plein a été enregistré sans heure : renseignez-la pour l'enregistrer.</div>
+                  <div class="form-hint hint-warning"><i class="fas fa-clock"></i> Cette prise de carburant a été enregistrée sans heure : renseignez-la pour l'enregistrer.</div>
                 } @else {
                   <div class="form-hint"><i class="fas fa-clock"></i> Ordonne les saisies d'une même journée.</div>
                 }
@@ -252,7 +259,7 @@
               <div class="section-icon"><i class="fas fa-comment-alt"></i></div>
               <div>
                 <div class="section-title">Motif de la correction {{ motifRequis() ? '*' : '(facultatif)' }}</div>
-                <div class="section-sub">Conservé dans l'historique des corrections de ce plein</div>
+                <div class="section-sub">Conservé dans l'historique des corrections de cette prise de carburant</div>
               </div>
             </div>
             <div class="section-body">
@@ -275,7 +282,7 @@
               <div class="section-icon"><i class="fas fa-history"></i></div>
               <div>
                 <div class="section-title">Historique des corrections</div>
-                <div class="section-sub">Qui a modifié ce plein, quand, et quoi</div>
+                <div class="section-sub">Qui a modifié cette prise de carburant, quand, et quoi</div>
               </div>
             </div>
             <div class="section-body">
@@ -302,7 +309,7 @@
           } @else if (isEditMode()) {
             <i class="fas fa-save"></i> Enregistrer les modifications
           } @else {
-            <i class="fas fa-plus"></i> Enregistrer le plein
+            <i class="fas fa-plus"></i> Enregistrer la prise de carburant
           }
         </button>
       </div>
@@ -312,8 +319,8 @@
 </div>
 
 @if (suppression()) {
-  <ubi-suppression-motif titre="Supprimer le plein"
-                         message="Le plein sera supprimé ; le compteur du véhicule et les consommations seront recalculés."
+  <ubi-suppression-motif titre="Supprimer la prise de carburant"
+                         message="La prise de carburant sera supprimée ; le compteur du véhicule et les consommations seront recalculés."
                          [motifRequis]="horsFenetre()" [enCours]="suppressionEnCours()" [erreur]="suppressionErreur()"
                          (confirmer)="supprimer($event)" (annuler)="suppression.set(false)" />
 }

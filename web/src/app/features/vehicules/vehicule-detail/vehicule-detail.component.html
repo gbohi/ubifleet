@@ -257,7 +257,7 @@
     @if (activeTab() === 'carburant') {
       <div class="tab-content">
         <div class="tab-header-row">
-          <p class="tab-count-info">{{ pleinsTotal() }} plein(s) enregistré(s)</p>
+          <p class="tab-count-info">{{ pleinsTotal() }} prise(s) de carburant enregistrée(s)</p>
           <a routerLink="/carburant" [queryParams]="{vehicule: v.id}" class="btn btn-outline btn-sm">
             <i class="fas fa-arrow-right"></i> Voir tout dans Carburant
           </a>
@@ -268,7 +268,7 @@
         } @else if (pleins().length === 0) {
           <div class="placeholder-tab">
             <i class="fas fa-gas-pump"></i>
-            <h3>Aucun plein enregistré</h3>
+            <h3>Aucune prise de carburant enregistrée</h3>
             <p>Les prises de carburant apparaîtront ici.</p>
           </div>
         } @else {
@@ -319,9 +319,9 @@
           @if (pleinsTotal() > 10) {
             <p class="see-more-hint">
               <i class="fas fa-info-circle"></i>
-              Affichage des 10 derniers pleins.
+              Affichage des 10 dernières prises de carburant.
               <a routerLink="/carburant" [queryParams]="{vehicule: v.id}">
-                Voir les {{ pleinsTotal() }} pleins
+                Voir les {{ pleinsTotal() }} prises de carburant
               </a>
             </p>
           }

@@ -112,7 +112,7 @@
               <div class="stat-list">
                 <div class="stat-row"><span>Volume total</span><strong>{{ dispatcheur(d.carburant.volume) | number:'1.2-2' }} L</strong></div>
                 <div class="stat-row"><span>Montant total</span><strong>{{ dispatcheur(d.carburant.montant) | number:'1.0-0' }} FCFA</strong></div>
-                <div class="stat-row"><span>Nombre de pleins</span><strong>{{ d.carburant.nb_pleins }}</strong></div>
+                <div class="stat-row"><span>Nombre de prises de carburant</span><strong>{{ d.carburant.nb_pleins }}</strong></div>
                 <div class="stat-row"><span>Conso. moyenne</span><strong>{{ dispatcheur(d.carburant.conso_moy) | number:'1.1-1' }} L/100km</strong></div>
                 <div class="stat-row warn"><span>Anomalies détectées</span><strong>{{ d.carburant.anomalies }}</strong></div>
               </div>
@@ -192,7 +192,7 @@
           <div class="kpi-card"><div class="kpi-icon green"><i class="fas fa-coins"></i></div>
             <div class="kpi-info"><div class="kpi-val">{{ dispatcheur(d.global?.total_fcfa) | number:'1.0-0' }}</div><div class="kpi-label">FCFA total</div></div></div>
           <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-gas-pump"></i></div>
-            <div class="kpi-info"><div class="kpi-val">{{ d.global?.nb_pleins ?? 0 }}</div><div class="kpi-label">Nb pleins</div></div></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.global?.nb_pleins ?? 0 }}</div><div class="kpi-label">Nb prises de carburant</div></div></div>
           <div class="kpi-card"><div class="kpi-icon red"><i class="fas fa-tachometer-alt"></i></div>
             <div class="kpi-info"><div class="kpi-val">{{ dispatcheur(d.global?.conso_moy) | number:'1.1-1' }}</div><div class="kpi-label">L/100km moyen</div></div></div>
         </div>
@@ -207,7 +207,7 @@
           <div class="card-header"><div class="card-title">Consommation par véhicule</div></div>
           <div class="table-container">
             <table class="ubi-table">
-              <thead><tr><th>Immatriculation</th><th>Agence</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Montant</th><th style="text-align:center">Nb pleins</th><th style="text-align:center">Conso moy</th></tr></thead>
+              <thead><tr><th>Immatriculation</th><th>Agence</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Montant</th><th style="text-align:center">Nb prises</th><th style="text-align:center">Conso moy</th></tr></thead>
               <tbody>
                 @for (v of d.par_vehicule; track $index) {
                   <tr>

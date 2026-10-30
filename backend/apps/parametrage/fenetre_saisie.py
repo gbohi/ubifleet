@@ -1,4 +1,4 @@
-"""UbiFleet — Fenêtre de saisie des pleins et des relevés kilométriques.
+"""UbiFleet — Fenêtre de saisie des prises de carburant et des relevés kilométriques.
 
 Paramètre `fenetre_saisie_<domaine>_jours` (0 = désactivée) :
 avec N jours, seules les dates d'aujourd'hui à J-(N-1) sont acceptées.
@@ -22,10 +22,14 @@ from rest_framework.exceptions import PermissionDenied
 
 CARBURANT, RELEVES = 'carburant', 'releves'
 
-# domaine → (module de permission, libellé de la donnée)
+# domaine → (module de permission, message « donnée figée »)
 DOMAINES = {
-    CARBURANT: ('carburant',  'plein'),
-    RELEVES:   ('releves_km', 'relevé'),
+    CARBURANT: ('carburant',  "Cette prise de carburant du {date} est figée : elle est sortie de la "
+                              "fenêtre de saisie ({duree}). Seul un utilisateur disposant du droit "
+                              "« Saisie hors délai » peut la corriger."),
+    RELEVES:   ('releves_km', "Ce relevé du {date} est figé : il est sorti de la fenêtre de saisie "
+                              "({duree}). Seul un utilisateur disposant du droit « Saisie hors délai » "
+                              "peut le corriger."),
 }
 JOURS_MAX = 365
 ACTION_HORS_DELAI = 'saisie_hors_delai'
@@ -87,11 +91,8 @@ class Fenetre:
         if not d_actuelle or self.dans_fenetre(d_actuelle):
             return False
         if not self.hors_delai:
-            libelle = DOMAINES[self.domaine][1]
-            raise PermissionDenied(
-                f"Ce {libelle} du {d_actuelle:%d/%m/%Y} est figé : il est sorti de la fenêtre "
-                f"de saisie ({self.jours} jour{'s' if self.jours > 1 else ''}). "
-                "Seul un utilisateur disposant du droit « Saisie hors délai » peut le corriger.")
+            raise PermissionDenied(DOMAINES[self.domaine][1].format(
+                date=f"{d_actuelle:%d/%m/%Y}", duree=f"{self.jours} jour{'s' if self.jours > 1 else ''}"))
         return True
 
     def en_dict(self):

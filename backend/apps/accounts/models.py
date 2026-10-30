@@ -172,7 +172,7 @@ class PermissionRole(models.Model):
         ('update',                  'Modifier'),
         ('partial_update',          'Modifier (partiel)'),
         ('destroy',                 'Supprimer'),
-        ('valider',                 'Valider un plein'),
+        ('valider',                 'Valider une prise de carburant'),
         ('anomalies',               'Voir anomalies'),
         ('demarrer',                'Démarrer intervention'),
         ('terminer',                'Terminer intervention'),

@@ -72,7 +72,7 @@ class PleinSerializer(FenetreSaisieSerializerMixin, serializers.ModelSerializer)
         # Heure obligatoire : elle ordonne les saisies d'une même journée.
         # Un plein ancien sans heure reste modifiable tant qu'on ne touche pas à ce champ.
         if (inst is None or 'heure_plein' in attrs) and not attrs.get('heure_plein'):
-            raise serializers.ValidationError({'heure_plein': "L'heure du plein est obligatoire."})
+            raise serializers.ValidationError({'heure_plein': "L'heure de la prise de carburant est obligatoire."})
         if (inst is None or 'tournee' in attrs) and not attrs.get('tournee'):
             raise serializers.ValidationError({'tournee': "La tournée est obligatoire."})
         controler_km(attrs.get('vehicule', inst and inst.vehicule),

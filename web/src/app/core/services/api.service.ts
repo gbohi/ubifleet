@@ -808,7 +808,7 @@ export class RapportApiService extends ApiBaseService {
 // ── Paramétrage API ──
 @Injectable({ providedIn: 'root' })
 export class ParametrageApiService extends ApiBaseService {
-  /** Journal des corrections de pleins / relevés (filtres : domaine, objet, vehicule). */
+  /** Journal des corrections de prises de carburant / relevés (filtres : domaine, objet, vehicule). */
   getCorrections(filters: Record<string, any>): Observable<any[]> {
     return this.http.get<any[] | PaginatedResponse<any>>(`${API}/parametrage/corrections/`, { params: this.buildParams(filters) })
       .pipe(map(res => Array.isArray(res) ? res : res.results ?? []));

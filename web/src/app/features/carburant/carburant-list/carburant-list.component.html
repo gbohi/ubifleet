@@ -6,7 +6,7 @@
     <div>
       <h1 class="page-title">Carburant</h1>
       <p class="page-subtitle">
-        {{ store.pagination().total }} plein(s) &bull;
+        {{ store.pagination().total }} prise(s) de carburant &bull;
         {{ totalVolumeFormatted }} &bull;
         {{ totalMontantFormatted }}
       </p>
@@ -16,7 +16,7 @@
         <i class="fas fa-download"></i> Exporter
       </button>
       <button class="btn btn-green" (click)="goToNew()">
-        <i class="fas fa-plus"></i> Saisir un plein
+        <i class="fas fa-plus"></i> Saisir une prise de carburant
       </button>
     </div>
   </div>
@@ -26,7 +26,7 @@
     <div class="qs-item">
       <span class="qs-dot navy"></span>
       <span class="qs-val">{{ store.pagination().total }}</span>
-      <span class="qs-lbl">Pleins</span>
+      <span class="qs-lbl">Prises de carburant</span>
     </div>
     <div class="qs-sep"></div>
     <div class="qs-item">
@@ -52,7 +52,7 @@
   <div class="tabs">
     <button class="tab" [class.active]="activeTab() === 'pleins'"
             (click)="activeTab.set('pleins')">
-      <i class="fas fa-gas-pump"></i> Pleins
+      <i class="fas fa-gas-pump"></i> Prises de carburant
     </button>
     <button class="tab" [class.active]="activeTab() === 'dotations'"
             (click)="activeTab.set('dotations')">
@@ -167,7 +167,7 @@
                 <tr>
                   <td colspan="12" class="td-empty">
                     <i class="fas fa-gas-pump"></i>
-                    Aucun plein trouvé
+                    Aucune prise de carburant trouvée
                   </td>
                 </tr>
               }
@@ -222,7 +222,7 @@
                   <td>
                     <div class="td-actions">
                       @if (p.verrouille) {
-                        <button class="btn btn-icon" title="Plein figé (sorti de la fenêtre de saisie) — consulter"
+                        <button class="btn btn-icon" title="Prise de carburant figée (sortie de la fenêtre de saisie) — consulter"
                                 (click)="goToEdit($event, p.id)">
                           <i class="fas fa-lock"></i>
                         </button>
@@ -267,7 +267,7 @@
                   (click)="onPageChange(store.pagination().page + 1)">
             <i class="fas fa-chevron-right"></i>
           </button>
-          <span class="pagination-info">{{ store.pagination().total }} plein(s)</span>
+          <span class="pagination-info">{{ store.pagination().total }} prise(s) de carburant</span>
         </div>
       }
     }
@@ -377,7 +377,7 @@
                   </td>
                   <td>{{ p.chauffeur_nom ?? '—' }}</td>
                   <td>
-                    <button class="btn btn-icon" title="Voir le plein" (click)="goToEdit($event, p.id)">
+                    <button class="btn btn-icon" title="Voir la prise de carburant" (click)="goToEdit($event, p.id)">
                       <i class="fas fa-eye"></i>
                     </button>
                   </td>
@@ -400,7 +400,7 @@
         </div>
         <p class="analyse-subtitle">
           Comparaison entre la consommation réelle et les dotations théoriques par tournée.
-          Seuls les pleins associés à une tournée sont affichés.
+          Seules les prises de carburant associées à une tournée sont affichées.
         </p>
       </div>
 
@@ -458,7 +458,7 @@
           <i class="fas fa-table"></i>
           <p>Aucune donnée. Sélectionnez une période et cliquez sur Analyser.</p>
           <p style="font-size:12px;color:var(--gray-400)">
-            Seuls les pleins associés à une tournée sont pris en compte.
+            Seules les prises de carburant associées à une tournée sont prises en compte.
           </p>
         </div>
       } @else {
@@ -544,7 +544,7 @@
           Consommation aux 100 km par véhicule
         </div>
         <p class="analyse-subtitle">
-          Consommation du dernier plein de chaque véhicule, comparé à son plein précédent immédiat
+          Consommation de la dernière prise de carburant de chaque véhicule, comparée à la prise précédente immédiate
           (même calcul que la détection d'anomalie).
         </p>
       </div>
@@ -600,7 +600,7 @@
                   <th (click)="sortConso('km_parcourus')" class="sortable">Km parcourus <i class="fas fa-sort"></i></th>
                   <th (click)="sortConso('volume_total')" class="sortable">Volume (L) <i class="fas fa-sort"></i></th>
                   <th (click)="sortConso('montant_total')" class="sortable">Montant (FCFA) <i class="fas fa-sort"></i></th>
-                  <th (click)="sortConso('nb_pleins')" class="sortable">Nb pleins <i class="fas fa-sort"></i></th>
+                  <th (click)="sortConso('nb_pleins')" class="sortable">Nb prises <i class="fas fa-sort"></i></th>
                   <th (click)="sortConso('conso_100')" class="sortable">Conso L/100km <i class="fas fa-sort"></i></th>
                 </tr>
               </thead>
@@ -664,8 +664,8 @@
           Consommation moyenne sur la période
         </div>
         <p class="analyse-subtitle">
-          Moyenne calculée entre le premier et le dernier plein de chaque véhicule
-          sur la période sélectionnée (lisse les variations entre tous les pleins).
+          Moyenne calculée entre la première et la dernière prise de carburant de chaque véhicule
+          sur la période sélectionnée (lisse les variations entre toutes les prises).
         </p>
       </div>
 
@@ -720,7 +720,7 @@
                   <th (click)="sortMoy('km_parcourus')" class="sortable">Km parcourus <i class="fas fa-sort"></i></th>
                   <th (click)="sortMoy('volume_total')" class="sortable">Volume (L) <i class="fas fa-sort"></i></th>
                   <th (click)="sortMoy('montant_total')" class="sortable">Montant (FCFA) <i class="fas fa-sort"></i></th>
-                  <th (click)="sortMoy('nb_pleins')" class="sortable">Nb pleins <i class="fas fa-sort"></i></th>
+                  <th (click)="sortMoy('nb_pleins')" class="sortable">Nb prises <i class="fas fa-sort"></i></th>
                   <th (click)="sortMoy('conso_100')" class="sortable">Conso moyenne L/100km <i class="fas fa-sort"></i></th>
                 </tr>
               </thead>
@@ -818,7 +818,7 @@
               <i class="fas fa-coins"></i> Montant (FCFA)
             </button>
             <button class="metrique-btn" [class.active]="evoMetrique()==='nb'"      (click)="onMetriqueChange('nb')">
-              <i class="fas fa-gas-pump"></i> Nb pleins
+              <i class="fas fa-gas-pump"></i> Nb prises de carburant
             </button>
           </div>
         </div>
@@ -841,7 +841,7 @@
               Évolution
               @if (evoMetrique()==='volume')  { du volume en litres }
               @if (evoMetrique()==='montant') { des montants en FCFA }
-              @if (evoMetrique()==='nb')      { du nombre de pleins }
+              @if (evoMetrique()==='nb')      { du nombre de prises de carburant }
               — {{ evoData().length }} agence(s)
             </div>
           </div>
@@ -858,7 +858,7 @@
                     <span>{{ a.points.length }} mois</span>
                     @if (evoMetrique()==='volume')  { <span>{{ sumPoints(a.points,'volume')  | number:'1.0-0' }} L</span> }
                     @if (evoMetrique()==='montant') { <span>{{ sumPoints(a.points,'montant') | number:'1.0-0' }} FCFA</span> }
-                    @if (evoMetrique()==='nb')      { <span>{{ sumPoints(a.points,'nb') }} pleins</span> }
+                    @if (evoMetrique()==='nb')      { <span>{{ sumPoints(a.points,'nb') }} prise(s) de carburant</span> }
                   </div>
                 </div>
               </div>
@@ -878,7 +878,7 @@
           Comparaison consommation UbiFleet vs Total
         </div>
         <p class="analyse-subtitle">
-          Compare la consommation L/100km calculée à partir des pleins déclarés dans UbiFleet
+          Compare la consommation L/100km calculée à partir des prises de carburant déclarées dans UbiFleet
           avec celle calculée à partir des transactions facturées par TotalEnergies,
           sur la même période et par véhicule.
         </p>
@@ -1062,8 +1062,8 @@
 </div>
 
 @if (deleteConfirm(); as pl) {
-  <ubi-suppression-motif titre="Supprimer le plein"
-                         [message]="'Plein du ' + (pl.date_plein | date:'dd/MM/yyyy') + ' — ' + pl.vehicule_immat + '. Le compteur du véhicule et les consommations seront recalculés.'"
+  <ubi-suppression-motif titre="Supprimer la prise de carburant"
+                         [message]="'Prise de carburant du ' + (pl.date_plein | date:'dd/MM/yyyy') + ' — ' + pl.vehicule_immat + '. Le compteur du véhicule et les consommations seront recalculés.'"
                          [motifRequis]="!!pl.hors_fenetre" [enCours]="deleteEnCours()" [erreur]="deleteErreur()"
                          (confirmer)="doDelete($event)" (annuler)="cancelDelete()" />
 }

@@ -1,7 +1,7 @@
 """UbiFleet — Cohérence du kilométrage d'un véhicule.
 
 Le compteur d'un véhicule est déduit de ses saisies : c'est le plus grand
-kilométrage parmi ses relevés et ses pleins, sans descendre sous son
+kilométrage parmi ses relevés et ses prises de carburant, sans descendre sous son
 kilométrage d'entrée dans le parc. Il est recalculé après chaque saisie,
 correction ou suppression, de sorte qu'une erreur corrigée ne laisse pas
 le compteur faussé.
@@ -27,7 +27,7 @@ def heure_par_defaut(date):
 
 
 def _sources(vehicule, exclure=None):
-    """(queryset, champ km, champ date, champ heure, libellé) des saisies kilométriques du véhicule.
+    """(queryset, champ km, champ date, champ heure, « celui du … ») des saisies kilométriques du véhicule.
     `exclure` : instance à ignorer (la saisie en cours de correction)."""
     from apps.carburant.models import PleinsCarburant
     from apps.vehicules.models import ReleveKilometrage
@@ -38,8 +38,8 @@ def _sources(vehicule, exclure=None):
     if isinstance(exclure, ReleveKilometrage) and exclure.pk:
         releves = releves.exclude(pk=exclure.pk)
     return [
-        (pleins.order_by(), 'kilometrage_releve', 'date_plein', 'heure_plein', 'plein'),
-        (releves.order_by(), 'kilometrage', 'date_releve', 'heure_releve', 'relevé'),
+        (pleins.order_by(), 'kilometrage_releve', 'date_plein', 'heure_plein', 'celui de la prise de carburant'),
+        (releves.order_by(), 'kilometrage', 'date_releve', 'heure_releve', 'celui du relevé'),
     ]
 
 
@@ -63,19 +63,19 @@ def controler_km(vehicule, km, date, champ, exclure=None, heure=None):
         avant = qs.filter(anterieur, **{f'{f_km}__gt': km}).order_by(f'-{f_km}').first()
         if avant:
             raise serializers.ValidationError({champ: (
-                f"Kilométrage inférieur à celui du {libelle} du {_quand(avant, f_date, f_heure)} "
+                f"Kilométrage inférieur à {libelle} du {_quand(avant, f_date, f_heure)} "
                 f"({getattr(avant, f_km):,} km). Si cette saisie est erronée, corrigez-la d'abord."
             ).replace(',', ' ')})
         apres = qs.filter(posterieur, **{f'{f_km}__lt': km}).order_by(f_km).first()
         if apres:
             raise serializers.ValidationError({champ: (
-                f"Kilométrage supérieur à celui du {libelle} du {_quand(apres, f_date, f_heure)} "
+                f"Kilométrage supérieur à {libelle} du {_quand(apres, f_date, f_heure)} "
                 f"({getattr(apres, f_km):,} km). Si cette saisie est erronée, corrigez-la d'abord."
             ).replace(',', ' ')})
 
 
 def recalculer_kilometrage(vehicule):
-    """Compteur = max(kilométrage d'entrée, relevés, pleins)."""
+    """Compteur = max(kilométrage d'entrée, relevés, prises de carburant)."""
     if vehicule is None:
         return
     km = vehicule.kilometrage_initial or 0
@@ -87,30 +87,24 @@ def recalculer_kilometrage(vehicule):
 
 
 def recalculer_consommations(vehicule, depuis):
-    """Recalcule km de départ, consommation et anomalie des pleins du véhicule
-    datés à partir de `depuis` (chaque plein dépend du précédent)."""
-    from apps.carburant.models import PleinsCarburant, motif_anomalie
+    """Recalcule km de départ, consommation, anomalie et alerte des prises de
+    carburant du véhicule datées à partir de `depuis` (chaque prise dépend de
+    la précédente ; cf. carburant.anomalies)."""
+    from apps.carburant.anomalies import evaluer, prises_du_vehicule, statut_et_motif, synchroniser_alerte
+    from apps.carburant.models import PleinsCarburant
     if vehicule is None or depuis is None:
         return
-    pleins = list(PleinsCarburant.objects.filter(vehicule=vehicule)
-                  .order_by('date_plein', 'heure_plein', 'created_at'))
-    moyenne = vehicule.consommation_moyenne()
-    S = PleinsCarburant.StatutValidation
-    precedent = None
-    for p in pleins:
-        if p.date_plein >= depuis:
-            depart = precedent.kilometrage_releve if precedent else None
-            conso = None
-            if precedent and p.kilometrage_releve > precedent.kilometrage_releve:
-                conso = round(float(p.volume_litres) / (p.kilometrage_releve - precedent.kilometrage_releve) * 100, 2)
-            ancienne = float(p.consommation_calculee) if p.consommation_calculee is not None else None
-            statut, motif = p.statut_validation, p.motif_anomalie
-            if statut != S.REJETE:
-                motif = motif_anomalie(vehicule, conso, moyenne)
-                statut = S.ANOMALIE if motif else S.VALIDE
-            if (p.kilometrage_depart, ancienne, p.statut_validation, p.motif_anomalie) != (depart, conso, statut, motif):
-                PleinsCarburant.objects.filter(pk=p.pk).update(
-                    kilometrage_depart=depart, consommation_calculee=conso,
-                    statut_validation=statut, motif_anomalie=motif)
-        precedent = p
-
+    prises = prises_du_vehicule(vehicule)
+    evaluations = evaluer(prises)
+    for p in prises:
+        if p.date_plein < depuis:
+            continue
+        ev = evaluations[p.pk]
+        ancienne = float(p.consommation_calculee) if p.consommation_calculee is not None else None
+        statut, motif = statut_et_motif(p, ev)
+        if (p.kilometrage_depart, ancienne, p.statut_validation, p.motif_anomalie) != (ev.depart, ev.conso, statut, motif):
+            PleinsCarburant.objects.filter(pk=p.pk).update(
+                kilometrage_depart=ev.depart, consommation_calculee=ev.conso,
+                statut_validation=statut, motif_anomalie=motif)
+            p.kilometrage_depart, p.statut_validation, p.motif_anomalie = ev.depart, statut, motif
+        synchroniser_alerte(p, ev)

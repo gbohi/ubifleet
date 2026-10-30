@@ -413,7 +413,7 @@
                     Montant (FCFA) <i class="fas fa-sort"></i>
                   </th>
                   <th (click)="sortConso('nb_pleins')" class="sortable">
-                    Nb pleins <i class="fas fa-sort"></i>
+                    Nb prises <i class="fas fa-sort"></i>
                   </th>
                   <th (click)="sortConso('conso_100')" class="sortable">
                     Conso L/100km <i class="fas fa-sort"></i>
@@ -499,7 +499,7 @@
               <i class="fas fa-coins"></i> Montant (FCFA)
             </button>
             <button class="metrique-btn" [class.active]="evoMetrique()==='nb'"      (click)="onMetriqueChange('nb')">
-              <i class="fas fa-gas-pump"></i> Nb pleins
+              <i class="fas fa-gas-pump"></i> Nb prises de carburant
             </button>
           </div>
         </div>
@@ -523,7 +523,7 @@
               Évolution
               @if (evoMetrique()==='volume')  { du volume en litres }
               @if (evoMetrique()==='montant') { des montants en FCFA }
-              @if (evoMetrique()==='nb')      { du nombre de pleins }
+              @if (evoMetrique()==='nb')      { du nombre de prises de carburant }
               — {{ evoData().length }} agence(s)
             </div>
           </div>
@@ -547,7 +547,7 @@
                       <span>{{ sumPoints(a.points,'montant') | number:'1.0-0' }} FCFA</span>
                     }
                     @if (evoMetrique()==='nb') {
-                      <span>{{ sumPoints(a.points,'nb') }} pleins</span>
+                      <span>{{ sumPoints(a.points,'nb') }} prise(s) de carburant</span>
                     }
                   </div>
                 </div>
@@ -568,7 +568,7 @@
           Réconciliation Total vs UbiFleet
         </div>
         <p class="analyse-subtitle">
-          Compare les transactions Total importées avec les pleins enregistrés dans UbiFleet.
+          Compare les transactions Total importées avec les prises de carburant enregistrées dans UbiFleet.
           La jointure s'effectue par <strong>immatriculation + date (±1 jour)</strong>.
         </p>
       </div>

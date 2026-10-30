@@ -68,7 +68,7 @@ export class CarburantListComponent implements OnInit, OnDestroy {
 
   agences      = signal<Agence[]>([]);
   activeTab    = signal<CarburantTab>('pleins');
-  /** Plein à supprimer (fenêtre de confirmation avec motif). */
+  /** Prise de carburant à supprimer (fenêtre de confirmation avec motif). */
   deleteConfirm = signal<PleinCarburant | null>(null);
   deleteEnCours = signal(false);
   deleteErreur  = signal('');
@@ -312,8 +312,8 @@ export class CarburantListComponent implements OnInit, OnDestroy {
   exportConsoCsv(): void {
     const sep = ';'; const eol = '\r\n';
     const hdrs = ['Immatriculation','Marque','Modèle','Km début','Km fin','Km parcourus',
-                  'Volume (L)','Montant (FCFA)','Nb pleins','Conso L/100km',
-                  'Premier plein','Heure','Dernier plein','Heure'].join(sep);
+                  'Volume (L)','Montant (FCFA)','Nb prises de carburant','Conso L/100km',
+                  'Première prise','Heure','Dernière prise','Heure'].join(sep);
     const data = this.consoSorted().map(r =>
       [r.immatriculation, r.marque ?? '', r.modele ?? '', r.km_debut, r.km_fin, r.km_parcourus,
        r.volume_total, r.montant_total, r.nb_pleins, r.conso_100 ?? 'N/A',
@@ -365,8 +365,8 @@ export class CarburantListComponent implements OnInit, OnDestroy {
   exportMoyCsv(): void {
     const sep = ';'; const eol = '\r\n';
     const hdrs = ['Immatriculation','Marque','Modèle','Km début','Km fin','Km parcourus',
-                  'Volume (L)','Montant (FCFA)','Nb pleins','Conso moyenne L/100km',
-                  'Premier plein','Heure','Dernier plein','Heure'].join(sep);
+                  'Volume (L)','Montant (FCFA)','Nb prises de carburant','Conso moyenne L/100km',
+                  'Première prise','Heure','Dernière prise','Heure'].join(sep);
     const data = this.moySorted().map(r =>
       [r.immatriculation, r.marque ?? '', r.modele ?? '', r.km_debut, r.km_fin, r.km_parcourus,
        r.volume_total, r.montant_total, r.nb_pleins, r.conso_100 ?? 'N/A',
@@ -427,7 +427,7 @@ export class CarburantListComponent implements OnInit, OnDestroy {
       };
     });
 
-    const labels: Record<string, string> = { volume: 'Volume (litres)', montant: 'Montant (FCFA)', nb: 'Nb pleins' };
+    const labels: Record<string, string> = { volume: 'Volume (litres)', montant: 'Montant (FCFA)', nb: 'Nb prises de carburant' };
     const Chart = (window as any)['Chart'];
     if (!Chart) { this.loadChartJs(() => this.renderChart()); return; }
     if (this.evoChart) { this.evoChart.destroy(); this.evoChart = null; }
@@ -444,7 +444,7 @@ export class CarburantListComponent implements OnInit, OnDestroy {
             const v = ctx.parsed.y;
             if (metrique === 'volume')  return `${ctx.dataset.label}: ${v.toFixed(2)} L`;
             if (metrique === 'montant') return `${ctx.dataset.label}: ${v.toLocaleString('fr-FR')} FCFA`;
-            return `${ctx.dataset.label}: ${v} plein(s)`;
+            return `${ctx.dataset.label}: ${v} prise(s) de carburant`;
           }}},
         },
         scales: {
@@ -548,9 +548,9 @@ export class CarburantListComponent implements OnInit, OnDestroy {
     const sep = ';'; const eol = '\r\n';
     const hdrs = [
       'Statut','Immatriculation',
-      'Volume UbiFleet (L)','Km UbiFleet','Nb pleins UbiFleet','Conso UbiFleet (L/100)',
-      'Premier plein UbiFleet','Heure','Dernier plein UbiFleet','Heure',
-      'Volume Total (L)','Km Total','Nb pleins Total','Conso Total (L/100)',
+      'Volume UbiFleet (L)','Km UbiFleet','Nb prises UbiFleet','Conso UbiFleet (L/100)',
+      'Première prise UbiFleet','Heure','Dernière prise UbiFleet','Heure',
+      'Volume Total (L)','Km Total','Nb prises Total','Conso Total (L/100)',
       'Première transaction Total','Heure','Dernière transaction Total','Heure',
       'Écart conso (L/100)','% Écart'
     ].join(sep);

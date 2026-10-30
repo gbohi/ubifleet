@@ -36,14 +36,14 @@ export class PleinFormComponent implements OnInit {
   chauffeurs = signal<OptionRecherche[]>([]);
   private tournees = signal<OptionTournee[]>([]);
   stations   = signal<OptionRecherche[]>([]);
-  /** Prix en vigueur à la date du plein pour le carburant du véhicule. */
+  /** Prix en vigueur à la date de la prise pour le carburant du véhicule. */
   prixReference = signal<{ prix: number | null; date_effet: string | null; type_carburant: string } | null>(null);
   private dernierPrixAuto: number | null = null;
   loading    = signal(false);
   saving     = signal(false);
   error      = signal('');
   success    = signal('');
-  /** Plein sorti de la fenêtre de saisie : consultation seule. */
+  /** Prise de carburant sortie de la fenêtre de saisie : consultation seule. */
   verrouille = signal(false);
   /** Pas de droit de modification (ni rôle autorisé, ni auteur dans la fenêtre). */
   lectureSeule = signal(false);
@@ -51,6 +51,8 @@ export class PleinFormComponent implements OnInit {
   /** Date d'origine hors de la fenêtre : toute correction exige un motif. */
   horsFenetre  = signal(false);
   infoHorsDelai = signal<string | null>(null);
+  /** Motif de la consommation anormale de la prise (alerte ouverte). */
+  anomalie = signal<string | null>(null);
   motifCorrection = signal('');
   private dateCourante = signal<string | null>(null);
   motifRequis = computed(() => this.isEditMode()
@@ -83,11 +85,11 @@ export class PleinFormComponent implements OnInit {
   get f() { return this.form.controls; }
 
   private vehiculeChoisi = toSignal(this.form.controls.vehicule.valueChanges, { initialValue: '' });
-  /** Tournées de l'agence du véhicule (l'agence du plein est celle du véhicule). */
+  /** Tournées de l'agence du véhicule (l'agence de la prise est celle du véhicule). */
   tourneesProposees = computed(() => tourneesDuVehicule(
     this.tournees(), this.vehicules().find(v => v.value === this.vehiculeChoisi())?.agence));
 
-  /** Plein enregistré sans heure (avant qu'elle soit obligatoire) : à compléter. */
+  /** Prise de carburant enregistrée sans heure (avant qu'elle soit obligatoire) : à compléter. */
   heureManquante = signal(false);
 
   private currentTimeStr(): string {
@@ -157,6 +159,7 @@ export class PleinFormComponent implements OnInit {
               notes:              p.notes ?? '',
             });
             this.heureManquante.set(!p.heure_plein);
+            this.anomalie.set(p.statut_validation === 'anomalie' ? p.motif_anomalie || null : null);
             if (p.photo_tableau_bord) {
               this.photoExistante.set(p.photo_tableau_bord);
             }
@@ -277,10 +280,13 @@ export class PleinFormComponent implements OnInit {
       : this.carburantApi.createPlein(fd);
 
     req.subscribe({
-      next: () => {
+      next: (p: any) => {
         this.saving.set(false);
-        this.success.set(this.isEditMode() ? 'Plein modifié.' : 'Plein enregistré.');
-        setTimeout(() => this.router.navigate(['/carburant']), 1200);
+        const anormale = p?.statut_validation === 'anomalie';
+        this.anomalie.set(anormale ? p.motif_anomalie || null : null);
+        this.success.set((this.isEditMode() ? 'Prise de carburant modifiée.' : 'Prise de carburant enregistrée.')
+          + (anormale ? ' Consommation anormale : une alerte a été ouverte.' : ''));
+        setTimeout(() => this.router.navigate(['/carburant']), anormale ? 4000 : 1200);
       },
       error: (err) => {
         this.saving.set(false);

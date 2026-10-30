@@ -20,7 +20,7 @@
     <div class="p-head">
       <div>
         <h2>Consommation anormale</h2>
-        <p>Seuil de détection des consommations anormales lors de l'enregistrement d'un plein.</p>
+        <p>Seuil de détection des consommations anormales lors de l'enregistrement d'une prise de carburant.</p>
         <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant</span></div>
       </div>
     </div>
@@ -90,7 +90,7 @@
         <div class="cartes">
           <label class="carte" [class.modifie]="modifie('conso_anomalie_pct')">
             <span class="carte-titre"><i class="fas fa-chart-line"></i> Seuil d'anomalie</span>
-            <span class="carte-aide">Un plein est marqué « anomalie » si la consommation dépasse la moyenne du véhicule de plus de :</span>
+            <span class="carte-aide">Une prise de carburant est marquée « anomalie » (et une alerte est ouverte) si sa consommation dépasse la moyenne des autres prises du véhicule de plus de :</span>
             <span class="carte-saisie">
               <input type="number" min="1" formControlName="conso_anomalie_pct" />
               <span class="unite">%</span>
