@@ -13,6 +13,12 @@
       <button class="btn btn-outline btn-sm" (click)="loadEtatParc()">
         <i class="fas fa-sync-alt"></i> Actualiser
       </button>
+      @if (peutReglerSeuils()) {
+        <a routerLink="/parametres" [queryParams]="{ section: 'echeances' }" class="btn btn-outline btn-sm"
+           title="Les seuils attention / urgent pilotent les couleurs de cette page et les alertes">
+          <i class="fas fa-cog"></i> Régler les seuils
+        </a>
+      }
       <a routerLink="/entretien" class="btn btn-outline btn-sm">
         <i class="fas fa-arrow-left"></i> Entretien
       </a>

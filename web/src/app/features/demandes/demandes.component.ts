@@ -1,15 +1,16 @@
 // UbiFleet — Demandes (Angular 18)
 import {
-  Component, inject, OnInit, ChangeDetectionStrategy, signal
+  Component, inject, OnInit, ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
-  DemandesApiService, AgenceApiService, ChauffeurApiService, RoleApiService
+  DemandesApiService, AgenceApiService, ChauffeurApiService
 } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 
-type Tab = 'liste' | 'nouvelle' | 'a_valider' | 'types';
+type Tab = 'liste' | 'nouvelle' | 'a_valider';
 
 interface LigneAchat {
   id?: number;
@@ -33,8 +34,11 @@ export class DemandesComponent implements OnInit {
   private api         = inject(DemandesApiService);
   private agenceApi   = inject(AgenceApiService);
   private chauffeurApi= inject(ChauffeurApiService);
-  private roleApi     = inject(RoleApiService);
+  private auth        = inject(AuthService);
   private fb          = inject(FormBuilder);
+
+  /** Lien vers Paramètres › Circuits de validation (profils ayant accès aux paramètres). */
+  peutConfigurerCircuits = computed(() => this.auth.peutAcceder('parametres'));
 
   activeTab = signal<Tab>('liste');
   stats     = signal<any>(null);
@@ -64,6 +68,7 @@ export class DemandesComponent implements OnInit {
   valCommentaire    = signal('');
   valRejet          = signal(false);
   valLoading        = signal(false);
+  valErreur         = signal('');
 
   // ── Nouvelle demande ──────────────────────────────────────────────
   typesDemande = signal<any[]>([]);
@@ -101,38 +106,6 @@ export class DemandesComponent implements OnInit {
     montant_estime:      [null as number | null],
   });
 
-  // ── Types de demande ──────────────────────────────────────────────
-  typeLoading    = signal(false);
-  typeError      = signal('');
-  typeSuccess    = signal('');
-  editTypeId     = signal<string | null>(null);
-  showTypeModal  = signal(false);
-  // Popup suppression type
-  deleteTypeConfirm = signal<any>(null);
-  deleteTypeLoading = signal(false);
-  roles = signal<any[]>([]);
-
-  typeForm = this.fb.group({
-    code:                ['autre'],
-    nom:                 ['', Validators.required],
-    nb_niveaux:          [2, [Validators.required, Validators.min(1), Validators.max(4)]],
-    delai_reponse_jours: [3],
-    actif:               [true],
-  });
-
-  // ── Niveaux de validation ─────────────────────────────────────────
-  niveauxActifs         = signal<any[]>([]);
-  niveauxLoading        = signal(false);
-  editingTypeForNiveaux = signal<any>(null);
-  // Popup suppression niveau
-  deleteNiveauConfirm   = signal<any>(null);
-  deleteNiveauLoading   = signal(false);
-
-  niveauForm = this.fb.group({
-    niveau:   [1, [Validators.required, Validators.min(1), Validators.max(4)]],
-    libelle:  ['', Validators.required],
-    role_min: [null as number | null],
-  });
   // ── Popup annulation demande ──────────────────────────────────────
   annulerConfirm  = signal<string | null>(null);
   annulerLoading  = signal(false);
@@ -162,11 +135,6 @@ export class DemandesComponent implements OnInit {
           this.ajouterLigne(); // ajouter une ligne vide par défaut
         }
       }
-    });
-    this.roleApi.getAll().subscribe({
-      next: (list) => this.roles.set(
-        Array.isArray(list) ? list : (list as any).results ?? []
-      ), error: () => {}
     });
   }
 
@@ -360,13 +328,14 @@ export class DemandesComponent implements OnInit {
     this.valCommentaire.set('');
     this.valRejet.set(rejet);
   }
-  fermerValidation(): void { this.validationModal.set(null); }
+  fermerValidation(): void { this.validationModal.set(null); this.valErreur.set(''); }
 
   confirmerValidation(): void {
     const d = this.validationModal();
     if (!d) return;
     if (this.valRejet() && !this.valCommentaire().trim()) return;
     this.valLoading.set(true);
+    this.valErreur.set('');
     const req = this.valRejet()
       ? this.api.rejeter(d.id, this.valCommentaire())
       : this.api.valider(d.id, this.valCommentaire());
@@ -378,8 +347,7 @@ export class DemandesComponent implements OnInit {
       },
       error: (err: any) => {
         this.valLoading.set(false);
-        const msg = err?.error?.detail ?? JSON.stringify(err?.error) ?? 'Erreur.';
-        this.typeError.set(msg);
+        this.valErreur.set(err?.error?.detail ?? 'Erreur lors de la validation.');
       },
     });
   }
@@ -388,149 +356,9 @@ export class DemandesComponent implements OnInit {
     this.valCommentaire.set((e.target as HTMLTextAreaElement).value);
   }
 
-  // ── Types CRUD ────────────────────────────────────────────────────
+  // ── Types de demande (configuration : Paramètres › Circuits de validation) ──
   loadTypes(): void {
     this.api.getTypesDemande().subscribe({ next: (l) => this.typesDemande.set(l), error: () => {} });
-  }
-
-  ouvrirNouveauType(): void {
-    this.editTypeId.set(null);
-    this.typeError.set('');
-    this.typeForm.reset({ code: 'autre', nb_niveaux: 2, delai_reponse_jours: 3, actif: true });
-    this.showTypeModal.set(true);
-  }
-
-  editType(t: any): void {
-    this.editTypeId.set(t.id);
-    this.typeError.set('');
-    this.typeForm.patchValue({
-      code: t.code, nom: t.nom,
-      nb_niveaux: t.nb_niveaux,
-      delai_reponse_jours: t.delai_reponse_jours,
-      actif: t.actif,
-    });
-    this.showTypeModal.set(true);
-  }
-
-  cancelEditType(): void {
-    this.editTypeId.set(null);
-    this.showTypeModal.set(false);
-    this.typeForm.reset({ code: 'autre', nb_niveaux: 2, delai_reponse_jours: 3, actif: true });
-  }
-
-  saveType(): void {
-    if (this.typeForm.invalid) return;
-    const id  = this.editTypeId();
-    const req = id
-      ? this.api.updateTypeDemande(id, this.typeForm.value)
-      : this.api.createTypeDemande(this.typeForm.value);
-    req.subscribe({
-      next: () => {
-        this.showTypeModal.set(false);
-        this.typeSuccess.set(id ? 'Type modifié.' : 'Type créé.');
-        this.cancelEditType();
-        this.loadTypes();
-        setTimeout(() => this.typeSuccess.set(''), 3000);
-      },
-      error: (err: any) => this.typeError.set(err?.error?.detail ?? 'Erreur.'),
-    });
-  }
-
-  // Suppression type avec popup
-  demanderSuppressionType(t: any): void  { this.deleteTypeConfirm.set(t); }
-  annulerSuppressionType(): void          { this.deleteTypeConfirm.set(null); }
-
-  confirmerSuppressionType(): void {
-    const t = this.deleteTypeConfirm();
-    if (!t) return;
-    this.deleteTypeLoading.set(true);
-    this.api.updateTypeDemande(t.id, { actif: false }).subscribe({
-      next: () => {
-        this.deleteTypeLoading.set(false);
-        this.deleteTypeConfirm.set(null);
-        this.loadTypes();
-      },
-      error: (err: any) => {
-        this.deleteTypeLoading.set(false);
-        this.typeError.set(err?.error?.detail ?? 'Erreur lors de la suppression.');
-      },
-    });
-  }
-
-  // ── Niveaux CRUD ──────────────────────────────────────────────────
-  ouvrirNiveaux(t: any): void {
-    this.editingTypeForNiveaux.set(t);
-    this.loadNiveaux(t.id);
-    this.niveauForm.reset({ niveau: (t.niveaux?.length ?? 0) + 1, libelle: '', role_min: null });
-  }
-
-  fermerNiveaux(): void {
-    this.editingTypeForNiveaux.set(null);
-    this.niveauxActifs.set([]);
-  }
-
-  loadNiveaux(typeId: string | number): void {
-    this.niveauxLoading.set(true);
-    this.api.getNiveaux(typeId).subscribe({
-      next: (list) => { this.niveauxActifs.set(list); this.niveauxLoading.set(false); },
-      error: () => this.niveauxLoading.set(false),
-    });
-  }
-
-  saveNiveau(): void {
-    if (this.niveauForm.invalid) return;
-    const t = this.editingTypeForNiveaux();
-    if (!t) return;
-    // Vérifier qu'on ne dépasse pas le nb_niveaux défini sur le type
-    if (this.niveauxActifs().length >= t.nb_niveaux) {
-      this.typeError.set(
-        `Ce type est limité à ${t.nb_niveaux} niveau(x) de validation. ` +
-        `Modifiez le type pour augmenter ce nombre.`
-      );
-      return;
-    }
-    const val = this.niveauForm.value;
-    const data: any = {
-      type_demande: t.id,
-      niveau:       Number(val.niveau),
-      libelle:      val.libelle,
-    };
-    // role_min est un UUID string — on l'envoie tel quel si non vide/null
-    const rmRaw = val.role_min;
-    const rmStr = rmRaw !== null && rmRaw !== undefined ? String(rmRaw) : '';
-    if (rmStr !== '' && rmStr !== 'null') {
-      data.role_min = rmStr;   // UUID string, pas de conversion Number()
-    }
-    this.api.createNiveau(data).subscribe({
-      next: () => {
-        this.loadNiveaux(t.id);
-        this.niveauForm.reset({ niveau: this.niveauxActifs().length + 2, libelle: '', role_min: null });
-        this.loadTypes();
-      },
-      error: (err: any) => {
-        this.typeError.set(err?.error?.detail ?? JSON.stringify(err?.error) ?? 'Erreur.');
-      },
-    });
-  }
-
-  // Suppression niveau avec popup
-  demanderSuppressionNiveau(n: any): void { this.deleteNiveauConfirm.set(n); }
-  annulerSuppressionNiveau(): void         { this.deleteNiveauConfirm.set(null); }
-
-  confirmerSuppressionNiveau(): void {
-    const n = this.deleteNiveauConfirm();
-    if (!n) return;
-    const t = this.editingTypeForNiveaux();
-    this.deleteNiveauLoading.set(true);
-    this.api.deleteNiveau(n.id).subscribe({
-      next: () => {
-        this.deleteNiveauLoading.set(false);
-        this.deleteNiveauConfirm.set(null);
-        if (t) this.loadNiveaux(t.id);
-        this.loadTypes();
-      },
-      error: () => { this.deleteNiveauLoading.set(false); this.deleteNiveauConfirm.set(null); },
-    });
   }
 
   // ── Détail d'une demande ──────────────────────────────────────────

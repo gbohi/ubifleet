@@ -1,4 +1,5 @@
 // UbiFleet — Paramètres Styles
+@use 'parametres-commun' as *;
 .parametres-page { animation: fadeInUp var(--transition-base) ease; }
 
 .tab-content { animation: fadeInUp 0.2s ease; }
@@ -162,3 +163,83 @@
   i { color: var(--danger); font-size: 9px; margin-top: 4px; flex-shrink: 0; }
 }
 .form-control-sm { padding: 6px 10px; font-size: 12.5px; }
+
+// ══ Mise en page : navigation par rubriques + contenu ═══════════════
+.settings {
+  display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start;
+  @media (max-width: 1280px) { grid-template-columns: 220px minmax(0, 1fr); gap: 16px; }
+}
+
+.snav {
+  background: var(--white, #fff); border-radius: var(--radius-lg); padding: 10px;
+  position: sticky; top: 16px; box-shadow: 0 1px 2px rgba(9, 36, 64, .05);
+}
+.snav-groupe {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .1em; color: var(--gray-400);
+  text-transform: uppercase; padding: 12px 12px 6px;
+}
+.snav-item {
+  width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border: none; background: none; border-radius: 8px; color: var(--gray-700);
+  font-size: 13.5px; font-family: inherit; text-align: left; cursor: pointer;
+  &:hover { background: var(--gray-50); }
+  &.on { background: var(--green-alpha); color: var(--navy); font-weight: 600;
+         .snav-ico { background: var(--green); color: var(--navy); } }
+}
+.snav-ico {
+  width: 26px; height: 26px; border-radius: 7px; background: var(--navy-alpha); color: var(--navy);
+  display: grid; place-items: center; font-size: 12px; flex-shrink: 0;
+}
+.snav-libelle { flex: 1; }
+.snav-count {
+  font-size: 11px; color: var(--gray-400); background: var(--gray-100);
+  padding: 1px 8px; border-radius: 20px; font-weight: 600;
+}
+.snav-mobile { display: none; }
+
+.contenu { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.contenu > * { min-width: 0; }
+.p-notice.bandeau { margin: 0; }
+
+// ══ Marques & modèles (maître / détail) ═════════════════════════════
+.md { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 380px; }
+.md-liste { border-right: 1px solid var(--gray-100); }
+.md-recherche { padding: 12px 16px; .p-search { width: 100%; } }
+.md-item {
+  width: 100%; display: flex; align-items: center; gap: 10px; padding: 11px 20px;
+  border: none; border-top: 1px solid var(--gray-100); background: none; cursor: pointer;
+  font-family: inherit; text-align: left;
+  &:hover { background: var(--gray-50); }
+  &.on { background: var(--green-alpha); box-shadow: inset 3px 0 0 var(--green); }
+  &.inactif .md-nom { color: var(--gray-400); }
+}
+.md-nom { font-weight: 600; color: var(--navy); font-size: 13.5px; }
+.md-meta { margin-left: auto; font-size: 11px; color: var(--gray-400); }
+.md-detail-head {
+  padding: 14px 24px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--gray-100);
+  h3 { margin: 0; color: var(--navy); font-size: 16px; font-family: var(--font-body); }
+}
+
+// ══ Divers ═══════════════════════════════════════════════════════════
+.couleur-green  { background: #22c55e; }
+.couleur-red    { background: var(--danger); }
+.couleur-orange { background: var(--warning); }
+.couleur-blue   { background: #3b82f6; }
+.couleur-gray   { background: var(--gray-400); }
+.pastille-libelle { display: inline-flex; align-items: center; .p-dot { flex-shrink: 0; } }
+.manquant { font-size: 12px; color: #b45309; background: var(--warning-light); padding: 1px 8px; border-radius: 10px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.petit { font-size: 12px; }
+.filtre-agence { width: 180px; }
+
+@media (max-width: 900px) {
+  .settings { grid-template-columns: 1fr; gap: 12px; }
+  .snav { display: none; }
+  .snav-mobile { display: block;
+    select { width: 100%; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--gray-200);
+             font-size: 14px; font-family: inherit; background: var(--white, #fff); } }
+  .md { grid-template-columns: 1fr; }
+  .md-liste { border-right: none; border-bottom: 1px solid var(--gray-100); max-height: 260px; overflow-y: auto; }
+  .filtre-agence { width: 100%; }
+}

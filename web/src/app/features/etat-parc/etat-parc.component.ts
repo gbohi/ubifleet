@@ -4,6 +4,7 @@ import {
   ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { VehiculeApiService } from '../../core/services/api.service';
 
@@ -46,6 +47,8 @@ interface Kpis {
 })
 export class EtatParcComponent implements OnInit {
   private api = inject(VehiculeApiService);
+  private auth = inject(AuthService);
+  peutReglerSeuils = computed(() => this.auth.peutAcceder('parametres'));
 
   loading   = signal(false);
   // Seuils par échéance (Paramètres › Échéances), ex. seuils()?.['ct'].urgent

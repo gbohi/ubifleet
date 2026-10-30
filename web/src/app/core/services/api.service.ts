@@ -498,8 +498,9 @@ export class SinistreApiService extends ApiBaseService {
       `${API}/sinistres/contrats/`, { params }
     );
   }
-  getAssureurs(): Observable<any[]> {
-    return this.http.get<any[] | PaginatedResponse<any>>(`${API}/sinistres/assureurs/`).pipe(
+  getAssureurs(filters?: Record<string, any>): Observable<any[]> {
+    const params = filters ? this.buildParams(filters) : undefined;
+    return this.http.get<any[] | PaginatedResponse<any>>(`${API}/sinistres/assureurs/`, { params }).pipe(
       map(res => Array.isArray(res) ? res : res.results ?? [])
     );
   }

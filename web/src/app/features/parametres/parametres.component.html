@@ -8,607 +8,520 @@
     </div>
   </div>
 
-  <div class="tabs">
-    <button class="tab" [class.active]="activeTab() === 'alertes'"
-            (click)="activeTab.set('alertes')">
-      <i class="fas fa-bell"></i> Alertes
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'types'"
-            (click)="activeTab.set('types')">
-      <i class="fas fa-wrench"></i> Types d'intervention
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'types_doc'"
-            (click)="activeTab.set('types_doc')">
-      <i class="fas fa-file-alt"></i> Types de documents
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'prestataires'"
-            (click)="activeTab.set('prestataires')">
-      <i class="fas fa-tools"></i> Prestataires / Garages
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'assureurs'"
-            (click)="activeTab.set('assureurs')">
-      <i class="fas fa-shield-alt"></i> Assureurs
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'agences'"
-            (click)="activeTab.set('agences')">
-      <i class="fas fa-map-marker-alt"></i> Agences
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'tournees'"
-            (click)="activeTab.set('tournees')">
-      <i class="fas fa-route"></i> Tournées
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'affectations'"
-            (click)="activeTab.set('affectations')">
-      <i class="fas fa-tag"></i> Affectations
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'statuts'"
-            (click)="activeTab.set('statuts')">
-      <i class="fas fa-circle"></i> Statuts véhicule
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'marques'"
-            (click)="activeTab.set('marques')">
-      <i class="fas fa-copyright"></i> Marques
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'modeles'"
-            (click)="activeTab.set('modeles')">
-      <i class="fas fa-car-side"></i> Modèles
-    </button>
-  </div>
+  <div class="settings">
 
-  <!-- ── ONGLET ALERTES ── -->
-  @if (activeTab() === 'alertes') {
-    <div class="tab-content">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Seuils d'alertes automatiques</div>
-          <div class="card-subtitle">Configurer les délais déclenchant les alertes</div>
-        </div>
-        <div class="card-body">
-
-          @if (paramSuccess()) {
-            <div class="alert alert-success">
-              <i class="fas fa-check-circle"></i> {{ paramSuccess() }}
-            </div>
-          }
-          @if (paramError()) {
-            <div class="alert alert-error">
-              <i class="fas fa-exclamation-triangle"></i> {{ paramError() }}
-            </div>
-          }
-
-          <form [formGroup]="alertesForm" (ngSubmit)="saveParametres()" novalidate>
-
-            <div class="param-grid">
-              <div class="param-item">
-                <div class="param-icon"><i class="fas fa-id-card"></i></div>
-                <div class="param-info">
-                  <label class="param-label">Permis de conduire</label>
-                  <p class="param-desc">
-                    Déclencher l'alerte X jours avant l'expiration du permis
-                  </p>
-                </div>
-                <div class="param-input">
-                  <input type="number" formControlName="alerte_permis_jours"
-                         class="form-control input-sm" min="1" max="365" />
-                  <span class="param-unit">jours</span>
-                </div>
-              </div>
-
-              <div class="param-item">
-                <div class="param-icon"><i class="fas fa-shield-alt"></i></div>
-                <div class="param-info">
-                  <label class="param-label">Assurance véhicule</label>
-                  <p class="param-desc">
-                    Déclencher l'alerte X jours avant l'expiration de l'assurance
-                  </p>
-                </div>
-                <div class="param-input">
-                  <input type="number" formControlName="alerte_assurance_jours"
-                         class="form-control input-sm" min="1" max="365" />
-                  <span class="param-unit">jours</span>
-                </div>
-              </div>
-
-              <div class="param-item">
-                <div class="param-icon"><i class="fas fa-car"></i></div>
-                <div class="param-info">
-                  <label class="param-label">Contrôle technique</label>
-                  <p class="param-desc">
-                    Déclencher l'alerte X jours avant l'expiration du contrôle technique
-                  </p>
-                </div>
-                <div class="param-input">
-                  <input type="number" formControlName="alerte_ct_jours"
-                         class="form-control input-sm" min="1" max="365" />
-                  <span class="param-unit">jours</span>
-                </div>
-              </div>
-
-              <div class="param-item">
-                <div class="param-icon"><i class="fas fa-gas-pump"></i></div>
-                <div class="param-info">
-                  <label class="param-label">Consommation anormale</label>
-                  <p class="param-desc">
-                    Déclencher l'alerte si la consommation dépasse la moyenne de X%
-                  </p>
-                </div>
-                <div class="param-input">
-                  <input type="number" formControlName="alerte_conso_seuil_pct"
-                         class="form-control input-sm" min="1" max="200" />
-                  <span class="param-unit">%</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Seuils État du Parc -->
-            <div class="param-section-title" style="margin-top:24px;margin-bottom:12px">
-              <i class="fas fa-clipboard-list" style="color:var(--green-dark)"></i>
-              Seuils État du Parc
-            </div>
-            <div class="param-grid">
-
-              <div class="param-item">
-                <div class="param-icon" style="background:#fff7ed;color:#c2410c"><i class="fas fa-tools"></i></div>
-                <div class="param-info">
-                  <label class="param-label">Révision / Pneus — seuil URGENT</label>
-                  <p class="param-desc">
-                    Afficher en rouge si le km restant avant révision ou remplacement de pneus est inférieur à X km
-                  </p>
-                </div>
-                <div class="param-input">
-                  <input type="number" formControlName="etat_parc_km_urgent"
-                         class="form-control input-sm" min="1" />
-                  <span class="param-unit">km</span>
-                </div>
-              </div>
-
-              <div class="param-item">
-                <div class="param-icon" style="background:#fffbeb;color:#b45309"><i class="fas fa-tools"></i></div>
-                <div class="param-info">
-                  <label class="param-label">Révision / Pneus — seuil ATTENTION</label>
-                  <p class="param-desc">
-                    Afficher en orange si le km restant est inférieur à X km (mais supérieur au seuil urgent)
-                  </p>
-                </div>
-                <div class="param-input">
-                  <input type="number" formControlName="etat_parc_km_attention"
-                         class="form-control input-sm" min="1" />
-                  <span class="param-unit">km</span>
-                </div>
-              </div>
-
-              <div class="param-item">
-                <div class="param-icon" style="background:#fff7ed;color:#c2410c"><i class="fas fa-file-alt"></i></div>
-                <div class="param-info">
-                  <label class="param-label">Documents véhicule — seuil URGENT</label>
-                  <p class="param-desc">
-                    Afficher en rouge si le document expire dans moins de X jours
-                    (assurance, contrôle technique, carte de transport, vignette)
-                  </p>
-                </div>
-                <div class="param-input">
-                  <input type="number" formControlName="etat_parc_jours_urgent"
-                         class="form-control input-sm" min="1" />
-                  <span class="param-unit">jours</span>
-                </div>
-              </div>
-
-              <div class="param-item">
-                <div class="param-icon" style="background:#fffbeb;color:#b45309"><i class="fas fa-file-alt"></i></div>
-                <div class="param-info">
-                  <label class="param-label">Documents véhicule — seuil ATTENTION</label>
-                  <p class="param-desc">
-                    Afficher en orange si le document expire dans moins de X jours
-                    (mais supérieur au seuil urgent)
-                  </p>
-                </div>
-                <div class="param-input">
-                  <input type="number" formControlName="etat_parc_jours_attention"
-                         class="form-control input-sm" min="1" />
-                  <span class="param-unit">jours</span>
-                </div>
-              </div>
-
-              <div class="param-item">
-                <div class="param-icon" style="background:#fef9c3;color:#854d0e">
-                  <i class="fas fa-gas-pump"></i>
-                </div>
-                <div class="param-info">
-                  <label class="param-label">Prix du carburant</label>
-                  <p class="param-desc">
-                    Prix par défaut du litre de carburant — récupéré automatiquement lors de la saisie d'un plein
-                  </p>
-                </div>
-                <div class="param-input">
-                  <input type="number" formControlName="prix_carburant_litre"
-                         class="form-control input-sm" min="1" />
-                  <span class="param-unit">FCFA/L</span>
-                </div>
-              </div>
-
-            </div>
-
-            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
-              <button type="button" class="btn btn-outline" (click)="exportParametres()">
-                <i class="fas fa-file-csv"></i> Exporter CSV
-              </button>
-              <button type="submit" class="btn btn-green" [disabled]="alertesForm.invalid || paramSaving()">
-                @if (paramSaving()) {
-                  <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
-                } @else {
-                  <i class="fas fa-save"></i> Enregistrer les seuils
-                }
-              </button>
-            </div>
-
-          </form>
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- ── ONGLET TYPES D'INTERVENTION ── -->
-  @if (activeTab() === 'types') {
-    <div class="tab-content">
-
-        <!-- Liste seule + bouton Nouveau -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Types d'intervention</div>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-outline btn-sm" (click)="exportTypes()"><i class="fas fa-file-csv"></i> Exporter CSV</button>
-              <button class="btn btn-green btn-sm" (click)="ouvrirNouveauType()">
-              <i class="fas fa-plus"></i> Nouveau type
-            </button>
-            </div>
-          </div>
-          @if (typesSuccess()) {
-            <div class="alert alert-success" style="margin:8px 16px">
-              <i class="fas fa-check-circle"></i> {{ typesSuccess() }}
-            </div>
-          }
-          <div class="card-body" style="padding:0">
-            <div class="table-container">
-              <table class="ubi-table">
-                <thead>
-                  <tr>
-                    <th>Nom</th>
-                    <th>Catégorie</th>
-                    <th>Km</th>
-                    <th>Mois</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @if (types().length === 0) {
-                    <tr>
-                      <td colspan="5" class="td-empty">
-                        Aucun type d'intervention
-                      </td>
-                    </tr>
-                  }
-                  @for (t of types(); track t.id) {
-                    <tr>
-                      <td>{{ t.nom }}</td>
-                      <td>{{ t.categorie_display ?? t.categorie }}</td>
-                      <td>{{ t.periodicite_km || '—' }}</td>
-                      <td>{{ t.periodicite_mois || '—' }}</td>
-                      <td>
-                        <div style="display:flex;gap:4px">
-                          <button class="btn btn-icon" title="Modifier"
-                                  (click)="editType(t)">
-                            <i class="fas fa-edit"></i>
-                          </button>
-                          <button class="btn btn-icon btn-icon-danger" title="Supprimer"
-                                  (click)="deleteType(t.id)">
-                            <i class="fas fa-trash"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-    </div>
-  }
-
-  <!-- ── ONGLET TYPES DE DOCUMENTS ── -->
-  @if (activeTab() === 'types_doc') {
-    <div class="tab-content">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Types de documents véhicule
-            <span class="card-count" style="margin-left:8px">{{ typesDoc().length }}</span>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-outline btn-sm" (click)="exportTypesDoc()"><i class="fas fa-file-csv"></i> Exporter CSV</button>
-            <button class="btn btn-green btn-sm" (click)="ouvrirNouveauTypeDoc()">
-            <i class="fas fa-plus"></i> Nouveau type
-          </button>
-          </div>
-        </div>
-        @if (typesDocSuccess()) {
-          <div class="alert alert-success" style="margin:8px 16px">
-            <i class="fas fa-check-circle"></i> {{ typesDocSuccess() }}
-          </div>
-        }
-        @if (typesDocLoading()) {
-          <div class="loading-sm"><i class="fas fa-circle-notch fa-spin"></i></div>
-        } @else if (typesDoc().length === 0) {
-          <div class="empty-sm"><i class="fas fa-file-alt"></i> Aucun type.</div>
-        } @else {
-          <div class="table-container">
-            <table class="ubi-table">
-              <thead>
-                <tr>
-                  <th>Ordre</th><th>Libellé</th><th>Code</th>
-                  <th>Nb docs</th><th>Statut</th><th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (t of typesDoc(); track t.id) {
-                  <tr [class.row-inactive]="!t.actif">
-                    <td style="text-align:center;color:var(--gray-400)">{{ t.ordre }}</td>
-                    <td style="font-weight:600">{{ t.libelle }}</td>
-                    <td><code style="font-size:11px;background:var(--gray-100);padding:2px 6px;border-radius:4px">{{ t.code || '—' }}</code></td>
-                    <td style="text-align:center">{{ t.nb_documents }}</td>
-                    <td><span class="badge" [class]="t.actif ? 'badge-green' : 'badge-gray'">{{ t.actif ? 'Actif' : 'Inactif' }}</span></td>
-                    <td>
-                      <div class="td-actions">
-                        <button class="btn btn-icon" title="Modifier" (click)="editTypesDoc(t)"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-icon" [title]="t.actif ? 'Désactiver' : 'Activer'" (click)="toggleActifTypesDoc(t)"><i class="fas" [class]="t.actif ? 'fa-toggle-on' : 'fa-toggle-off'"></i></button>
-                        <button class="btn btn-icon btn-danger" title="Supprimer" [disabled]="t.nb_documents > 0" (click)="deleteTypesDoc(t)"><i class="fas fa-trash"></i></button>
-                      </div>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-        <div class="card-footer-note">
-          <i class="fas fa-info-circle"></i>
-          Les types avec des documents existants ne peuvent pas être supprimés.
-          Les codes <code>assurance</code>, <code>ct</code>, <code>carte_transport</code>
-          et <code>vignette</code> sont utilisés pour le calcul de l'État du Parc.
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- ── ONGLET PRESTATAIRES ── -->
-  @if (activeTab() === 'prestataires') {
-    <div class="tab-content">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Prestataires / Garages</div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-outline btn-sm" (click)="exportPrestataires()"><i class="fas fa-file-csv"></i> Exporter CSV</button>
-            <button class="btn btn-green btn-sm" (click)="ouvrirNouveauPrestataire()">
-            <i class="fas fa-plus"></i> Nouveau prestataire
-          </button>
-          </div>
-        </div>
-        <div class="card-body" style="padding:0">
-          <div class="table-container">
-            <table class="ubi-table">
-              <thead>
-                <tr><th>Nom</th><th>Spécialité</th><th>Ville</th><th>Téléphone</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                @if (prestataires().length === 0) {
-                  <tr><td colspan="5" class="td-empty">Aucun prestataire enregistré</td></tr>
-                }
-                @for (p of prestataires(); track p.id) {
-                  <tr>
-                    <td><strong>{{ p.nom }}</strong></td>
-                    <td>{{ p.specialite || '—' }}</td>
-                    <td>{{ p.ville || '—' }}</td>
-                    <td>{{ p.telephone || '—' }}</td>
-                    <td>
-                      <div style="display:flex;gap:4px">
-                        <button class="btn btn-icon" title="Modifier" (click)="editPrestataire(p)"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="deletePrestataire(p.id)"><i class="fas fa-trash"></i></button>
-                      </div>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- ── ONGLET ASSUREURS ── -->
-  @if (activeTab() === 'assureurs') {
-    <div class="tab-content">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Assureurs enregistrés</div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-outline btn-sm" (click)="exportAssureurs()"><i class="fas fa-file-csv"></i> Exporter CSV</button>
-            <button class="btn btn-green btn-sm" (click)="ouvrirNouvelAssureur()">
-            <i class="fas fa-plus"></i> Nouvel assureur
-          </button>
-          </div>
-        </div>
-        <div class="card-body" style="padding:0">
-          @if (assureurs().length === 0) {
-            <div style="padding:32px;text-align:center;color:var(--gray-400);font-size:13px">
-              Aucun assureur. Créez-en un avec le bouton ci-dessus.
-            </div>
-          } @else {
-            <div class="table-container">
-              <table class="ubi-table">
-                <thead>
-                  <tr><th>Compagnie</th><th>Téléphone</th><th>Contact sinistres</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  @for (a of assureurs(); track a.id) {
-                    <tr>
-                      <td>
-                        <div style="font-weight:600;color:var(--navy)">{{ a.nom }}</div>
-                        @if (a.email) { <div style="font-size:11px;color:var(--gray-400)">{{ a.email }}</div> }
-                      </td>
-                      <td>{{ a.telephone || '—' }}</td>
-                      <td>{{ a.contact_sinistre || '—' }}</td>
-                      <td>
-                        <div style="display:flex;gap:4px">
-                          <button class="btn btn-icon" title="Modifier" (click)="editAssureur(a)"><i class="fas fa-edit"></i></button>
-                          <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="deleteAssureur(a.id)"><i class="fas fa-trash"></i></button>
-                        </div>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- ── ONGLET AGENCES ── -->
-  @if (activeTab() === 'agences') {
-    <div class="tab-content">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Agences enregistrées</div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-outline btn-sm" (click)="exportAgences()"><i class="fas fa-file-csv"></i> Exporter CSV</button>
-            <button class="btn btn-green btn-sm" (click)="ouvrirNouvelleAgence()">
-            <i class="fas fa-plus"></i> Nouvelle agence
-          </button>
-          </div>
-        </div>
-        <div class="card-body" style="padding:0">
-          @if (agences().length === 0) {
-            <div style="padding:32px;text-align:center;color:var(--gray-400);font-size:13px">Aucune agence enregistrée.</div>
-          } @else {
-            <div class="table-container">
-              <table class="ubi-table">
-                <thead>
-                  <tr><th>Nom</th><th>Code</th><th>Ville</th><th>Responsable</th><th>N° client Total</th><th>Statut</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  @for (a of agences(); track a.id) {
-                    <tr>
-                      <td>
-                        <div style="font-weight:600;color:var(--navy)">{{ a.nom }}</div>
-                        @if (a.telephone) { <div style="font-size:11px;color:var(--gray-400)">{{ a.telephone }}</div> }
-                      </td>
-                      <td><code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px">{{ a.code }}</code></td>
-                      <td>{{ a.ville }}</td>
-                      <td>{{ a.responsable_nom || '—' }}</td>
-                      <td>
-                        @if ($any(a).numero_client_total) {
-                          <code style="background:var(--green-alpha);padding:2px 8px;border-radius:4px;font-size:12px;color:var(--green-dark)">{{ $any(a).numero_client_total }}</code>
-                        } @else { <span style="color:var(--gray-300)">—</span> }
-                      </td>
-                      <td>
-                        @if (a.is_active) { <span class="badge badge-green">Active</span> }
-                        @else { <span class="badge badge-danger">Inactive</span> }
-                      </td>
-                      <td>
-                        <div style="display:flex;gap:4px">
-                          <button class="btn btn-icon" title="Modifier" (click)="editAgence(a)"><i class="fas fa-edit"></i></button>
-                          <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="deleteAgence(a.id)"><i class="fas fa-trash"></i></button>
-                        </div>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- ══ TOURNÉES ══ -->
-  @if (activeTab() === 'tournees') {
-    @if (tourneesSuccess()) {
-      <div class="alert-success" style="margin-bottom:12px">
-        <i class="fas fa-check-circle"></i> {{ tourneesSuccess() }}
-      </div>
-    }
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">
-          <i class="fas fa-route"></i> Tournées
-          <span style="background:var(--gray-100);color:var(--gray-500);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;margin-left:8px">{{ tourneesFiltrees().length }}</span>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select class="form-control form-control-sm" style="max-width:210px"
-                  [value]="tourneeFiltreAgence()"
-                  (change)="tourneeFiltreAgence.set($any($event.target).value)">
-            <option value="">Toutes les agences</option>
-            @for (a of agences(); track a.id) {
-              <option [value]="a.id">{{ a.nom }}</option>
+    <!-- ── Navigation par rubriques ── -->
+    <nav class="snav" aria-label="Rubriques des paramètres">
+      @for (g of navigation; track g.titre) {
+        <div class="snav-groupe">{{ g.titre }}</div>
+        @for (i of g.items; track i.section) {
+          <button type="button" class="snav-item" [class.on]="section() === i.section" (click)="allerA(i.section)">
+            <span class="snav-ico"><i [class]="i.icone"></i></span>
+            <span class="snav-libelle">{{ i.libelle }}</span>
+            @if (compteurs()[i.section] !== undefined) {
+              <span class="snav-count">{{ compteurs()[i.section] }}</span>
             }
-          </select>
-          <button class="btn btn-outline btn-sm" (click)="exportTournees()">
-            <i class="fas fa-file-csv"></i> Exporter CSV
           </button>
-          <button class="btn btn-outline btn-sm" (click)="ouvrirImportTournees()">
-            <i class="fas fa-file-import"></i> Importer Excel
-          </button>
-          <button class="btn btn-green btn-sm" (click)="ouvrirNouvelleTournee()">
-            <i class="fas fa-plus"></i> Nouvelle tournée
-          </button>
-        </div>
-      </div>
-      @if (tourneesLoad()) {
-        <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
-      } @else if (tourneesFiltrees().length === 0) {
-        <div class="empty-state"><i class="fas fa-route"></i><p>Aucune tournée.</p></div>
-      } @else {
-        <div class="table-container">
-          <table class="ubi-table">
-            <thead>
-              <tr>
-                <th>Code</th><th>Libellé</th><th>Agence</th>
-                <th style="text-align:right">Dotation (L)</th>
-                <th style="text-align:right">Km théorique</th>
-                <th style="text-align:center">Statut</th>
-                <th style="width:80px"></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (t of tourneesFiltrees(); track t.id) {
-                <tr>
-                  <td><strong style="font-family:monospace">{{ t.code }}</strong></td>
-                  <td>{{ t.libelle }}</td>
-                  <td>
-                    <span class="agency-pill"><i class="fas fa-building"></i> {{ t.agence_nom }}</span>
-                  </td>
-                  <td style="text-align:right">{{ t.dotation | number:'1.0-0' }} L</td>
-                  <td style="text-align:right">{{ t.km_theorique | number:'1.0-0' }} km</td>
-                  <td style="text-align:center">
-                    <span class="badge" [class]="t.actif ? 'badge-green' : 'badge-gray'">{{ t.actif ? 'Active' : 'Inactive' }}</span>
-                  </td>
-                  <td>
-                    <div style="display:flex;gap:4px">
-                      <button class="btn btn-icon" title="Modifier" (click)="editTournee(t)"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="demanderSuppressionTournee(t)"><i class="fas fa-trash"></i></button>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+        }
+      }
+    </nav>
+
+    <!-- Navigation mobile -->
+    <div class="snav-mobile">
+      <select [value]="section()" (change)="allerA($any($event.target).value)" aria-label="Rubrique">
+        @for (g of navigation; track g.titre) {
+          <optgroup [label]="g.titre">
+            @for (i of g.items; track i.section) {
+              <option [value]="i.section" [selected]="section() === i.section">{{ i.libelle }}</option>
+            }
+          </optgroup>
+        }
+      </select>
+    </div>
+
+    <div class="contenu">
+
+      <!-- Messages communs aux rubriques de liste -->
+      @if (notice(); as n) {
+        <div class="p-notice bandeau" [class]="n.type">
+          <i [class]="n.type === 'ok' ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i> {{ n.texte }}
+          <button class="p-notice-close" (click)="notice.set(null)" aria-label="Fermer"><i class="fas fa-times"></i></button>
         </div>
       }
-    </div>
-  }
+      @if (succes()) {
+        <div class="p-notice bandeau ok"><i class="fas fa-check-circle"></i> {{ succes() }}</div>
+      }
 
+      @switch (section()) {
+
+        <!-- ════ RÈGLES & SEUILS ════ -->
+        @case ('echeances') { <ubi-param-seuils vue="echeances" [ecriture]="ecritureSeuils()" /> }
+        @case ('carburant') { <ubi-param-seuils vue="carburant" [ecriture]="ecritureSeuils()" /> }
+
+        <!-- ════ MARQUES & MODÈLES (maître / détail) ════ -->
+        @case ('marques') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Marques & modèles</h2>
+                <p>Sélectionnez une marque pour gérer ses modèles. Un élément désactivé reste sur les véhicules existants mais n'est plus proposé à la saisie.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Véhicules</span></div>
+              </div>
+              <div class="p-actions">
+                <button class="btn btn-outline btn-sm" (click)="exportMarques()"><i class="fas fa-file-csv"></i> Marques</button>
+                <button class="btn btn-outline btn-sm" (click)="exportModeles()"><i class="fas fa-file-csv"></i> Modèles</button>
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-green btn-sm" (click)="ouvrirNouvelleMarque()"><i class="fas fa-plus"></i> Nouvelle marque</button>
+                }
+              </div>
+            </div>
+
+            <div class="md">
+              <div class="md-liste">
+                <div class="md-recherche">
+                  <input class="p-search" placeholder="Rechercher une marque…" [value]="recherche()"
+                         (input)="recherche.set($any($event.target).value)" />
+                </div>
+                @for (m of filtrer(marques(), 'libelle'); track m.id) {
+                  <button type="button" class="md-item" [class.on]="marqueSelectionnee()?.id === m.id"
+                          [class.inactif]="!m.actif" (click)="marqueSelectionneeId.set(m.id)">
+                    <span class="md-nom">{{ m.libelle }}</span>
+                    <span class="md-meta">{{ m.actif ? (m.nb_modeles + ' modèle' + (m.nb_modeles > 1 ? 's' : '')) : 'inactive' }}</span>
+                  </button>
+                } @empty {
+                  <div class="p-empty">Aucune marque.</div>
+                }
+              </div>
+
+              <div class="md-detail">
+                @if (marqueSelectionnee(); as m) {
+                  <div class="md-detail-head">
+                    <h3>{{ m.libelle }}</h3>
+                    <span class="p-chip">{{ m.nb_utilisations }} véhicule{{ m.nb_utilisations > 1 ? 's' : '' }}</span>
+                    <div class="p-actions">
+                      <button class="p-toggle" [class.on]="m.actif" [disabled]="!ecritureReferentiels()"
+                              [title]="m.actif ? 'Marque active' : 'Marque inactive'" (click)="basculerMarque(m)"></button>
+                      @if (ecritureReferentiels()) {
+                        <button class="p-icon-btn" title="Renommer" (click)="editMarque(m)"><i class="fas fa-edit"></i></button>
+                        <button class="p-icon-btn danger" title="Supprimer la marque" (click)="demanderSuppressionMarque(m)"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-green btn-sm" (click)="ouvrirNouveauModele()"><i class="fas fa-plus"></i> Modèle</button>
+                      }
+                    </div>
+                  </div>
+                  <div class="p-table-wrap">
+                    <table class="p-table">
+                      <thead><tr><th>Modèle</th><th class="num">Véhicules</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
+                      <tbody>
+                        @for (x of modelesMarque(); track x.id) {
+                          <tr [class.inactif]="!x.actif">
+                            <td>{{ x.libelle }}</td>
+                            <td class="num">{{ x.nb_utilisations }}</td>
+                            <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.actif" [disabled]="!ecritureReferentiels()" (click)="basculerModele(x)"></button></td>
+                            <td class="p-col-actions">
+                              @if (ecritureReferentiels()) {
+                                <button class="p-icon-btn" title="Modifier" (click)="editModele(x)"><i class="fas fa-edit"></i></button>
+                                <button class="p-icon-btn danger" title="Supprimer" (click)="demanderSuppressionModele(x)"><i class="fas fa-trash"></i></button>
+                              }
+                            </td>
+                          </tr>
+                        } @empty {
+                          <tr><td colspan="4" class="p-empty">Aucun modèle pour cette marque.</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <div class="p-empty"><i class="fas fa-car-side"></i>Créez une première marque.</div>
+                }
+              </div>
+            </div>
+          </section>
+        }
+
+        <!-- ════ STATUTS VÉHICULE ════ -->
+        @case ('statuts') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Statuts véhicule <span class="p-chip">{{ statutsVehicule().length }}</span></h2>
+                <p>États possibles d'un véhicule. La couleur est reprise dans les listes et l'État du parc ; seul « en service » compte un véhicule comme disponible.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Véhicules</span><span class="p-chip">État du parc</span><span class="p-chip">Tableau de bord</span></div>
+              </div>
+              <div class="p-actions">
+                <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
+                <button class="btn btn-outline btn-sm" (click)="exportStatuts()"><i class="fas fa-file-csv"></i> Exporter</button>
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-green btn-sm" (click)="ouvrirNouveauStatutVehicule()"><i class="fas fa-plus"></i> Nouveau statut</button>
+                }
+              </div>
+            </div>
+            <div class="p-table-wrap">
+              <table class="p-table">
+                <thead><tr><th>Libellé</th><th class="p-hide-m">Code</th><th class="num">Véhicules</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
+                <tbody>
+                  @for (x of filtrer(statutsVehicule(), 'libelle', 'code'); track x.id) {
+                    <tr [class.inactif]="!x.actif">
+                      <td><span class="pastille-libelle"><span class="p-dot" [class]="'couleur-' + x.couleur"></span>{{ x.libelle }}</span></td>
+                      <td class="muted p-hide-m">{{ x.code }}</td>
+                      <td class="num">{{ x.nb_utilisations }}</td>
+                      <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.actif" [disabled]="!ecritureReferentiels()" (click)="basculerStatut(x)"></button></td>
+                      <td class="p-col-actions">
+                        @if (ecritureReferentiels()) {
+                          <button class="p-icon-btn" title="Modifier" (click)="editStatutVehicule(x)"><i class="fas fa-edit"></i></button>
+                          <button class="p-icon-btn danger" title="Supprimer" (click)="demanderSuppressionStatutVehicule(x)"><i class="fas fa-trash"></i></button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="p-empty">Aucun statut.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+
+        <!-- ════ AFFECTATIONS / USAGES ════ -->
+        @case ('affectations') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Affectations / usages <span class="p-chip">{{ affectations().length }}</span></h2>
+                <p>Usage principal d'un véhicule (direction, commercial, livraison…), utilisé pour les regroupements et rapports.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Véhicules</span><span class="p-chip">Rapports</span></div>
+              </div>
+              <div class="p-actions">
+                <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
+                <button class="btn btn-outline btn-sm" (click)="exportAffectations()"><i class="fas fa-file-csv"></i> Exporter</button>
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-green btn-sm" (click)="ouvrirNouvelleAffectation()"><i class="fas fa-plus"></i> Nouvelle affectation</button>
+                }
+              </div>
+            </div>
+            <div class="p-table-wrap">
+              <table class="p-table">
+                <thead><tr><th>Libellé</th><th class="p-hide-m">Code</th><th class="num">Véhicules</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
+                <tbody>
+                  @for (x of filtrer(affectations(), 'libelle', 'code'); track x.id) {
+                    <tr [class.inactif]="!x.actif">
+                      <td>{{ x.libelle }}</td>
+                      <td class="muted p-hide-m">{{ x.code }}</td>
+                      <td class="num">{{ x.nb_utilisations }}</td>
+                      <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.actif" [disabled]="!ecritureReferentiels()" (click)="basculerAffectation(x)"></button></td>
+                      <td class="p-col-actions">
+                        @if (ecritureReferentiels()) {
+                          <button class="p-icon-btn" title="Modifier" (click)="editAffectation(x)"><i class="fas fa-edit"></i></button>
+                          <button class="p-icon-btn danger" title="Supprimer" (click)="demanderSuppressionAffectation(x)"><i class="fas fa-trash"></i></button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="p-empty">Aucune affectation.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+
+        <!-- ════ TYPES DE DOCUMENTS ════ -->
+        @case ('types_doc') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Types de documents <span class="p-chip">{{ typesDoc().length }}</span></h2>
+                <p>Documents rattachés aux véhicules. Les types assurance, contrôle technique, carte de transport et vignette alimentent les échéances.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Véhicules</span><span class="p-chip">État du parc</span><span class="p-chip">Alertes</span></div>
+              </div>
+              <div class="p-actions">
+                <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
+                <button class="btn btn-outline btn-sm" (click)="exportTypesDoc()"><i class="fas fa-file-csv"></i> Exporter</button>
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-green btn-sm" (click)="ouvrirNouveauTypeDoc()"><i class="fas fa-plus"></i> Nouveau type</button>
+                }
+              </div>
+            </div>
+            @if (typesDocError()) { <div class="p-notice err"><i class="fas fa-exclamation-triangle"></i> {{ typesDocError() }}</div> }
+            <div class="p-table-wrap">
+              <table class="p-table">
+                <thead><tr><th class="num p-hide-m">Ordre</th><th>Libellé</th><th class="p-hide-m">Code</th><th class="num">Documents</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
+                <tbody>
+                  @for (x of filtrer(typesDoc(), 'libelle', 'code'); track x.id) {
+                    <tr [class.inactif]="!x.actif">
+                      <td class="num muted p-hide-m">{{ x.ordre }}</td>
+                      <td>{{ x.libelle }}
+                        @if (['assurance', 'ct', 'carte_transport', 'vignette'].includes(x.code)) {
+                          <span class="p-chip" title="Utilisé pour les échéances">Échéance</span>
+                        }
+                      </td>
+                      <td class="muted p-hide-m">{{ x.code }}</td>
+                      <td class="num">{{ x.nb_documents }}</td>
+                      <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.actif" [disabled]="!ecritureReferentiels()" (click)="basculerTypeDoc(x)"></button></td>
+                      <td class="p-col-actions">
+                        @if (ecritureReferentiels()) {
+                          <button class="p-icon-btn" title="Modifier" (click)="editTypesDoc(x)"><i class="fas fa-edit"></i></button>
+                          <button class="p-icon-btn danger" title="Supprimer" (click)="deleteTypesDoc(x)"><i class="fas fa-trash"></i></button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="p-empty">Aucun type de document.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+
+        <!-- ════ AGENCES ════ -->
+        @case ('agences') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Agences <span class="p-chip">{{ agences().length }}</span></h2>
+                <p>Sites Ubipharm. Un utilisateur rattaché à une agence ne voit que ses données ; le numéro client Total relie les transactions carburant importées à l'agence.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : toute l'application</span></div>
+              </div>
+              <div class="p-actions">
+                <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
+                <button class="btn btn-outline btn-sm" (click)="exportAgences()"><i class="fas fa-file-csv"></i> Exporter</button>
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-green btn-sm" (click)="ouvrirNouvelleAgence()"><i class="fas fa-plus"></i> Nouvelle agence</button>
+                }
+              </div>
+            </div>
+            <div class="p-table-wrap">
+              <table class="p-table">
+                <thead><tr><th>Agence</th><th class="p-hide-m">Ville</th><th class="p-hide-m">Responsable</th><th class="p-hide-m">N° client Total</th><th class="num">Véhicules</th><th class="p-col-toggle">Active</th><th class="p-col-actions"></th></tr></thead>
+                <tbody>
+                  @for (x of filtrer(agences(), 'nom', 'code', 'ville'); track x.id) {
+                    <tr [class.inactif]="!x.is_active">
+                      <td><strong>{{ x.nom }}</strong> <span class="muted">{{ x.code }}</span></td>
+                      <td class="p-hide-m">{{ x.ville }}</td>
+                      <td class="p-hide-m">{{ x.responsable_nom || '—' }}</td>
+                      <td class="p-hide-m">
+                        @if ($any(x).numero_client_total) { {{ $any(x).numero_client_total }} }
+                        @else { <span class="manquant" title="Les transactions Total ne peuvent pas être rattachées à cette agence">non renseigné</span> }
+                      </td>
+                      <td class="num">{{ x.nb_vehicules }}</td>
+                      <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.is_active" [disabled]="!ecritureReferentiels()" (click)="basculerAgence(x)"></button></td>
+                      <td class="p-col-actions">
+                        @if (ecritureReferentiels()) {
+                          <button class="p-icon-btn" title="Modifier" (click)="editAgence(x)"><i class="fas fa-edit"></i></button>
+                          <button class="p-icon-btn danger" title="Supprimer" (click)="deleteAgence(x.id)"><i class="fas fa-trash"></i></button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="7" class="p-empty">Aucune agence.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+
+        <!-- ════ TOURNÉES ════ -->
+        @case ('tournees') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Tournées <span class="p-chip">{{ tourneesFiltrees().length }}</span></h2>
+                <p>Circuits de livraison avec leur dotation carburant et leur kilométrage théorique, utilisés pour le suivi des tournées.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant</span><span class="p-chip">Relevés km</span></div>
+              </div>
+              <div class="p-actions">
+                <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
+                @if (agences().length > 1) {
+                  <select class="p-search filtre-agence" [value]="tourneeFiltreAgence()"
+                          (change)="tourneeFiltreAgence.set($any($event.target).value)" aria-label="Agence">
+                    <option value="">Toutes les agences</option>
+                    @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
+                  </select>
+                }
+                <button class="btn btn-outline btn-sm" (click)="exportTournees()"><i class="fas fa-file-csv"></i> Exporter</button>
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-outline btn-sm" (click)="ouvrirImportTournees()"><i class="fas fa-file-import"></i> Importer</button>
+                  <button class="btn btn-green btn-sm" (click)="ouvrirNouvelleTournee()"><i class="fas fa-plus"></i> Nouvelle tournée</button>
+                }
+              </div>
+            </div>
+            @if (tourneesLoad()) {
+              <div class="p-empty"><i class="fas fa-circle-notch fa-spin"></i></div>
+            } @else {
+              <div class="p-table-wrap">
+                <table class="p-table">
+                  <thead><tr><th>Code</th><th>Libellé</th><th class="p-hide-m">Agence</th><th class="num">Dotation</th><th class="num p-hide-m">Km théorique</th><th class="p-col-toggle">Active</th><th class="p-col-actions"></th></tr></thead>
+                  <tbody>
+                    @for (x of filtrer(tourneesFiltrees(), 'code', 'libelle', 'agence_nom'); track x.id) {
+                      <tr [class.inactif]="!x.actif">
+                        <td><strong class="mono">{{ x.code }}</strong></td>
+                        <td>{{ x.libelle }}</td>
+                        <td class="p-hide-m">{{ x.agence_nom }}</td>
+                        <td class="num">{{ x.dotation | number:'1.0-0' }} L</td>
+                        <td class="num p-hide-m">{{ x.km_theorique | number:'1.0-0' }} km</td>
+                        <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.actif" [disabled]="!ecritureReferentiels()" (click)="basculerTournee(x)"></button></td>
+                        <td class="p-col-actions">
+                          @if (ecritureReferentiels()) {
+                            <button class="p-icon-btn" title="Modifier" (click)="editTournee(x)"><i class="fas fa-edit"></i></button>
+                            <button class="p-icon-btn danger" title="Supprimer" (click)="demanderSuppressionTournee(x)"><i class="fas fa-trash"></i></button>
+                          }
+                        </td>
+                      </tr>
+                    } @empty {
+                      <tr><td colspan="7" class="p-empty">Aucune tournée.</td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </section>
+        }
+
+        <!-- ════ TYPES D'INTERVENTION ════ -->
+        @case ('types') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Types d'intervention <span class="p-chip">{{ types().length }}</span></h2>
+                <p>Nature des interventions d'entretien et périodicité indicative (km ou mois) pour planifier les prochaines.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Entretiens & réparations</span></div>
+              </div>
+              <div class="p-actions">
+                <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
+                <button class="btn btn-outline btn-sm" (click)="exportTypes()"><i class="fas fa-file-csv"></i> Exporter</button>
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-green btn-sm" (click)="ouvrirNouveauType()"><i class="fas fa-plus"></i> Nouveau type</button>
+                }
+              </div>
+            </div>
+            <div class="p-table-wrap">
+              <table class="p-table">
+                <thead><tr><th>Type</th><th class="p-hide-m">Catégorie</th><th class="num p-hide-m">Périodicité</th><th class="num">Interventions</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
+                <tbody>
+                  @for (x of filtrer(types(), 'nom', 'categorie_display'); track x.id) {
+                    <tr [class.inactif]="!x.is_active">
+                      <td>{{ x.nom }}</td>
+                      <td class="p-hide-m">{{ x.categorie_display ?? x.categorie }}</td>
+                      <td class="num muted p-hide-m">
+                        @if (x.periodicite_km) { {{ x.periodicite_km | number:'1.0-0' }} km }
+                        @if (x.periodicite_km && x.periodicite_mois) { · }
+                        @if (x.periodicite_mois) { {{ x.periodicite_mois }} mois }
+                        @if (!x.periodicite_km && !x.periodicite_mois) { — }
+                      </td>
+                      <td class="num">{{ x.nb_utilisations }}</td>
+                      <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.is_active" [disabled]="!ecritureReferentiels()" (click)="basculerType(x)"></button></td>
+                      <td class="p-col-actions">
+                        @if (ecritureReferentiels()) {
+                          <button class="p-icon-btn" title="Modifier" (click)="editType(x)"><i class="fas fa-edit"></i></button>
+                          <button class="p-icon-btn danger" title="Supprimer" (click)="deleteType(x.id)"><i class="fas fa-trash"></i></button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="p-empty">Aucun type d'intervention.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+
+        <!-- ════ PRESTATAIRES ════ -->
+        @case ('prestataires') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Prestataires / garages <span class="p-chip">{{ prestataires().length }}</span></h2>
+                <p>Garages et prestataires qui réalisent les interventions.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Entretiens & réparations</span><span class="p-chip">Rapports</span></div>
+              </div>
+              <div class="p-actions">
+                <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
+                <button class="btn btn-outline btn-sm" (click)="exportPrestataires()"><i class="fas fa-file-csv"></i> Exporter</button>
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-green btn-sm" (click)="ouvrirNouveauPrestataire()"><i class="fas fa-plus"></i> Nouveau prestataire</button>
+                }
+              </div>
+            </div>
+            <div class="p-table-wrap">
+              <table class="p-table">
+                <thead><tr><th>Prestataire</th><th class="p-hide-m">Spécialité</th><th class="p-hide-m">Ville</th><th class="p-hide-m">Téléphone</th><th class="num">Interventions</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
+                <tbody>
+                  @for (x of filtrer(prestataires(), 'nom', 'specialite', 'ville'); track x.id) {
+                    <tr [class.inactif]="!$any(x).is_active">
+                      <td><strong>{{ x.nom }}</strong></td>
+                      <td class="p-hide-m">{{ x.specialite || '—' }}</td>
+                      <td class="p-hide-m">{{ x.ville || '—' }}</td>
+                      <td class="p-hide-m">{{ x.telephone || '—' }}</td>
+                      <td class="num">{{ $any(x).nb_utilisations }}</td>
+                      <td class="p-col-toggle"><button class="p-toggle" [class.on]="$any(x).is_active" [disabled]="!ecritureReferentiels()" (click)="basculerPrestataire(x)"></button></td>
+                      <td class="p-col-actions">
+                        @if (ecritureReferentiels()) {
+                          <button class="p-icon-btn" title="Modifier" (click)="editPrestataire(x)"><i class="fas fa-edit"></i></button>
+                          <button class="p-icon-btn danger" title="Supprimer" (click)="deletePrestataire(x.id)"><i class="fas fa-trash"></i></button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="7" class="p-empty">Aucun prestataire.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+
+        <!-- ════ ASSUREURS ════ -->
+        @case ('assureurs') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Assureurs <span class="p-chip">{{ assureurs().length }}</span></h2>
+                <p>Compagnies d'assurance des contrats véhicules et contacts pour la déclaration des sinistres.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Sinistres & assurances</span></div>
+              </div>
+              <div class="p-actions">
+                <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
+                <button class="btn btn-outline btn-sm" (click)="exportAssureurs()"><i class="fas fa-file-csv"></i> Exporter</button>
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-green btn-sm" (click)="ouvrirNouvelAssureur()"><i class="fas fa-plus"></i> Nouvel assureur</button>
+                }
+              </div>
+            </div>
+            <div class="p-table-wrap">
+              <table class="p-table">
+                <thead><tr><th>Compagnie</th><th class="p-hide-m">Téléphone</th><th class="p-hide-m">Contact sinistres</th><th class="num">Contrats</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
+                <tbody>
+                  @for (x of filtrer(assureurs(), 'nom', 'contact_sinistre'); track x.id) {
+                    <tr [class.inactif]="!x.is_active">
+                      <td><strong>{{ x.nom }}</strong>@if (x.email) { <div class="muted petit">{{ x.email }}</div> }</td>
+                      <td class="p-hide-m">{{ x.telephone || '—' }}</td>
+                      <td class="p-hide-m">{{ x.contact_sinistre || '—' }}</td>
+                      <td class="num">{{ $any(x).nb_utilisations }}</td>
+                      <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.is_active" [disabled]="!ecritureReferentiels()" (click)="basculerAssureur(x)"></button></td>
+                      <td class="p-col-actions">
+                        @if (ecritureReferentiels()) {
+                          <button class="p-icon-btn" title="Modifier" (click)="editAssureur(x)"><i class="fas fa-edit"></i></button>
+                          <button class="p-icon-btn danger" title="Supprimer" (click)="deleteAssureur(x.id)"><i class="fas fa-trash"></i></button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="p-empty">Aucun assureur.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+
+        <!-- ════ WORKFLOWS ════ -->
+        @case ('circuits') { <ubi-param-circuits [ecriture]="ecritureCircuits()" /> }
+        @case ('elements') { <ubi-param-elements-controle [ecriture]="ecritureElements()" /> }
+      }
+    </div>
+  </div>
 </div>
 
 <!-- Modale : Créer / Modifier tournée -->
@@ -984,119 +897,6 @@
   </div>
 }
 
-<!-- ══ ONGLET AFFECTATIONS / USAGES ══ -->
-@if (activeTab() === 'affectations') {
-  @if (affectationsSuccess()) {
-    <div class="alert-success" style="margin-bottom:12px">
-      <i class="fas fa-check-circle"></i> {{ affectationsSuccess() }}
-    </div>
-  }
-  <div class="card">
-    <div class="card-header">
-      <div class="card-title">
-        <i class="fas fa-tag"></i> Affectations / Usages
-        <span style="background:var(--gray-100);color:var(--gray-500);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;margin-left:8px">
-          {{ affectations().length }}
-        </span>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-outline btn-sm" (click)="exportAffectations()"><i class="fas fa-file-csv"></i> Exporter CSV</button>
-        <button class="btn btn-green btn-sm" (click)="ouvrirNouvelleAffectation()">
-        <i class="fas fa-plus"></i> Nouvelle affectation
-      </button>
-      </div>
-    </div>
-    @if (affectationsLoad()) {
-      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
-    } @else if (affectations().length === 0) {
-      <div class="empty-state"><i class="fas fa-tag"></i><p>Aucune affectation.</p></div>
-    } @else {
-      <div class="table-container">
-        <table class="ubi-table">
-          <thead>
-            <tr><th>Code</th><th>Libellé</th><th style="text-align:center">Statut</th><th style="width:80px"></th></tr>
-          </thead>
-          <tbody>
-            @for (a of affectations(); track a.id) {
-              <tr>
-                <td><strong style="font-family:monospace">{{ a.code }}</strong></td>
-                <td>{{ a.libelle }}</td>
-                <td style="text-align:center">
-                  <span class="badge" [class]="a.actif ? 'badge-green' : 'badge-gray'">{{ a.actif ? 'Active' : 'Inactive' }}</span>
-                </td>
-                <td>
-                  <div style="display:flex;gap:4px">
-                    <button class="btn btn-icon" (click)="editAffectation(a)" title="Modifier"><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-icon btn-icon-danger" (click)="demanderSuppressionAffectation(a)" title="Supprimer"><i class="fas fa-trash"></i></button>
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    }
-  </div>
-}
-
-<!-- ══ ONGLET STATUTS VÉHICULE ══ -->
-@if (activeTab() === 'statuts') {
-  @if (statutsVehiculeSuccess()) {
-    <div class="alert-success" style="margin-bottom:12px">
-      <i class="fas fa-check-circle"></i> {{ statutsVehiculeSuccess() }}
-    </div>
-  }
-  <div class="card">
-    <div class="card-header">
-      <div class="card-title">
-        <i class="fas fa-circle"></i> Statuts véhicule
-        <span style="background:var(--gray-100);color:var(--gray-500);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;margin-left:8px">
-          {{ statutsVehicule().length }}
-        </span>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-outline btn-sm" (click)="exportStatuts()"><i class="fas fa-file-csv"></i> Exporter CSV</button>
-        <button class="btn btn-green btn-sm" (click)="ouvrirNouveauStatutVehicule()">
-        <i class="fas fa-plus"></i> Nouveau statut
-      </button>
-      </div>
-    </div>
-    @if (statutsVehiculeLoad()) {
-      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
-    } @else if (statutsVehicule().length === 0) {
-      <div class="empty-state"><i class="fas fa-circle"></i><p>Aucun statut.</p></div>
-    } @else {
-      <div class="table-container">
-        <table class="ubi-table">
-          <thead>
-            <tr><th>Code</th><th>Libellé</th><th style="text-align:center">Couleur</th><th style="text-align:center">Statut</th><th style="width:80px"></th></tr>
-          </thead>
-          <tbody>
-            @for (s of statutsVehicule(); track s.id) {
-              <tr>
-                <td><strong style="font-family:monospace">{{ s.code }}</strong></td>
-                <td>{{ s.libelle }}</td>
-                <td style="text-align:center">
-                  <span class="badge" [class]="'badge-' + s.couleur" style="text-transform:capitalize">{{ s.couleur }}</span>
-                </td>
-                <td style="text-align:center">
-                  <span class="badge" [class]="s.actif ? 'badge-green' : 'badge-gray'">{{ s.actif ? 'Actif' : 'Inactif' }}</span>
-                </td>
-                <td>
-                  <div style="display:flex;gap:4px">
-                    <button class="btn btn-icon" (click)="editStatutVehicule(s)" title="Modifier"><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-icon btn-icon-danger" (click)="demanderSuppressionStatutVehicule(s)" title="Supprimer"><i class="fas fa-trash"></i></button>
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    }
-  </div>
-}
-
 <!-- Modale : Affectation / Usage -->
 @if (showAffectationModal()) {
   <div class="modal-backdrop">
@@ -1226,126 +1026,6 @@
         </button>
       </div>
     </div>
-  </div>
-}
-
-<!-- ══ ONGLET MARQUES ══ -->
-@if (activeTab() === 'marques') {
-  @if (marquesSuccess()) {
-    <div class="alert-success" style="margin-bottom:12px">
-      <i class="fas fa-check-circle"></i> {{ marquesSuccess() }}
-    </div>
-  }
-  @if (marquesError()) {
-    <div class="alert alert-error" style="margin-bottom:12px">
-      <i class="fas fa-exclamation-triangle"></i> {{ marquesError() }}
-    </div>
-  }
-  <div class="card">
-    <div class="card-header">
-      <div class="card-title">
-        <i class="fas fa-copyright"></i> Marques véhicule
-        <span style="background:var(--gray-100);color:var(--gray-500);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;margin-left:8px">
-          {{ marques().length }}
-        </span>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-outline btn-sm" (click)="exportMarques()"><i class="fas fa-file-csv"></i> Exporter CSV</button>
-        <button class="btn btn-green btn-sm" (click)="ouvrirNouvelleMarque()">
-        <i class="fas fa-plus"></i> Nouvelle marque
-      </button>
-      </div>
-    </div>
-    @if (marquesLoad()) {
-      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
-    } @else if (marques().length === 0) {
-      <div class="empty-state"><i class="fas fa-copyright"></i><p>Aucune marque.</p></div>
-    } @else {
-      <div class="table-container">
-        <table class="ubi-table">
-          <thead>
-            <tr><th>Libellé</th><th style="text-align:center">Nb modèles</th><th style="text-align:center">Statut</th><th style="width:80px"></th></tr>
-          </thead>
-          <tbody>
-            @for (m of marques(); track m.id) {
-              <tr>
-                <td><strong>{{ m.libelle }}</strong></td>
-                <td style="text-align:center">{{ m.nb_modeles }}</td>
-                <td style="text-align:center">
-                  <span class="badge" [class]="m.actif ? 'badge-green' : 'badge-gray'">{{ m.actif ? 'Active' : 'Inactive' }}</span>
-                </td>
-                <td>
-                  <div style="display:flex;gap:4px">
-                    <button class="btn btn-icon" (click)="editMarque(m)" title="Modifier"><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-icon btn-icon-danger" (click)="demanderSuppressionMarque(m)" title="Supprimer"><i class="fas fa-trash"></i></button>
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    }
-  </div>
-}
-
-<!-- ══ ONGLET MODÈLES ══ -->
-@if (activeTab() === 'modeles') {
-  @if (modelesSuccess()) {
-    <div class="alert-success" style="margin-bottom:12px">
-      <i class="fas fa-check-circle"></i> {{ modelesSuccess() }}
-    </div>
-  }
-  @if (modelesError()) {
-    <div class="alert alert-error" style="margin-bottom:12px">
-      <i class="fas fa-exclamation-triangle"></i> {{ modelesError() }}
-    </div>
-  }
-  <div class="card">
-    <div class="card-header">
-      <div class="card-title">
-        <i class="fas fa-car-side"></i> Modèles véhicule
-        <span style="background:var(--gray-100);color:var(--gray-500);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;margin-left:8px">
-          {{ modeles().length }}
-        </span>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-outline btn-sm" (click)="exportModeles()"><i class="fas fa-file-csv"></i> Exporter CSV</button>
-        <button class="btn btn-green btn-sm" (click)="ouvrirNouveauModele()">
-        <i class="fas fa-plus"></i> Nouveau modèle
-      </button>
-      </div>
-    </div>
-    @if (modelesLoad()) {
-      <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
-    } @else if (modeles().length === 0) {
-      <div class="empty-state"><i class="fas fa-car-side"></i><p>Aucun modèle.</p></div>
-    } @else {
-      <div class="table-container">
-        <table class="ubi-table">
-          <thead>
-            <tr><th>Marque</th><th>Libellé</th><th style="text-align:center">Statut</th><th style="width:80px"></th></tr>
-          </thead>
-          <tbody>
-            @for (m of modeles(); track m.id) {
-              <tr>
-                <td>{{ m.marque_libelle }}</td>
-                <td><strong>{{ m.libelle }}</strong></td>
-                <td style="text-align:center">
-                  <span class="badge" [class]="m.actif ? 'badge-green' : 'badge-gray'">{{ m.actif ? 'Actif' : 'Inactif' }}</span>
-                </td>
-                <td>
-                  <div style="display:flex;gap:4px">
-                    <button class="btn btn-icon" (click)="editModele(m)" title="Modifier"><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-icon btn-icon-danger" (click)="demanderSuppressionModele(m)" title="Supprimer"><i class="fas fa-trash"></i></button>
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    }
   </div>
 }
 

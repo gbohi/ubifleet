@@ -37,9 +37,12 @@
     <button class="tab" [class.active]="activeTab()==='nouvelle'"  (click)="activeTab.set('nouvelle')">
       <i class="fas fa-plus-circle"></i> Nouvelle
     </button>
-    <button class="tab" [class.active]="activeTab()==='types'"     (click)="activeTab.set('types')">
-      <i class="fas fa-cogs"></i> Types / Workflow
-    </button>
+    @if (peutConfigurerCircuits()) {
+      <a class="tab tab-lien" routerLink="/parametres" [queryParams]="{ section: 'circuits' }"
+         title="Les types de demande et les étapes de validation se configurent dans Paramètres">
+        <i class="fas fa-sitemap"></i> Circuits de validation <i class="fas fa-external-link-alt"></i>
+      </a>
+    }
   </div>
 
   <!-- ══ LISTE ══ -->
@@ -409,63 +412,6 @@
     </div>
   }
 
-  <!-- ══ TYPES / WORKFLOW ══ -->
-  @if (activeTab() === 'types') {
-
-    @if (typeSuccess()) { <div class="alert-success" style="margin-bottom:12px"><i class="fas fa-check-circle"></i> {{ typeSuccess() }}</div> }
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Types de demande</div>
-        <button class="btn btn-green btn-sm" (click)="ouvrirNouveauType()">
-          <i class="fas fa-plus"></i> Nouveau type
-        </button>
-      </div>
-        <div class="table-container">
-          <table class="ubi-table">
-            <thead><tr><th>Type</th><th style="text-align:center">Niv.</th><th style="text-align:center">Délai</th><th>Statut</th><th></th></tr></thead>
-            <tbody>
-              @for (t of typesDemande(); track t.id) {
-                <tr>
-                  <td>
-                    <div style="font-weight:700">{{ t.nom }}</div>
-                    <div style="font-size:11px;color:var(--gray-400)">Formulaire : {{ t.code }}</div>
-                    @if (t.niveaux?.length > 0) {
-                      <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
-                        @for (n of t.niveaux; track n.id) {
-                          <span style="font-size:10px;background:var(--gray-100);padding:1px 6px;border-radius:8px;color:var(--gray-600)">
-                            Niv.{{ n.niveau }}: {{ n.libelle }}
-                            @if (n.role_nom) { <span style="color:var(--green-dark)"> ({{ n.role_nom }})</span> }
-                          </span>
-                        }
-                      </div>
-                    }
-                  </td>
-                  <td style="text-align:center;font-weight:700">{{ t.nb_niveaux }}</td>
-                  <td style="text-align:center">{{ t.delai_reponse_jours }}j</td>
-                  <td><span class="badge" [class]="t.actif ? 'badge-green' : 'badge-gray'">{{ t.actif ? 'Actif' : 'Inactif' }}</span></td>
-                  <td>
-                    <div style="display:flex;gap:4px">
-                      <button class="btn btn-icon" title="Modifier" (click)="editType(t)">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <button class="btn btn-icon" title="Configurer les niveaux" (click)="ouvrirNiveaux(t)">
-                        <i class="fas fa-sitemap"></i>
-                      </button>
-                      <button class="btn btn-icon btn-danger-light" title="Désactiver / Supprimer"
-                              (click)="demanderSuppressionType(t)">
-                        <i class="fas fa-trash"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-    </div>
-  }
-
 </div>
 
 <!-- ══ MODALE : Détail demande ══ -->
@@ -590,112 +536,6 @@
   </div>
 }
 
-@if (showTypeModal()) {
-  <div class="modal-backdrop" (click)="cancelEditType()">
-    <div class="modal-box" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <div class="modal-title">
-          <i class="fas fa-cogs" style="color:var(--green-dark)"></i>
-          {{ editTypeId() ? 'Modifier le type' : 'Nouveau type de demande' }}
-        </div>
-        <button class="modal-close" (click)="cancelEditType()"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body">
-        @if (typeError()) {
-          <div class="alert-error" style="margin-bottom:12px">
-            <i class="fas fa-exclamation-triangle"></i> {{ typeError() }}
-          </div>
-        }
-        <form [formGroup]="typeForm" novalidate>
-          <div class="form-group">
-            <label class="form-label">Code</label>
-            <select class="form-control" formControlName="code">
-              <option value="vehicule">vehicule — Formulaire véhicule (champ véhicule + chauffeur)</option>
-              <option value="entretien">entretien — Formulaire entretien (champ véhicule)</option>
-              <option value="carburant">carburant — Formulaire carburant (champ véhicule)</option>
-              <option value="achat">achat — Formulaire achat (matériel, quantité, fournisseur, montant)</option>
-              <option value="autre">autre — Formulaire simple (titre + description)</option>
-            </select>
-            <div style="font-size:11px;color:var(--gray-400);margin-top:4px">
-              <i class="fas fa-info-circle"></i>
-              Plusieurs types peuvent partager le même code — ils auront le même formulaire mais des niveaux de validation différents.
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Nom *</label>
-            <input type="text" class="form-control" formControlName="nom"
-                   placeholder="ex: Demande de véhicule mission" />
-          </div>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label">Niveaux de validation (1-4)</label>
-              <input type="number" class="form-control" formControlName="nb_niveaux" min="1" max="4" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Délai de réponse (jours)</label>
-              <input type="number" class="form-control" formControlName="delai_reponse_jours" min="1" />
-            </div>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-outline" (click)="cancelEditType()">Annuler</button>
-        <button class="btn btn-green" [disabled]="typeForm.invalid" (click)="saveType()">
-          <i class="fas fa-save"></i> {{ editTypeId() ? 'Modifier' : 'Créer' }}
-        </button>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- ══ POPUP : Supprimer niveau ══ -->
-@if (deleteNiveauConfirm(); as n) {
-  <div class="modal-backdrop modal-top" (click)="annulerSuppressionNiveau()">
-    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <div class="modal-title"><i class="fas fa-trash" style="color:var(--danger)"></i> Supprimer le niveau</div>
-      </div>
-      <p style="color:var(--gray-600);font-size:14px;margin-bottom:8px">
-        Voulez-vous supprimer le niveau <strong>{{ n.niveau }} — {{ n.libelle }}</strong> ?
-      </p>
-      <p style="color:var(--danger);font-size:12px;margin-bottom:24px">Cette action est irréversible.</p>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-outline" (click)="annulerSuppressionNiveau()">Annuler</button>
-        <button class="btn btn-danger" [disabled]="deleteNiveauLoading()" (click)="confirmerSuppressionNiveau()">
-          @if (deleteNiveauLoading()) { <i class="fas fa-circle-notch fa-spin"></i> }
-          @else { <i class="fas fa-trash"></i> }
-          Supprimer
-        </button>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- ══ POPUP : Supprimer type ══ -->
-@if (deleteTypeConfirm(); as t) {
-  <div class="modal-backdrop" (click)="annulerSuppressionType()">
-    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <div class="modal-title"><i class="fas fa-trash" style="color:var(--danger)"></i> Désactiver le type</div>
-      </div>
-      <p style="color:var(--gray-600);font-size:14px;margin-bottom:8px">
-        Voulez-vous désactiver le type <strong>{{ t.nom }}</strong> ?
-      </p>
-      <p style="color:var(--gray-500);font-size:12px;margin-bottom:24px">
-        Le type sera marqué inactif. Les demandes existantes ne seront pas affectées.
-      </p>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-outline" (click)="annulerSuppressionType()">Annuler</button>
-        <button class="btn btn-danger" [disabled]="deleteTypeLoading()" (click)="confirmerSuppressionType()">
-          @if (deleteTypeLoading()) { <i class="fas fa-circle-notch fa-spin"></i> }
-          @else { <i class="fas fa-ban"></i> }
-          Désactiver
-        </button>
-      </div>
-    </div>
-  </div>
-}
-
 <!-- ══ POPUP : Annuler demande ══ -->
 @if (annulerConfirm()) {
   <div class="modal-backdrop" (click)="annulerConfirmCancel()">
@@ -716,95 +556,6 @@
           @else { <i class="fas fa-times"></i> }
           Oui, annuler
         </button>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- ══ MODALE : Niveaux de validation ══ -->
-@if (editingTypeForNiveaux(); as t) {
-  <div class="modal-backdrop" (click)="fermerNiveaux()">
-    <div class="modal-box modal-lg" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <div class="modal-title">
-          <i class="fas fa-sitemap" style="color:var(--green-dark)"></i>
-          Niveaux de validation — {{ t.nom }}
-        </div>
-        <button class="modal-close" (click)="fermerNiveaux()"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px">
-          Ce type a <strong>{{ t.nb_niveaux }} niveau(x)</strong> de validation.
-          Configurez ici qui peut valider à chaque étape.
-        </p>
-        @if (niveauxLoading()) {
-          <div style="text-align:center;padding:20px;color:var(--gray-400)"><i class="fas fa-circle-notch fa-spin"></i></div>
-        } @else if (niveauxActifs().length === 0) {
-          <div style="text-align:center;padding:16px;color:var(--gray-400);font-size:13px">
-            <i class="fas fa-exclamation-circle"></i> Aucun niveau configuré
-          </div>
-        } @else {
-          <div class="niveaux-list">
-            @for (n of niveauxActifs(); track n.id) {
-              <div class="niveau-row">
-                <div class="niveau-badge">Niv. {{ n.niveau }}</div>
-                <div class="niveau-info">
-                  <div class="niveau-libelle">{{ n.libelle }}</div>
-                  @if (n.role_nom) {
-                    <div class="niveau-role"><i class="fas fa-user-shield"></i> {{ n.role_nom }}</div>
-                  } @else {
-                    <div class="niveau-role no-role"><i class="fas fa-exclamation-triangle"></i> Aucun rôle requis</div>
-                  }
-                </div>
-                <button class="btn btn-icon btn-icon-sm btn-danger-light"
-                        title="Supprimer ce niveau"
-                        (click)="demanderSuppressionNiveau(n)">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </div>
-            }
-          </div>
-        }
-        <div class="add-niveau-section">
-          <div class="add-niveau-title">
-            <i class="fas fa-plus-circle" style="color:var(--green-dark)"></i> Ajouter un niveau
-          </div>
-          <form [formGroup]="niveauForm" novalidate>
-            <div class="add-niveau-grid">
-              <div class="form-group">
-                <label class="form-label">N° niveau</label>
-                <input type="number" class="form-control" min="1" max="4" formControlName="niveau" />
-              </div>
-              <div class="form-group" style="flex:2">
-                <label class="form-label">Libellé *</label>
-                <input type="text" class="form-control"
-                       placeholder="ex: Chef de service, Responsable flotte..."
-                       formControlName="libelle" />
-              </div>
-              <div class="form-group" style="flex:2">
-                <label class="form-label">Rôle minimum requis</label>
-                <select class="form-control" formControlName="role_min">
-                  <option value="">Aucun (tout le monde peut valider)</option>
-                  @for (r of roles(); track r.id) {
-                    <option [value]="r.id">{{ r.nom }} (niveau {{ r.niveau }})</option>
-                  }
-                </select>
-              </div>
-            </div>
-            <button type="button" class="btn btn-green btn-sm"
-                    [disabled]="niveauForm.invalid || niveauxActifs().length >= (editingTypeForNiveaux()?.nb_niveaux ?? 4)"
-                    (click)="saveNiveau()">
-              <i class="fas fa-plus"></i> Ajouter ce niveau
-            </button>
-            @if (niveauxActifs().length >= (editingTypeForNiveaux()?.nb_niveaux ?? 4)) {
-              <p style="color:var(--warning);font-size:12px;margin-top:6px">
-                <i class="fas fa-lock"></i>
-                Limite atteinte ({{ editingTypeForNiveaux()?.nb_niveaux }} niveau(x)).
-                Modifiez le type pour augmenter ce nombre.
-              </p>
-            }
-          </form>
-        </div>
       </div>
     </div>
   </div>
@@ -843,6 +594,9 @@
           </p>
         }
       </div>
+      @if (valErreur()) {
+        <div class="alert-error" style="margin:0 20px 12px"><i class="fas fa-exclamation-triangle"></i> {{ valErreur() }}</div>
+      }
       <div class="modal-footer">
         <button class="btn btn-outline" (click)="fermerValidation()">Annuler</button>
         <button [class]="valRejet() ? 'btn btn-danger' : 'btn btn-green'"

@@ -1,0 +1,8 @@
+@use '../parametres-commun' as *;
+
+.p-table tr.categorie td {
+  background: var(--gray-50); font-weight: 700; color: var(--navy); font-size: 12.5px;
+  text-transform: uppercase; letter-spacing: .04em; padding-top: 9px; padding-bottom: 9px;
+  .p-icon-btn { margin-left: 4px; }
+}
+.desc { font-size: 12px; margin-top: 2px; }

@@ -5,13 +5,29 @@ import {
 } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Observable } from 'rxjs';
 import { EntretienApiService, ParametrageApiService, SinistreApiService, AgenceApiService, VehiculeApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { Prestataire, Assureur, Agence } from '../../core/models';
+import { SeuilsComponent } from './seuils/seuils.component';
+import { CircuitsValidationComponent } from './circuits-validation/circuits-validation.component';
+import { ElementsControleComponent } from './elements-controle/elements-controle.component';
+
+export type Section =
+  | 'echeances' | 'carburant'
+  | 'marques' | 'statuts' | 'affectations' | 'types_doc'
+  | 'agences' | 'tournees'
+  | 'types' | 'prestataires' | 'assureurs'
+  | 'circuits' | 'elements';
+
+interface NavItem { section: Section; libelle: string; icone: string; }
+interface NavGroupe { titre: string; items: NavItem[]; }
 
 @Component({
   selector: 'ubi-parametres',
   standalone: true,
-  imports: [ReactiveFormsModule, DecimalPipe],
+  imports: [ReactiveFormsModule, DecimalPipe, SeuilsComponent, CircuitsValidationComponent, ElementsControleComponent],
   templateUrl: './parametres.component.html',
   styleUrls: ['./parametres.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,28 +39,104 @@ export class ParametresComponent implements OnInit {
   private sinistreApi    = inject(SinistreApiService);
   private vehiculeApi    = inject(VehiculeApiService);
   private agenceApi      = inject(AgenceApiService);
+  private auth           = inject(AuthService);
+  private route          = inject(ActivatedRoute);
+  private router         = inject(Router);
 
-  activeTab = signal<'alertes' | 'types' | 'types_doc' | 'prestataires' | 'assureurs' | 'agences' | 'tournees' | 'affectations' | 'statuts' | 'marques' | 'modeles'>('alertes');
+  // ── Navigation par rubriques ──
+  readonly navigation: NavGroupe[] = [
+    { titre: 'Règles & seuils', items: [
+      { section: 'echeances',    libelle: 'Échéances',                icone: 'fas fa-bell' },
+      { section: 'carburant',    libelle: 'Carburant & consommation', icone: 'fas fa-gas-pump' },
+    ]},
+    { titre: 'Parc automobile', items: [
+      { section: 'marques',      libelle: 'Marques & modèles',        icone: 'fas fa-car-side' },
+      { section: 'statuts',      libelle: 'Statuts véhicule',         icone: 'fas fa-circle' },
+      { section: 'affectations', libelle: 'Affectations / usages',    icone: 'fas fa-tag' },
+      { section: 'types_doc',    libelle: 'Types de documents',       icone: 'fas fa-file-alt' },
+    ]},
+    { titre: 'Organisation', items: [
+      { section: 'agences',      libelle: 'Agences',                  icone: 'fas fa-map-marker-alt' },
+      { section: 'tournees',     libelle: 'Tournées',                 icone: 'fas fa-route' },
+    ]},
+    { titre: 'Entretien & assurance', items: [
+      { section: 'types',        libelle: "Types d'intervention",     icone: 'fas fa-wrench' },
+      { section: 'prestataires', libelle: 'Prestataires / garages',   icone: 'fas fa-tools' },
+      { section: 'assureurs',    libelle: 'Assureurs',                icone: 'fas fa-shield-alt' },
+    ]},
+    { titre: 'Workflows', items: [
+      { section: 'circuits',     libelle: 'Circuits de validation',   icone: 'fas fa-sitemap' },
+      { section: 'elements',     libelle: 'Éléments de contrôle',     icone: 'fas fa-clipboard-check' },
+    ]},
+  ];
+  private readonly sections = this.navigation.flatMap(g => g.items.map(i => i.section));
 
-  // ── Alertes paramètres ──
-  parametres = signal<any[]>([]);
-  paramSaving = signal(false);
-  paramSuccess = signal('');
-  paramError   = signal('');
+  section   = signal<Section>('echeances');
+  recherche = signal('');
+  notice    = signal<{ type: 'ok' | 'err'; texte: string } | null>(null);
 
-  alertesForm = this.fb.group({
-    alerte_permis_jours:         [60,  [Validators.required, Validators.min(1)]],
-    alerte_assurance_jours:      [30,  [Validators.required, Validators.min(1)]],
-    alerte_ct_jours:             [30,  [Validators.required, Validators.min(1)]],
-    alerte_conso_seuil_pct:      [30,  [Validators.required, Validators.min(1)]],
-    etat_parc_km_urgent:         [500, [Validators.required, Validators.min(1)]],
-    etat_parc_km_attention:      [2000,[Validators.required, Validators.min(1)]],
-    etat_parc_jours_urgent:      [7,   [Validators.required, Validators.min(1)]],
-    etat_parc_jours_attention:   [30,  [Validators.required, Validators.min(1)]],
-    prix_carburant_litre:        [700, [Validators.required, Validators.min(1)]],
-  });
+  libelleSection = computed(() =>
+    this.navigation.flatMap(g => g.items).find(i => i.section === this.section())?.libelle ?? ''
+  );
 
-  get af() { return this.alertesForm.controls; }
+  /** Nombre d'éléments affiché à côté de chaque rubrique de la navigation. */
+  compteurs = computed<Partial<Record<Section, number>>>(() => ({
+    marques: this.marques().length, statuts: this.statutsVehicule().length,
+    affectations: this.affectations().length, types_doc: this.typesDoc().length,
+    agences: this.agences().length, tournees: this.tournees().length,
+    types: this.types().length, prestataires: this.prestataires().length,
+    assureurs: this.assureurs().length,
+  }));
+
+  // Droits d'écriture (calculés par l'API, cf. /auth/me/acces/)
+  ecritureReferentiels = computed(() => this.auth.peutAcceder('referentiels_ecriture'));
+  ecritureSeuils       = computed(() => this.auth.peutAcceder('parametres'));
+  ecritureCircuits     = computed(() => this.auth.peutAcceder('circuits_ecriture'));
+  ecritureElements     = computed(() => this.auth.peutAcceder('elements_controle_ecriture'));
+
+  allerA(section: Section): void {
+    this.section.set(section);
+    this.recherche.set('');
+    this.notice.set(null);
+    this.router.navigate([], { relativeTo: this.route, queryParams: { section }, replaceUrl: true });
+  }
+
+  /** Filtre une liste sur les champs donnés selon la recherche en cours. */
+  filtrer<T extends Record<string, any>>(liste: T[], ...champs: string[]): T[] {
+    const q = this.recherche().trim().toLowerCase();
+    if (!q) return liste;
+    return liste.filter(x => champs.some(c => String(x[c] ?? '').toLowerCase().includes(q)));
+  }
+
+  /** Active / désactive un élément directement depuis la liste. */
+  basculer(req: Observable<any>, recharger: () => void): void {
+    req.subscribe({
+      next: () => recharger(),
+      error: (err: any) => this.notice.set({ type: 'err', texte: err?.error?.detail ?? 'Modification impossible.' }),
+    });
+  }
+
+  basculerStatut(x: any): void      { this.basculer(this.parametrageApi.updateStatutVehicule(x.id, { actif: !x.actif }), () => this.loadStatutsVehicule()); }
+  basculerAffectation(x: any): void { this.basculer(this.parametrageApi.updateAffectation(x.id, { actif: !x.actif }), () => this.loadAffectations()); }
+  basculerMarque(x: any): void      { this.basculer(this.parametrageApi.updateMarque(x.id, { actif: !x.actif }), () => this.loadMarques()); }
+  basculerModele(x: any): void      { this.basculer(this.parametrageApi.updateModele(x.id, { actif: !x.actif }), () => this.loadModeles()); }
+  basculerTournee(x: any): void     { this.basculer(this.parametrageApi.updateTournee(x.id, { actif: !x.actif }), () => this.loadTournees()); }
+  basculerTypeDoc(x: any): void     { this.toggleActifTypesDoc(x); }
+  basculerType(x: any): void        { this.basculer(this.entretienApi.updateType(x.id, { is_active: !x.is_active }), () => this.loadTypes()); }
+  basculerPrestataire(x: any): void { this.basculer(this.entretienApi.updatePrestataire(x.id, { is_active: !x.is_active } as any), () => this.loadPrestataires()); }
+  basculerAssureur(x: any): void    { this.basculer(this.sinistreApi.updateAssureur(x.id, { is_active: !x.is_active } as any), () => this.loadAssureurs()); }
+  basculerAgence(x: any): void      { this.basculer(this.agenceApi.update(x.id, { is_active: !x.is_active } as any), () => this.loadAgences()); }
+
+  /** Dernier message de succès d'une fenêtre de saisie, affiché dans la rubrique. */
+  succes = computed(() => [
+    this.typesSuccess(), this.agencesSuccess(), this.assureursSuccess(), this.prestairesSuccess(),
+    this.typesDocSuccess(), this.tourneesSuccess(), this.affectationsSuccess(),
+    this.statutsVehiculeSuccess(), this.marquesSuccess(), this.modelesSuccess(),
+  ].find(m => !!m) ?? '');
+
+  private erreurSuppression(err: any): void {
+    this.notice.set({ type: 'err', texte: err?.error?.detail ?? 'Suppression impossible.' });
+  }
 
   // ── Types d'intervention ──
   types         = signal<any[]>([]);
@@ -145,7 +237,8 @@ export class ParametresComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.loadParametres();
+    const demandee = this.route.snapshot.queryParamMap.get('section') as Section | null;
+    if (demandee && this.sections.includes(demandee)) this.section.set(demandee);
     this.loadTypes();
     this.loadTypesDoc();
     this.loadPrestataires();
@@ -158,45 +251,9 @@ export class ParametresComponent implements OnInit {
     this.loadStatutsVehicule();
   }
 
-  // ── Paramètres ──
-  loadParametres(): void {
-    this.parametrageApi.getAll('alertes').subscribe({
-      next: (list) => {
-        this.parametres.set(list);
-        const vals: Record<string, any> = {};
-        list.forEach((p: any) => vals[p.cle] = p.valeur_typee);
-        this.alertesForm.patchValue(vals);
-      },
-      error: () => {},
-    });
-  }
-
-  saveParametres(): void {
-    if (this.alertesForm.invalid || this.paramSaving()) return;
-    this.paramSaving.set(true);
-    this.paramSuccess.set('');
-    this.paramError.set('');
-
-    const items = Object.entries(this.alertesForm.value).map(([cle, valeur]) => ({
-      cle, valeur: String(valeur)
-    }));
-
-    this.parametrageApi.bulkUpdate(items).subscribe({
-      next: () => {
-        this.paramSaving.set(false);
-        this.paramSuccess.set('Paramètres enregistrés avec succès.');
-        this.loadParametres();  // Recharger depuis la base pour afficher les vraies valeurs
-      },
-      error: () => {
-        this.paramSaving.set(false);
-        this.paramError.set('Erreur lors de l\'enregistrement.');
-      },
-    });
-  }
-
   // ── Types ──
   loadTypes(): void {
-    this.entretienApi.getTypes().subscribe({
+    this.entretienApi.getTypes({ tous: 1, page_size: 500 }).subscribe({
       next: (list) => this.types.set(Array.isArray(list) ? list : []),
       error: () => this.types.set([]),
     });
@@ -239,7 +296,7 @@ export class ParametresComponent implements OnInit {
     if (!confirm('Supprimer ce type d\'intervention ?')) return;
     this.entretienApi.deleteType(id).subscribe({
       next: () => this.loadTypes(),
-      error: () => {},
+      error: (err) => this.erreurSuppression(err),
     });
   }
 
@@ -303,14 +360,14 @@ export class ParametresComponent implements OnInit {
     if (!confirm('Supprimer cette agence ?')) return;
     this.agenceApi.delete(id).subscribe({
       next: () => this.loadAgences(),
-      error: () => {},
+      error: (err) => this.erreurSuppression(err),
     });
   }
 
   // ── Assureurs ──
   loadAssureurs(): void {
     this.assureursLoad.set(true);
-    this.sinistreApi.getAssureurs().subscribe({
+    this.sinistreApi.getAssureurs({ tous: 1 }).subscribe({
       next: (list) => {
         this.assureurs.set(Array.isArray(list) ? list : []);
         this.assureursLoad.set(false);
@@ -369,13 +426,13 @@ export class ParametresComponent implements OnInit {
     if (!confirm('Supprimer cet assureur ?')) return;
     this.sinistreApi.deleteAssureur(id).subscribe({
       next: () => this.loadAssureurs(),
-      error: () => {},
+      error: (err) => this.erreurSuppression(err),
     });
   }
 
   // ── Prestataires ──
   loadPrestataires(): void {
-    this.entretienApi.getPrestataires({ page_size: 100 }).subscribe({
+    this.entretienApi.getPrestataires({ page_size: 500, tous: 1 }).subscribe({
       next: (res) => this.prestataires.set(res.results ?? []),
       error: () => this.prestataires.set([]),
     });
@@ -433,7 +490,7 @@ export class ParametresComponent implements OnInit {
     if (!confirm('Supprimer ce prestataire ?')) return;
     this.entretienApi.deletePrestataire(id).subscribe({
       next: () => this.loadPrestataires(),
-      error: () => {},
+      error: (err) => this.erreurSuppression(err),
     });
   }
 
@@ -579,7 +636,7 @@ export class ParametresComponent implements OnInit {
     this.parametrageApi.deleteTournee(t.id).subscribe({
       next: () => { this.deleteTourneeConfirm.set(null); this.loadTournees(); },
       error: (err: any) => {
-        this.tourneesError.set(err?.error?.detail ?? 'Impossible de supprimer.');
+        this.erreurSuppression(err);
         this.deleteTourneeConfirm.set(null);
       },
     });
@@ -640,8 +697,6 @@ export class ParametresComponent implements OnInit {
         this.affectationsSuccess.set(id ? 'Affectation modifiée.' : 'Affectation créée.');
         this.cancelEditAffectation();
         this.loadAffectations();
-    this.loadMarques();
-    this.loadModeles();
         setTimeout(() => this.affectationsSuccess.set(''), 3000);
       },
       error: (err: any) => this.affectationsError.set(err?.error?.detail ?? "Erreur lors de l'enregistrement."),
@@ -657,7 +712,7 @@ export class ParametresComponent implements OnInit {
     this.parametrageApi.deleteAffectation(a.id).subscribe({
       next: () => { this.deleteAffectationConfirm.set(null); this.loadAffectations(); },
       error: (err: any) => {
-        this.affectationsError.set(err?.error?.detail ?? 'Impossible de supprimer.');
+        this.erreurSuppression(err);
         this.deleteAffectationConfirm.set(null);
       },
     });
@@ -734,7 +789,7 @@ export class ParametresComponent implements OnInit {
     this.parametrageApi.deleteStatutVehicule(s.id).subscribe({
       next: () => { this.deleteStatutVehiculeConfirm.set(null); this.loadStatutsVehicule(); },
       error: (err: any) => {
-        this.statutsVehiculeError.set(err?.error?.detail ?? 'Impossible de supprimer.');
+        this.erreurSuppression(err);
         this.deleteStatutVehiculeConfirm.set(null);
       },
     });
@@ -810,11 +865,22 @@ export class ParametresComponent implements OnInit {
     this.parametrageApi.deleteMarque(m.id).subscribe({
       next: () => { this.deleteMarqueConfirm.set(null); this.loadMarques(); this.loadModeles(); },
       error: (err: any) => {
-        this.marquesError.set(err?.error?.detail ?? 'Impossible de supprimer (des véhicules ou modèles y sont liés).');
+        this.erreurSuppression(err);
         this.deleteMarqueConfirm.set(null);
       },
     });
   }
+
+  // Marque sélectionnée dans la vue maître / détail
+  marqueSelectionneeId = signal<number | null>(null);
+  marqueSelectionnee = computed(() => {
+    const id = this.marqueSelectionneeId();
+    return this.marques().find(m => m.id === id) ?? this.marques()[0] ?? null;
+  });
+  modelesMarque = computed(() => {
+    const m = this.marqueSelectionnee();
+    return m ? this.modeles().filter(x => x.marque === m.id) : [];
+  });
 
   // ── Modèles véhicule ─────────────────────────────────────────────
   modeles           = signal<any[]>([]);
@@ -842,7 +908,7 @@ export class ParametresComponent implements OnInit {
   ouvrirNouveauModele(): void {
     this.editModeleId.set(null);
     this.modelesError.set('');
-    this.modeleForm.reset({ actif: true, marque: null });
+    this.modeleForm.reset({ actif: true, marque: this.marqueSelectionnee()?.id ?? null });
     this.showModeleModal.set(true);
   }
 
@@ -887,7 +953,7 @@ export class ParametresComponent implements OnInit {
     this.parametrageApi.deleteModele(m.id).subscribe({
       next: () => { this.deleteModeleConfirm.set(null); this.loadModeles(); this.loadMarques(); },
       error: (err: any) => {
-        this.modelesError.set(err?.error?.detail ?? 'Impossible de supprimer (des véhicules y sont liés).');
+        this.erreurSuppression(err);
         this.deleteModeleConfirm.set(null);
       },
     });
@@ -977,14 +1043,6 @@ export class ParametresComponent implements OnInit {
   }
 
   private ouiNon(v: boolean): string { return v ? 'Oui' : 'Non'; }
-
-  exportParametres(): void {
-    this.exporterCsv('parametres_alertes',
-      ['Clé', 'Libellé', 'Valeur', 'Catégorie'],
-      this.parametres().map((p: any) => [
-        p.cle, p.description ?? '', p.valeur, p.categorie ?? '',
-      ]));
-  }
 
   exportTypes(): void {
     this.exporterCsv('types_intervention',

@@ -315,6 +315,10 @@ ACCES_ECRANS = {
     'roles':                 ('apps.accounts.views.RoleViewSet', 'create'),
     'permissions':           ('apps.accounts.views.PermissionRoleViewSet', 'list'),
     'parametres':            ('apps.parametrage.views.ParametreViewSet', 'bulk_update'),
+    # Droits d'écriture affinés dans la page Paramètres
+    'referentiels_ecriture': ('apps.parametrage.views.MarqueVehiculeViewSet', 'create'),
+    'circuits_ecriture':     ('apps.demandes.views.TypeDemandeViewSet', 'create'),
+    'elements_controle_ecriture': ('apps.controle.views.ElementControleViewSet', 'create'),
 }
 
 

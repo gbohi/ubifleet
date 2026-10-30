@@ -1,0 +1,129 @@
+<!-- UbiFleet — Paramètres › Éléments de contrôle véhicule -->
+<section class="p-panel">
+  <div class="p-head">
+    <div>
+      <h2>Éléments de contrôle <span class="p-chip">{{ elements().length }}</span></h2>
+      <p>
+        Points vérifiés lors d'une fiche de contrôle véhicule. Un point <strong>obligatoire</strong>
+        non conforme empêche de valider la fiche.
+      </p>
+      <div class="p-used-in"><span class="p-chip">Utilisé dans : Contrôle véhicule</span></div>
+    </div>
+    <div class="p-actions">
+      <input class="p-search" placeholder="Rechercher…" [value]="recherche()"
+             (input)="recherche.set($any($event.target).value)" />
+      @if (ecriture()) {
+        <button class="btn btn-green btn-sm" (click)="ouvrir(null)"><i class="fas fa-plus"></i> Nouvel élément</button>
+      }
+    </div>
+  </div>
+
+  @if (notice(); as n) {
+    <div class="p-notice" [class]="n.type">
+      <i [class]="n.type === 'ok' ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i> {{ n.texte }}
+      <button class="p-notice-close" (click)="notice.set(null)" aria-label="Fermer"><i class="fas fa-times"></i></button>
+    </div>
+  }
+
+  @if (chargement()) {
+    <div class="p-empty"><i class="fas fa-circle-notch fa-spin"></i></div>
+  } @else if (groupes().length === 0) {
+    <div class="p-empty"><i class="fas fa-clipboard-check"></i>Aucun élément.</div>
+  } @else {
+    <div class="p-table-wrap">
+      <table class="p-table">
+        <thead>
+          <tr>
+            <th>Élément</th>
+            <th class="num p-hide-m">Ordre</th>
+            <th>Obligatoire</th>
+            <th class="p-col-toggle">Actif</th>
+            <th class="p-col-actions"></th>
+          </tr>
+        </thead>
+        @for (g of groupes(); track g.value) {
+          <tbody>
+            <tr class="categorie">
+              <td colspan="5">
+                {{ g.label }} <span class="p-chip">{{ g.elements.length }}</span>
+                @if (ecriture()) {
+                  <button class="p-icon-btn" title="Ajouter dans {{ g.label }}" (click)="ouvrir(null, g.value)">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                }
+              </td>
+            </tr>
+            @for (e of g.elements; track e.id) {
+              <tr [class.inactif]="!e.actif">
+                <td>
+                  {{ e.nom }}
+                  @if (e.description) { <div class="muted desc">{{ e.description }}</div> }
+                </td>
+                <td class="num muted p-hide-m">{{ e.ordre }}</td>
+                <td class="p-col-toggle">
+                  <button class="p-toggle" [class.on]="e.obligatoire" [disabled]="!ecriture()"
+                          [title]="e.obligatoire ? 'Obligatoire' : 'Facultatif'" (click)="basculer(e, 'obligatoire')"></button>
+                </td>
+                <td class="p-col-toggle">
+                  <button class="p-toggle" [class.on]="e.actif" [disabled]="!ecriture()"
+                          [title]="e.actif ? 'Actif' : 'Inactif'" (click)="basculer(e, 'actif')"></button>
+                </td>
+                <td class="p-col-actions">
+                  @if (ecriture()) {
+                    <button class="p-icon-btn" title="Modifier" (click)="ouvrir(e)"><i class="fas fa-edit"></i></button>
+                    <button class="p-icon-btn danger" title="Supprimer" (click)="supprimer(e)"><i class="fas fa-trash"></i></button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        }
+      </table>
+    </div>
+  }
+</section>
+
+@if (elementEdite() !== undefined) {
+  <div class="modal-backdrop" (click)="elementEdite.set(undefined)">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-clipboard-check" style="color:var(--green-dark);margin-right:8px"></i>
+          {{ elementEdite() ? "Modifier l'élément" : 'Nouvel élément de contrôle' }}
+        </div>
+        <button class="btn-close-modal" (click)="elementEdite.set(undefined)"><i class="fas fa-times"></i></button>
+      </div>
+      @if (erreurForm()) {
+        <div class="p-notice err" style="margin:0 0 16px"><i class="fas fa-exclamation-triangle"></i> {{ erreurForm() }}</div>
+      }
+      <form [formGroup]="form" novalidate (ngSubmit)="enregistrer()">
+        <div class="form-group">
+          <label class="form-label">Nom *</label>
+          <input class="form-control" formControlName="nom" placeholder="ex. Niveau d'huile moteur" />
+        </div>
+        <div class="p-form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Catégorie</label>
+            <select class="form-control" formControlName="categorie">
+              @for (c of categories; track c.value) { <option [value]="c.value">{{ c.label }}</option> }
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ordre d'affichage</label>
+            <input type="number" class="form-control" formControlName="ordre" min="0" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" rows="2" formControlName="description"></textarea>
+        </div>
+        <label class="p-check" style="margin-bottom:8px"><input type="checkbox" formControlName="obligatoire" /> Point obligatoire</label>
+        <label class="p-check"><input type="checkbox" formControlName="actif" /> Actif</label>
+        <div class="p-modal-actions">
+          <button type="button" class="btn btn-outline" (click)="elementEdite.set(undefined)">Annuler</button>
+          <button type="submit" class="btn btn-green" [disabled]="form.invalid"><i class="fas fa-save"></i> Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

@@ -20,6 +20,7 @@
   border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;
   &:hover{color:var(--navy);background:var(--gray-50);}
   &.active{color:var(--navy);border-bottom-color:var(--green-dark);font-weight:700;}}
+.tab-lien{margin-left:auto;text-decoration:none;font-size:13px;i.fa-external-link-alt{font-size:10px;opacity:.6;}}
 .tab-badge{background:var(--danger);color:white;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;}
 
 // Vue bar

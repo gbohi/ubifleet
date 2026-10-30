@@ -1,0 +1,155 @@
+<!-- UbiFleet — Paramètres › Circuits de validation -->
+<section class="p-panel">
+  <div class="p-head">
+    <div>
+      <h2>Circuits de validation <span class="p-chip">{{ types().length }}</span></h2>
+      <p>Pour chaque type de demande, les étapes de validation et le rôle qui valide chacune d'elles.</p>
+      <div class="p-used-in"><span class="p-chip">Utilisé dans : Demandes</span></div>
+    </div>
+    @if (ecriture()) {
+      <div class="p-actions">
+        <button class="btn btn-green btn-sm" (click)="ouvrirType(null)"><i class="fas fa-plus"></i> Nouveau type</button>
+      </div>
+    }
+  </div>
+
+  @if (niveauxSansRole() > 0) {
+    <div class="p-notice err">
+      <i class="fas fa-exclamation-triangle"></i>
+      {{ niveauxSansRole() }} étape{{ niveauxSansRole() > 1 ? 's' : '' }} sans rôle validateur :
+      seul le super admin peut les valider. Choisissez un rôle ci-dessous.
+    </div>
+  }
+  @if (notice(); as n) {
+    <div class="p-notice" [class]="n.type">
+      <i [class]="n.type === 'ok' ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i> {{ n.texte }}
+      <button class="p-notice-close" (click)="notice.set(null)" aria-label="Fermer"><i class="fas fa-times"></i></button>
+    </div>
+  }
+
+  @if (chargement()) {
+    <div class="p-empty"><i class="fas fa-circle-notch fa-spin"></i></div>
+  } @else if (types().length === 0) {
+    <div class="p-empty"><i class="fas fa-sitemap"></i>Aucun type de demande.</div>
+  } @else {
+    <div class="circuits">
+      @for (t of types(); track t.id) {
+        <div class="circuit" [class.inactif]="!t.actif">
+          <div class="circuit-head">
+            <div>
+              <div class="circuit-nom">{{ t.nom }}</div>
+              <div class="circuit-meta">
+                Formulaire : {{ libelleFormulaire(t.code) }} · Délai de réponse : {{ t.delai_reponse_jours }} j
+              </div>
+            </div>
+            <div class="p-actions">
+              <button class="p-toggle" [class.on]="t.actif" [disabled]="!ecriture()"
+                      [title]="t.actif ? 'Actif' : 'Inactif'" (click)="basculerType(t)"></button>
+              @if (ecriture()) {
+                <button class="p-icon-btn" title="Modifier" (click)="ouvrirType(t)"><i class="fas fa-edit"></i></button>
+              }
+            </div>
+          </div>
+
+          <ol class="etapes">
+            @for (n of t.niveaux; track n.id) {
+              <li class="etape" [class.sans-role]="!n.role_min">
+                <span class="etape-num">{{ n.niveau }}</span>
+                <div class="etape-corps">
+                  <div class="etape-libelle">{{ n.libelle }}</div>
+                  @if (ecriture()) {
+                    <select class="etape-role" [value]="n.role_min ?? ''"
+                            (change)="changerRole(n, $any($event.target).value)">
+                      <option value="">— Aucun rôle (super admin uniquement) —</option>
+                      @for (r of roles(); track r.id) {
+                        <option [value]="r.id" [selected]="r.id === n.role_min">{{ r.nom }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <div class="etape-role-lecture">
+                      @if (n.role_nom) { <i class="fas fa-user-shield"></i> {{ n.role_nom }} }
+                      @else { <i class="fas fa-exclamation-triangle"></i> Super admin uniquement }
+                    </div>
+                  }
+                </div>
+                @if (ecriture()) {
+                  <button class="p-icon-btn danger" title="Supprimer l'étape" (click)="supprimerNiveau(n)">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                }
+              </li>
+            }
+            @if (ecriture() && (t.niveaux?.length ?? 0) < t.nb_niveaux) {
+              @if (ajoutPour()?.id === t.id) {
+                <li class="etape ajout">
+                  <span class="etape-num">{{ (t.niveaux?.length ?? 0) + 1 }}</span>
+                  <form class="ajout-form" [formGroup]="niveauForm" (ngSubmit)="ajouterNiveau()">
+                    <input class="p-search" formControlName="libelle" placeholder="Libellé, ex. Chef de service" />
+                    <select class="etape-role" formControlName="role_min">
+                      <option value="">— Rôle validateur —</option>
+                      @for (r of roles(); track r.id) { <option [value]="r.id">{{ r.nom }}</option> }
+                    </select>
+                    <button class="btn btn-green btn-sm" type="submit" [disabled]="niveauForm.invalid">Ajouter</button>
+                    <button class="btn btn-outline btn-sm" type="button" (click)="ajoutPour.set(null)">Annuler</button>
+                  </form>
+                </li>
+              } @else {
+                <li class="etape-ajouter">
+                  <button class="btn btn-outline btn-sm" (click)="ouvrirAjout(t)">
+                    <i class="fas fa-plus"></i> Ajouter l'étape {{ (t.niveaux?.length ?? 0) + 1 }} / {{ t.nb_niveaux }}
+                  </button>
+                </li>
+              }
+            }
+          </ol>
+        </div>
+      }
+    </div>
+  }
+</section>
+
+@if (typeEdite() !== undefined) {
+  <div class="modal-backdrop" (click)="typeEdite.set(undefined)">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-sitemap" style="color:var(--green-dark);margin-right:8px"></i>
+          {{ typeEdite() ? 'Modifier le type de demande' : 'Nouveau type de demande' }}
+        </div>
+        <button class="btn-close-modal" (click)="typeEdite.set(undefined)"><i class="fas fa-times"></i></button>
+      </div>
+      @if (typeErreur()) {
+        <div class="p-notice err" style="margin:0 0 16px"><i class="fas fa-exclamation-triangle"></i> {{ typeErreur() }}</div>
+      }
+      <form [formGroup]="typeForm" novalidate (ngSubmit)="enregistrerType()">
+        <div class="form-group">
+          <label class="form-label">Nom *</label>
+          <input class="form-control" formControlName="nom" placeholder="ex. Demande de véhicule mission" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Formulaire</label>
+          <select class="form-control" formControlName="code">
+            @for (f of formulaires; track f.value) { <option [value]="f.value">{{ f.label }}</option> }
+          </select>
+        </div>
+        <div class="p-form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Nombre d'étapes (1 à 4)</label>
+            <input type="number" class="form-control" formControlName="nb_niveaux" min="1" max="4" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Délai de réponse (jours)</label>
+            <input type="number" class="form-control" formControlName="delai_reponse_jours" min="1" />
+          </div>
+        </div>
+        <label class="p-check"><input type="checkbox" formControlName="actif" /> Actif</label>
+        <div class="p-modal-actions">
+          <button type="button" class="btn btn-outline" (click)="typeEdite.set(undefined)">Annuler</button>
+          <button type="submit" class="btn btn-green" [disabled]="typeForm.invalid">
+            <i class="fas fa-save"></i> Enregistrer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

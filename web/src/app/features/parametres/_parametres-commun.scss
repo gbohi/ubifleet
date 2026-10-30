@@ -1,0 +1,98 @@
+// UbiFleet — Styles communs aux rubriques de la page Paramètres
+
+:host { display: block; }
+// (importé par la page et par ses composants de rubrique)
+
+.p-panel {
+  background: var(--white, #fff);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgba(9, 36, 64, .05);
+  animation: fadeInUp .2s ease;
+}
+
+.p-head {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--gray-100);
+  display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
+
+  h2 { margin: 0; font-size: 18px; color: var(--navy); font-family: var(--font-body); font-weight: 700;
+       display: flex; align-items: center; gap: 8px; }
+  p  { margin: 4px 0 0; color: var(--gray-500); font-size: 13px; max-width: 620px; }
+}
+
+.p-head > div:first-child { flex: 1 1 320px; min-width: 0; }
+.p-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.p-chip {
+  font-size: 11px; font-weight: 600; background: var(--gray-100); color: var(--gray-500);
+  padding: 2px 9px; border-radius: 20px; white-space: nowrap;
+}
+.p-used-in { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+
+.p-search {
+  border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+  padding: 7px 12px; font-size: 13px; width: 220px; font-family: inherit;
+  &:focus { outline: none; border-color: var(--green-dark); }
+}
+
+.p-notice {
+  margin: 12px 24px 0; padding: 10px 14px; border-radius: var(--radius-md);
+  font-size: 13px; display: flex; gap: 8px; align-items: center;
+  &.ok  { background: var(--green-alpha); color: var(--green-dark); }
+  &.err { background: var(--danger-light); color: var(--danger); }
+  .p-notice-close { margin-left: auto; background: none; border: none; color: inherit; cursor: pointer; }
+}
+
+.p-table {
+  width: 100%; border-collapse: collapse;
+  th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+       color: var(--gray-400); padding: 10px 24px; background: var(--gray-50); font-weight: 600; }
+  td { padding: 11px 24px; border-top: 1px solid var(--gray-100); font-size: 13.5px; }
+  tr:hover td { background: #fbfcfd; }
+  tr.inactif td:not(.p-col-actions):not(.p-col-toggle) { opacity: .5; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--gray-400); }
+  .p-col-actions { text-align: right; white-space: nowrap; width: 90px; }
+  .p-col-toggle { width: 70px; }
+}
+.p-table-wrap { overflow-x: auto; }
+
+.p-empty { padding: 36px 24px; text-align: center; color: var(--gray-400); font-size: 13px;
+           i { display: block; font-size: 22px; margin-bottom: 8px; } }
+
+.p-icon-btn {
+  border: none; background: none; color: var(--gray-400); padding: 5px 8px; border-radius: 6px; cursor: pointer;
+  &:hover { background: var(--gray-100); color: var(--navy); }
+  &.danger:hover { background: var(--danger-light); color: var(--danger); }
+}
+
+// Interrupteur actif / inactif
+.p-toggle {
+  width: 34px; height: 19px; border-radius: 20px; background: var(--gray-200); border: none;
+  position: relative; cursor: pointer; padding: 0; vertical-align: middle; transition: background .15s;
+  &::after { content: ''; position: absolute; left: 2px; top: 2px; width: 15px; height: 15px;
+             background: #fff; border-radius: 50%; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+  &.on { background: var(--green); &::after { left: 17px; } }
+  &:disabled { cursor: default; opacity: .6; }
+}
+
+.p-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: middle; }
+
+// Fenêtres de saisie
+.p-form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.p-check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 4px 0 20px; cursor: pointer; }
+.p-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+// Écrans moyens : colonnes secondaires masquées
+@media (max-width: 1280px) {
+  .p-hide-m { display: none; }
+  .p-table th, .p-table td { padding-left: 16px; padding-right: 16px; }
+}
+
+@media (max-width: 900px) {
+  .p-form-grid-2 { grid-template-columns: 1fr; }
+  .p-head { padding: 16px; }
+  .p-search { width: 100%; }
+  .p-table th, .p-table td { padding-left: 14px; padding-right: 14px; }
+  .p-hide-m { display: none; }
+}

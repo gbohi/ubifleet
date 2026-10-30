@@ -1,0 +1,126 @@
+<!-- UbiFleet — Paramètres › Échéances / Carburant & consommation -->
+<section class="p-panel">
+
+  @if (vue() === 'echeances') {
+    <div class="p-head">
+      <div>
+        <h2>Échéances</h2>
+        <p>
+          Un seul réglage par échéance. Le seuil <strong>attention</strong> colore l'échéance en orange
+          dans l'État du parc et crée une alerte normale ; le seuil <strong>urgent</strong> la passe
+          en rouge et en priorité haute. Une échéance dépassée génère une alerte critique.
+        </p>
+        <div class="p-used-in">
+          <span class="p-chip">Utilisé dans : État du parc</span>
+          <span class="p-chip">Alertes</span>
+        </div>
+      </div>
+    </div>
+  } @else {
+    <div class="p-head">
+      <div>
+        <h2>Carburant & consommation</h2>
+        <p>Valeurs utilisées lors de la saisie des pleins et pour détecter les consommations anormales.</p>
+        <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant</span><span class="p-chip">Alertes</span></div>
+      </div>
+    </div>
+  }
+
+  @if (notice(); as n) {
+    <div class="p-notice" [class]="n.type">
+      <i [class]="n.type === 'ok' ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i>
+      {{ n.texte }}
+      <button class="p-notice-close" (click)="notice.set(null)" aria-label="Fermer"><i class="fas fa-times"></i></button>
+    </div>
+  }
+
+  @if (chargement()) {
+    <div class="p-empty"><i class="fas fa-circle-notch fa-spin"></i></div>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="enregistrer()" novalidate class="seuils-body">
+
+      @if (vue() === 'echeances') {
+        <div class="legende">
+          <span><i class="seg-dot depasse"></i> Dépassé</span>
+          <span><i class="seg-dot urgent"></i> Urgent</span>
+          <span><i class="seg-dot attention"></i> Attention</span>
+          <span><i class="seg-dot ok"></i> OK</span>
+        </div>
+
+        @for (g of groupes; track g.titre) {
+          <div class="groupe">
+            <div class="groupe-titre"><i [class]="g.icone"></i> {{ g.titre }}</div>
+            <p class="groupe-aide">{{ g.aide }}</p>
+
+            @for (e of g.echeances; track e.code) {
+              <div class="echeance" [class.erreur]="incoherent(e.code)">
+                <div class="echeance-nom">{{ e.libelle }}</div>
+
+                <div class="barre" aria-hidden="true">
+                  <div class="seg depasse">Dépassé</div>
+                  <div class="seg urgent">≤ {{ val('echeance_' + e.code + '_urgent') | number:'1.0-0' }} {{ e.unite === 'km' ? 'km' : 'j' }}</div>
+                  <div class="seg attention">≤ {{ val('echeance_' + e.code + '_attention') | number:'1.0-0' }} {{ e.unite === 'km' ? 'km' : 'j' }}</div>
+                  <div class="seg ok">OK</div>
+                </div>
+
+                <div class="saisies">
+                  <label class="saisie" [class.modifie]="modifie('echeance_' + e.code + '_attention')">
+                    <span class="saisie-label attention">Attention</span>
+                    <input type="number" min="1" [formControlName]="'echeance_' + e.code + '_attention'" />
+                    <span class="unite">{{ e.unite }}</span>
+                  </label>
+                  <label class="saisie" [class.modifie]="modifie('echeance_' + e.code + '_urgent')">
+                    <span class="saisie-label urgent">Urgent</span>
+                    <input type="number" min="1" [formControlName]="'echeance_' + e.code + '_urgent'" />
+                    <span class="unite">{{ e.unite }}</span>
+                  </label>
+                </div>
+
+                @if (incoherent(e.code)) {
+                  <div class="echeance-erreur">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Le seuil « attention » doit être supérieur au seuil « urgent ».
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      } @else {
+        <div class="cartes">
+          <label class="carte" [class.modifie]="modifie('prix_carburant_litre')">
+            <span class="carte-titre"><i class="fas fa-gas-pump"></i> Prix du litre</span>
+            <span class="carte-aide">Proposé par défaut lors de la saisie d'un plein.</span>
+            <span class="carte-saisie">
+              <input type="number" min="1" formControlName="prix_carburant_litre" />
+              <span class="unite">FCFA / L</span>
+            </span>
+          </label>
+          <label class="carte" [class.modifie]="modifie('conso_anomalie_pct')">
+            <span class="carte-titre"><i class="fas fa-chart-line"></i> Consommation anormale</span>
+            <span class="carte-aide">Un plein est marqué « anomalie » si la consommation dépasse la moyenne du véhicule de plus de :</span>
+            <span class="carte-saisie">
+              <input type="number" min="1" formControlName="conso_anomalie_pct" />
+              <span class="unite">%</span>
+            </span>
+          </label>
+        </div>
+      }
+
+      @if (ecriture() && modifiees().length) {
+        <div class="barre-enregistrement">
+          <span class="pastille"></span>
+          {{ modifiees().length }} modification{{ modifiees().length > 1 ? 's' : '' }} non enregistrée{{ modifiees().length > 1 ? 's' : '' }}
+          <div class="p-actions">
+            <button type="button" class="btn btn-outline btn-sm btn-clair" (click)="annuler()">Annuler</button>
+            <button type="submit" class="btn btn-green btn-sm"
+                    [disabled]="form.invalid || incoherences().length > 0 || enregistrement()">
+              @if (enregistrement()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-save"></i> }
+              Enregistrer
+            </button>
+          </div>
+        </div>
+      }
+    </form>
+  }
+</section>
