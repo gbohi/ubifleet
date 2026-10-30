@@ -500,9 +500,13 @@ class ReleveKilometrageViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
         return [RoleBasedPermission()]
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['vehicule', 'type_mouvement', 'date_releve', 'chauffeur']
+    # Plages de dates et de kilométrage (filtres de la liste globale des relevés)
+    filterset_fields = {
+        'vehicule': ['exact'], 'type_mouvement': ['exact'], 'chauffeur': ['exact'],
+        'date_releve': ['exact', 'gte', 'lte'], 'kilometrage': ['gte', 'lte'],
+    }
     search_fields    = ['vehicule__immatriculation', 'chauffeur__nom', 'chauffeur__prenom',
-                        'tournee__code', 'tournee__libelle']
+                        'tournee__code', 'tournee__libelle', 'notes']
     ordering_fields  = ['date_releve', 'heure_releve', 'kilometrage', 'created_at']
 
     def get_queryset(self):

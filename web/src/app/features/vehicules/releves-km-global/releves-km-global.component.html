@@ -46,10 +46,16 @@
     <div class="filters-grid">
 
       <div class="filter-group">
-        <label class="filter-label"><i class="fas fa-search"></i> Immatriculation / Tournée</label>
+        <label class="filter-label"><i class="fas fa-car"></i> Véhicule</label>
+        <ubi-select-recherche placeholder="Immatriculation…" [options]="vehiculesFiltre()"
+                              [selection]="filterVehicule()" (choix)="onVehicule($event)" />
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label"><i class="fas fa-search"></i> Recherche</label>
         <div class="search-box">
           <i class="fas fa-search"></i>
-          <input type="text" placeholder="ex: AB-1234 ou Bouaké..."
+          <input type="text" placeholder="Tournée, notes…"
                  [value]="searchImmat()" (input)="onSearch($event)" />
         </div>
       </div>
@@ -66,12 +72,8 @@
 
       <div class="filter-group">
         <label class="filter-label"><i class="fas fa-id-badge"></i> Chauffeur</label>
-        <select class="form-control" [value]="filterChauffeur()" (change)="onChauffeur($event)">
-          <option value="">Tous les chauffeurs</option>
-          @for (c of chauffeurs(); track c.id) {
-            <option [value]="c.id">{{ c.nom_complet }}</option>
-          }
-        </select>
+        <ubi-select-recherche placeholder="Matricule ou nom…" [options]="chauffeurs()"
+                              [selection]="filterChauffeur()" (choix)="onChauffeur($event)" />
       </div>
 
       <div class="filter-group">

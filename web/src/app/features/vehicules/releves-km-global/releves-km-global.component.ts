@@ -5,12 +5,14 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { VehiculeApiService, AgenceApiService, ChauffeurApiService } from '../../../core/services/api.service';
+import { VehiculeApiService, AgenceApiService } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { ReleveFormComponent } from '../../../shared/releve-form/releve-form.component';
 import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/historique-corrections.component';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
+import { OptionsSaisieService } from '../../../core/services/options-saisie.service';
+import { OptionRecherche, SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
 import { ConsommationFactureeComponent } from '../../carburant/analyses/consommation-facturee.component';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
 
@@ -19,15 +21,15 @@ type Tab = 'releves' | 'consommation';
 @Component({
   selector: 'ubi-releves-km-global',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent, ReleveFormComponent, ConsommationFactureeComponent],
+  imports: [RouterLink, DatePipe, DecimalPipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent, ReleveFormComponent, ConsommationFactureeComponent, SelectRechercheComponent],
   templateUrl: './releves-km-global.component.html',
   styleUrls: ['./releves-km-global.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RelevesKmGlobalComponent implements OnInit {
+  private options      = inject(OptionsSaisieService);
   private vehiculeApi  = inject(VehiculeApiService);
   private agenceApi    = inject(AgenceApiService);
-  private chauffeurApi = inject(ChauffeurApiService);
 
   // Onglets
   activeTab = signal<Tab>('releves');
@@ -37,7 +39,9 @@ export class RelevesKmGlobalComponent implements OnInit {
   total      = signal(0);
   page       = signal(1);
   loading    = signal(true);
-  chauffeurs = signal<{ id: string; nom_complet: string }[]>([]);
+  chauffeurs = signal<OptionRecherche[]>([]);
+  vehiculesFiltre = signal<OptionRecherche[]>([]);
+  filterVehicule = signal('');
   agences    = signal<{ id: string; nom: string }[]>([]);
 
   // Filtres
@@ -63,12 +67,8 @@ export class RelevesKmGlobalComponent implements OnInit {
   ngOnInit(): void {
     this.typesMvt.charger();
     this.loadReleves();
-    this.chauffeurApi.getAll({ page_size: 200, statut: 'actif' }).subscribe({
-      next: (res) => this.chauffeurs.set(
-        (res.results ?? []).map((c: any) => ({ id: c.id, nom_complet: c.nom_complet }))
-      ),
-      error: () => {},
-    });
+    this.options.chauffeurs(true).subscribe({ next: l => this.chauffeurs.set(l), error: () => {} });
+    this.options.vehicules().subscribe({ next: l => this.vehiculesFiltre.set(l), error: () => {} });
     this.agenceApi.getAll().subscribe({
       next: (res: any) => this.agences.set(res.results ?? res ?? []),
       error: () => {},
@@ -81,20 +81,24 @@ export class RelevesKmGlobalComponent implements OnInit {
     if (this.searchImmat())     filters['search']         = this.searchImmat();
     if (this.filterType())      filters['type_mouvement'] = this.filterType();
     if (this.filterChauffeur()) filters['chauffeur']      = this.filterChauffeur();
+    if (this.filterVehicule())  filters['vehicule']       = this.filterVehicule();
     if (this.filterDateDe())    filters['date_releve__gte']= this.filterDateDe();
     if (this.filterDateA())     filters['date_releve__lte']= this.filterDateA();
     if (this.filterKmMin())     filters['kilometrage__gte']= this.filterKmMin();
     if (this.filterKmMax())     filters['kilometrage__lte']= this.filterKmMax();
 
+    const n = ++this.requeteReleves;   // seule la dernière demande s'affiche
     this.vehiculeApi.getRelevesKm(filters).subscribe({
       next: (res) => {
+        if (n !== this.requeteReleves) return;
         this.releves.set(res.results ?? []);
         this.total.set(res.count ?? 0);
         this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: () => { if (n === this.requeteReleves) this.loading.set(false); },
     });
   }
+  private requeteReleves = 0;
 
   onSearch(event: Event): void {
     this.searchImmat.set((event.target as HTMLInputElement).value);
@@ -108,8 +112,14 @@ export class RelevesKmGlobalComponent implements OnInit {
     this.loadReleves();
   }
 
-  onChauffeur(event: Event): void {
-    this.filterChauffeur.set((event.target as HTMLSelectElement).value);
+  onChauffeur(valeur: string | null): void {
+    this.filterChauffeur.set(valeur ?? '');
+    this.page.set(1);
+    this.loadReleves();
+  }
+
+  onVehicule(valeur: string | null): void {
+    this.filterVehicule.set(valeur ?? '');
     this.page.set(1);
     this.loadReleves();
   }
@@ -142,6 +152,7 @@ export class RelevesKmGlobalComponent implements OnInit {
     this.searchImmat.set('');
     this.filterType.set('');
     this.filterChauffeur.set('');
+    this.filterVehicule.set('');
     this.filterDateDe.set('');
     this.filterDateA.set('');
     this.filterKmMin.set('');
@@ -151,7 +162,7 @@ export class RelevesKmGlobalComponent implements OnInit {
   }
 
   get hasFilters(): boolean {
-    return !!(this.searchImmat() || this.filterType() || this.filterChauffeur() ||
+    return !!(this.searchImmat() || this.filterType() || this.filterChauffeur() || this.filterVehicule() ||
               this.filterDateDe() || this.filterDateA() || this.filterKmMin() || this.filterKmMax());
   }
 

@@ -113,21 +113,28 @@ export class SuiviTourneesComponent implements OnInit {
     const base = this.filtres();
     const ft = { ...base, ...(this.tournee() ? { tournee: this.tournee() } : {}), ...(this.statut() ? { statut: this.statut() } : {}) };
     const fh = { ...base, ...(this.typeMvt() ? { type_mouvement: this.typeMvt() } : {}) };
+    const n = ++this.requete;   // seule la dernière demande s'affiche
     forkJoin({
       syn: this.api.getSyntheseTournees(base),
       t: this.api.getSuiviTournees(ft),
       h: this.api.getSuiviHorsTournee(fh),
     }).subscribe({
       next: ({ syn, t, h }) => {
+        if (n !== this.requete) return;
         this.synthese.set(syn);
         this.lignes.set(t.resultats ?? []);
         this.droits.set(t.droits ?? this.droits());
         this.horsLignes.set(h.resultats ?? []);
         this.chargement.set(false);
       },
-      error: (err) => { this.erreur.set(messageErreurApi(err, 'Erreur lors du chargement.')); this.chargement.set(false); },
+      error: (err) => {
+        if (n !== this.requete) return;
+        this.erreur.set(messageErreurApi(err, 'Erreur lors du chargement.'));
+        this.chargement.set(false);
+      },
     });
   }
+  private requete = 0;
 
   reinitialiser(): void {
     this.dateDebut.set(debutDuMois()); this.dateFin.set(aujourdhui());

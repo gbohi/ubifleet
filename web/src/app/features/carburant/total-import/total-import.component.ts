@@ -184,15 +184,18 @@ export class TotalImportComponent implements OnInit {
 
   loadTransactions(): void {
     this.transactionsLoad.set(true);
+    const n = ++this.requeteTransactions;   // seule la dernière demande s'affiche
     this.api.getTransactions(this.buildTransFilters()).subscribe({
       next: (res) => {
+        if (n !== this.requeteTransactions) return;
         this.transactions.set(res.results ?? []);
         this.transactionsTotal.set(res.count ?? 0);
         this.transactionsLoad.set(false);
       },
-      error: () => this.transactionsLoad.set(false),
+      error: () => { if (n === this.requeteTransactions) this.transactionsLoad.set(false); },
     });
   }
+  private requeteTransactions = 0;
 
   onTransSearch(e: Event):    void { this.transSearch.set((e.target as HTMLInputElement).value);    this.transPage.set(1); this.loadTransactions(); }
   onTransImmat(v: string | null): void { this.transImmat.set(v ?? ''); this.transPage.set(1); this.loadTransactions(); }
