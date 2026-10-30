@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from apps.accounts.permissions import RoleBasedPermission
+from apps.core.referentiels import SuppressionProtegeeMixin, annoter_utilisations
 from apps.core.agences import (
     AgenceMixin, agence_effective, agence_pour_creation, controler_agence, filtrer_par_agence,
 )
@@ -151,8 +152,8 @@ class ContratAssuranceViewSet(AgenceMixin, viewsets.ModelViewSet):
         return Response(ContratAssuranceSerializer(qs, many=True).data)
 
 
-class AssureurViewSet(viewsets.ModelViewSet):
-    queryset = Assureur.objects.filter(is_active=True)
+class AssureurViewSet(SuppressionProtegeeMixin, viewsets.ModelViewSet):
+    relations_utilisation = [('contrats', "contrat(s) d'assurance")]
     serializer_class = AssureurSerializer
     module   = 'sinistres'
     permission_classes = [RoleBasedPermission]
@@ -166,3 +167,10 @@ class AssureurViewSet(viewsets.ModelViewSet):
     }
     filter_backends = [filters.SearchFilter]
     search_fields = ['nom']
+
+    def get_queryset(self):
+        qs = annoter_utilisations(Assureur.objects.all(), 'contrats')
+        # Listes : éléments actifs, sauf ?tous=1 (page Paramètres)
+        if self.action == 'list' and not self.request.query_params.get('tous'):
+            qs = qs.filter(is_active=True)
+        return qs

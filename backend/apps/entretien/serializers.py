@@ -1,26 +1,31 @@
 """UbiFleet — Entretien Serializers"""
 
 from rest_framework import serializers
+from apps.core.referentiels import NbUtilisationsField
 from .models import Intervention, TypeIntervention, Prestataire, SuiviPneus, DocumentIntervention
 
 
 class TypeInterventionSerializer(serializers.ModelSerializer):
     categorie_display = serializers.CharField(source='get_categorie_display', read_only=True)
 
+    nb_utilisations = NbUtilisationsField()
+
     class Meta:
         model = TypeIntervention
         fields = [
             'id', 'nom', 'categorie', 'categorie_display',
-            'periodicite_km', 'periodicite_mois', 'is_active'
+            'periodicite_km', 'periodicite_mois', 'is_active', 'nb_utilisations'
         ]
 
 
 class PrestataireSerializer(serializers.ModelSerializer):
+    nb_utilisations = NbUtilisationsField()
+
     class Meta:
         model = Prestataire
         fields = [
             'id', 'nom', 'specialite', 'telephone', 'email',
-            'adresse', 'ville', 'agence', 'note_qualite', 'is_active'
+            'adresse', 'ville', 'agence', 'note_qualite', 'is_active', 'nb_utilisations'
         ]
 
 

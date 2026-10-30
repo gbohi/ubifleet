@@ -304,12 +304,12 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         today = dt_date.today()
         resultats = []
 
-        # ── Seuils paramétrables ─────────────────────────────────────
-        from apps.parametrage.models import Parametre
-        km_urgent       = int(Parametre.get('etat_parc_km_urgent',      500))
-        km_attention    = int(Parametre.get('etat_parc_km_attention',   2000))
-        jours_urgent    = int(Parametre.get('etat_parc_jours_urgent',      7))
-        jours_attention = int(Parametre.get('etat_parc_jours_attention',  30))
+        # ── Seuils des échéances (Paramètres › Échéances) ────────────
+        from apps.parametrage.echeances import niveau, tous_les_seuils
+        seuils = tous_les_seuils()
+
+        def statut(code, restant):
+            return niveau(restant, *seuils[code])
 
         # ── Pneus : une seule requête pour tous les véhicules ────────
         vehicule_ids = list(qs.values_list('id', flat=True))
@@ -369,21 +369,6 @@ class VehiculeViewSet(viewsets.ModelViewSet):
                 delta = today - v.date_mise_en_service
                 age_mois = round(delta.days / 30.44, 1)
 
-            # ── Indicateurs ──────────────────────────────────────────
-            def statut_km(restant):
-                if restant is None:           return 'nc'
-                if restant <= 0:              return 'depasse'
-                if restant <= km_urgent:      return 'urgent'
-                if restant <= km_attention:   return 'attention'
-                return 'ok'
-
-            def statut_jours(jours):
-                if jours is None:             return 'nc'
-                if jours <= 0:                return 'depasse'
-                if jours <= jours_urgent:     return 'urgent'
-                if jours <= jours_attention:  return 'attention'
-                return 'ok'
-
             resultats.append({
                 'id':                  str(v.id),
                 'immatriculation':     v.immatriculation,
@@ -399,18 +384,18 @@ class VehiculeViewSet(viewsets.ModelViewSet):
                 'kilometrage_actuel':  v.kilometrage_actuel,
                 'km_prevu_revision':   km_rev or None,
                 'km_restant_revision': km_restant_rev,
-                'statut_revision':     statut_km(km_restant_rev),
+                'statut_revision':     statut('revision', km_restant_rev),
                 'km_prevu_pneus':      km_pneu_min,
                 'km_restant_pneus':    km_restant_pneu,
-                'statut_pneus':        statut_km(km_restant_pneu),
+                'statut_pneus':        statut('pneus', km_restant_pneu),
                 'jr_assurance':        jr_assurance,
-                'statut_assurance':    statut_jours(jr_assurance),
+                'statut_assurance':    statut('assurance', jr_assurance),
                 'jr_ct':               jr_ct,
-                'statut_ct':           statut_jours(jr_ct),
+                'statut_ct':           statut('ct', jr_ct),
                 'jr_carte_transport':  jr_carte_transp,
-                'statut_carte_transport': statut_jours(jr_carte_transp),
+                'statut_carte_transport': statut('carte_transport', jr_carte_transp),
                 'jr_vignette':         jr_vignette,
-                'statut_vignette':     statut_jours(jr_vignette),
+                'statut_vignette':     statut('vignette', jr_vignette),
                 'age_mois':            age_mois,
                 'notes':               v.notes or '',
             })
@@ -441,10 +426,8 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         return Response({
             'kpis':    kpis,
             'seuils':  {
-                'km_urgent':        km_urgent,
-                'km_attention':     km_attention,
-                'jours_urgent':     jours_urgent,
-                'jours_attention':  jours_attention,
+                code: {'attention': att, 'urgent': urg}
+                for code, (att, urg) in seuils.items()
             },
             'vehicules': resultats,
         })

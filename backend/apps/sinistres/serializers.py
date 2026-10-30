@@ -1,13 +1,16 @@
 """UbiFleet — Sinistres Serializers"""
 
 from rest_framework import serializers
+from apps.core.referentiels import NbUtilisationsField
 from .models import Sinistre, ContratAssurance, Assureur, PieceJointeSinistre
 
 
 class AssureurSerializer(serializers.ModelSerializer):
+    nb_utilisations = NbUtilisationsField()
+
     class Meta:
         model = Assureur
-        fields = ['id', 'nom', 'telephone', 'email', 'adresse', 'contact_sinistre', 'is_active']
+        fields = ['id', 'nom', 'telephone', 'email', 'adresse', 'contact_sinistre', 'is_active', 'nb_utilisations']
 
 
 class ContratAssuranceSerializer(serializers.ModelSerializer):

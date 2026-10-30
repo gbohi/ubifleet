@@ -145,20 +145,20 @@ class SecuriteComptesTests(APITestCase):
 
     # ── /parametrage/bulk_update/ ─────────────────────────────────────
     def test_bulk_update_parametres_refuse_sous_niveau_6(self):
-        Parametre.objects.update_or_create(cle='alerte_ct_jours', defaults={'valeur': '30'})
+        Parametre.objects.update_or_create(cle='echeance_ct_attention', defaults={'valeur': '30'})
         self.client.force_authenticate(self.gest)
         resp = self.client.post('/api/v1/parametrage/bulk_update/',
-                                [{'cle': 'alerte_ct_jours', 'valeur': '1'}], format='json')
+                                [{'cle': 'echeance_ct_attention', 'valeur': '1'}], format='json')
         self.assertEqual(resp.status_code, 403)
-        self.assertEqual(Parametre.objects.get(cle='alerte_ct_jours').valeur, '30')
+        self.assertEqual(Parametre.objects.get(cle='echeance_ct_attention').valeur, '30')
 
     def test_bulk_update_parametres_ok_pour_flotte(self):
-        Parametre.objects.update_or_create(cle='alerte_ct_jours', defaults={'valeur': '30'})
+        Parametre.objects.update_or_create(cle='echeance_ct_attention', defaults={'valeur': '30'})
         self.client.force_authenticate(self.flotte)
         resp = self.client.post('/api/v1/parametrage/bulk_update/',
-                                [{'cle': 'alerte_ct_jours', 'valeur': '15'}], format='json')
+                                [{'cle': 'echeance_ct_attention', 'valeur': '15'}], format='json')
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(Parametre.objects.get(cle='alerte_ct_jours').valeur, '15')
+        self.assertEqual(Parametre.objects.get(cle='echeance_ct_attention').valeur, '15')
 
 
 class MesAccesTests(APITestCase):

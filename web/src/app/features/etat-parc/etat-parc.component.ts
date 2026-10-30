@@ -48,7 +48,8 @@ export class EtatParcComponent implements OnInit {
   private api = inject(VehiculeApiService);
 
   loading   = signal(false);
-  seuils    = signal<{km_urgent:number;km_attention:number;jours_urgent:number;jours_attention:number} | null>(null);
+  // Seuils par échéance (Paramètres › Échéances), ex. seuils()?.['ct'].urgent
+  seuils    = signal<Record<string, { attention: number; urgent: number }> | null>(null);
   kpis      = signal<Kpis | null>(null);
   vehicules = signal<VehiculeEtat[]>([]);
   error     = signal('');

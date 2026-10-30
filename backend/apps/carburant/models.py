@@ -195,9 +195,12 @@ class PleinsCarburant(UbiFleetBaseModel):
                     self.consommation_calculee = round(
                         (float(self.volume_litres) / km_parcourus) * 100, 2
                     )
-                    # Détection anomalie si conso > 30% au-dessus moyenne
+                    # Détection anomalie si conso > X % au-dessus de la moyenne
+                    # (Paramètres › Carburant & consommation)
+                    from apps.parametrage.echeances import seuil_conso_anomalie
                     moyenne = self.vehicule.consommation_moyenne()
-                    if moyenne and float(self.consommation_calculee) > float(moyenne) * 1.3:
+                    marge = 1 + seuil_conso_anomalie() / 100
+                    if moyenne and float(self.consommation_calculee) > float(moyenne) * marge:
                         self.statut_validation = self.StatutValidation.ANOMALIE
                         self.motif_anomalie = (
                             f"Consommation anormale: {self.consommation_calculee} L/100km "

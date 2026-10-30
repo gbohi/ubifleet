@@ -16,8 +16,4 @@ app.conf.beat_schedule = {
         'task': 'apps.alertes.tasks.run_all_checks',
         'schedule': crontab(hour=7, minute=0),
     },
-    'check-assurances-monday': {
-        'task': 'apps.alertes.tasks.check_assurance_alerts',
-        'schedule': crontab(hour=8, minute=0, day_of_week=1),
-    },
 }

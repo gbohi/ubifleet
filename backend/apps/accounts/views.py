@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.module_loading import import_string
+from apps.core.referentiels import SuppressionProtegeeMixin
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import User, Agence, Role, PermissionRole
@@ -189,7 +190,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({'detail': 'Mot de passe réinitialisé.'})
 
 
-class AgenceViewSet(viewsets.ModelViewSet):
+class AgenceViewSet(SuppressionProtegeeMixin, viewsets.ModelViewSet):
     """Lecture pour tous (listes déroulantes). Un utilisateur rattaché à une
     agence ne voit et ne peut modifier que la sienne, et ne peut pas en créer."""
     module             = 'agences'
@@ -198,6 +199,7 @@ class AgenceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminOrReadOnly]
     filter_backends    = [filters.SearchFilter]
     search_fields      = ['nom', 'code', 'ville']
+    relations_utilisation = [('vehicules', 'véhicule(s)'), ('utilisateurs', 'utilisateur(s)')]
 
     def get_queryset(self):
         # Rattaché à une agence : seule la sienne apparaît (listes, filtres)

@@ -9,6 +9,8 @@ from .models import Parametre
 from .serializers import ParametreSerializer
 from apps.accounts.permissions import IsSuperAdmin, IsFleetManager, RoleBasedPermission
 from apps.core.agences import controler_agence, filtrer_par_agence, voit_toutes_agences
+from django.db.models import Q
+from apps.core.referentiels import NbUtilisationsField, SuppressionProtegeeMixin, annoter_utilisations
 
 
 class ReferentielPermissionMixin:
@@ -58,62 +60,61 @@ class ParametreViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def bulk_update(self, request):
-        """Mise à jour en masse : [{cle, valeur, categorie?, type_valeur?}, ...]"""
+        """Mise à jour en masse : [{cle, valeur}, ...].
+
+        Clés acceptées : paramètres existants et seuils connus (échéances,
+        consommation, prix carburant). Pour chaque échéance, le seuil
+        « attention » doit rester strictement supérieur au seuil « urgent »."""
+        from .echeances import ECHEANCES, CLE_CONSO_ANOMALIE, cle, seuils
+
         if not isinstance(request.data, list):
             return Response({'detail': 'Format invalide. Attendu: liste.'}, status=400)
 
-        # Mapping cle → catégorie par défaut pour les paramètres connus
-        CATEGORIE_DEFAULTS = {
-            'etat_parc_km_urgent':      'alertes',
-            'etat_parc_km_attention':   'alertes',
-            'etat_parc_jours_urgent':   'alertes',
-            'etat_parc_jours_attention':'alertes',
-            'alerte_permis_jours':      'alertes',
-            'alerte_assurance_jours':   'alertes',
-            'alerte_ct_jours':          'alertes',
-            'alerte_conso_seuil_pct':   'alertes',
-        }
-        TYPE_DEFAULTS = {
-            'etat_parc_km_urgent':      'int',
-            'etat_parc_km_attention':   'int',
-            'etat_parc_jours_urgent':   'int',
-            'etat_parc_jours_attention':'int',
-            'alerte_permis_jours':      'int',
-            'alerte_assurance_jours':   'int',
-            'alerte_ct_jours':          'int',
-            'alerte_conso_seuil_pct':   'int',
-        }
+        CONNUES = {CLE_CONSO_ANOMALIE: 'alertes', 'prix_carburant_litre': 'alertes'}
+        for code in ECHEANCES:
+            CONNUES[cle(code, 'attention')] = 'alertes'
+            CONNUES[cle(code, 'urgent')] = 'alertes'
 
-        updated = []
+        valeurs, erreurs = {}, []
         for item in request.data:
-            cle    = item.get('cle')
-            valeur = item.get('valeur')
-            if not cle or valeur is None:
+            k, v = item.get('cle'), item.get('valeur')
+            if not k or v is None:
                 continue
-            try:
-                p = Parametre.objects.get(cle=cle)
-                p.valeur = str(valeur)
-                # Corriger la catégorie si elle est 'general' alors qu'elle devrait être autre
-                if p.categorie == 'general' and cle in CATEGORIE_DEFAULTS:
-                    p.categorie = CATEGORIE_DEFAULTS[cle]
-                if p.type_valeur == 'str' and cle in TYPE_DEFAULTS:
-                    p.type_valeur = TYPE_DEFAULTS[cle]
-                p.save(update_fields=['valeur', 'categorie', 'type_valeur', 'updated_at'])
-            except Parametre.DoesNotExist:
-                # Inférer type_valeur
-                tv = TYPE_DEFAULTS.get(cle)
-                if not tv:
-                    try: int(valeur); tv = 'int'
-                    except (ValueError, TypeError):
-                        try: float(valeur); tv = 'float'
-                        except (ValueError, TypeError): tv = 'str'
-                cat = item.get('categorie') or CATEGORIE_DEFAULTS.get(cle, 'general')
-                Parametre.objects.create(
-                    cle=cle, valeur=str(valeur),
-                    type_valeur=tv, categorie=cat
-                )
-            updated.append(cle)
-        return Response({'updated': updated})
+            if k in CONNUES:
+                try:
+                    v = int(float(v))
+                except (TypeError, ValueError):
+                    erreurs.append(f'« {k} » doit être un nombre.')
+                    continue
+                if v < 1:
+                    erreurs.append(f'« {k} » doit être supérieur à 0.')
+                    continue
+            elif not Parametre.objects.filter(cle=k).exists():
+                erreurs.append(f'Paramètre inconnu : « {k} ».')
+                continue
+            valeurs[k] = v
+
+        # Cohérence attention > urgent (en tenant compte des valeurs non envoyées)
+        for code, e in ECHEANCES.items():
+            att_actuel, urg_actuel = seuils(code)
+            att = valeurs.get(cle(code, 'attention'), att_actuel)
+            urg = valeurs.get(cle(code, 'urgent'), urg_actuel)
+            if att <= urg:
+                erreurs.append(f'{e.libelle} : le seuil « attention » ({att} {e.unite}) doit être '
+                               f'supérieur au seuil « urgent » ({urg} {e.unite}).')
+        if erreurs:
+            return Response({'detail': ' '.join(erreurs), 'erreurs': erreurs}, status=400)
+
+        for k, v in valeurs.items():
+            if k in CONNUES:
+                Parametre.objects.update_or_create(cle=k, defaults={
+                    'valeur': str(v), 'type_valeur': 'int', 'categorie': CONNUES[k],
+                })
+            else:
+                p = Parametre.objects.get(cle=k)
+                p.valeur = str(v)
+                p.save(update_fields=['valeur', 'updated_at'])
+        return Response({'updated': list(valeurs)})
 
 
 from .models import Tournee
@@ -318,33 +319,39 @@ from rest_framework import serializers as drf_s2
 class AffectationUsageSerializer(drf_s2.ModelSerializer):
     class Meta:
         model  = AffectationUsage
-        fields = ['id', 'code', 'libelle', 'actif']
+        fields = ['id', 'code', 'libelle', 'actif', 'nb_utilisations']
+
+    nb_utilisations = NbUtilisationsField()
 
 
 class StatutVehiculeSerializer(drf_s2.ModelSerializer):
     class Meta:
         model  = StatutVehicule
-        fields = ['id', 'code', 'libelle', 'couleur', 'actif']
+        fields = ['id', 'code', 'libelle', 'couleur', 'actif', 'nb_utilisations']
+
+    nb_utilisations = NbUtilisationsField()
 
 
-class AffectationUsageViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
+class AffectationUsageViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin, viewsets.ModelViewSet):
     serializer_class   = AffectationUsageSerializer
     pagination_class   = None
+    relations_utilisation = [('vehicules', 'véhicule(s)')]
 
     def get_queryset(self):
-        qs = AffectationUsage.objects.all()
+        qs = annoter_utilisations(AffectationUsage.objects.all(), 'vehicules', Q(vehicules__is_active=True))
         actif = self.request.query_params.get('actif')
         if actif is not None:
             qs = qs.filter(actif=(actif.lower() == 'true'))
         return qs
 
 
-class StatutVehiculeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
+class StatutVehiculeViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin, viewsets.ModelViewSet):
     serializer_class   = StatutVehiculeSerializer
     pagination_class   = None
+    relations_utilisation = [('vehicules', 'véhicule(s)')]
 
     def get_queryset(self):
-        qs = StatutVehicule.objects.all()
+        qs = annoter_utilisations(StatutVehicule.objects.all(), 'vehicules', Q(vehicules__is_active=True))
         actif = self.request.query_params.get('actif')
         if actif is not None:
             qs = qs.filter(actif=(actif.lower() == 'true'))
@@ -356,7 +363,9 @@ class MarqueVehiculeSerializer(drf_s2.ModelSerializer):
 
     class Meta:
         model  = MarqueVehicule
-        fields = ['id', 'libelle', 'actif', 'nb_modeles']
+        fields = ['id', 'libelle', 'actif', 'nb_modeles', 'nb_utilisations']
+
+    nb_utilisations = NbUtilisationsField()
 
     def get_nb_modeles(self, obj):
         return obj.modeles.count()
@@ -367,27 +376,31 @@ class ModeleVehiculeSerializer(drf_s2.ModelSerializer):
 
     class Meta:
         model  = ModeleVehicule
-        fields = ['id', 'marque', 'marque_libelle', 'libelle', 'actif']
+        fields = ['id', 'marque', 'marque_libelle', 'libelle', 'actif', 'nb_utilisations']
+
+    nb_utilisations = NbUtilisationsField()
 
 
-class MarqueVehiculeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
+class MarqueVehiculeViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin, viewsets.ModelViewSet):
     serializer_class   = MarqueVehiculeSerializer
     pagination_class   = None
+    relations_utilisation = [('vehicules', 'véhicule(s)')]
 
     def get_queryset(self):
-        qs = MarqueVehicule.objects.all()
+        qs = annoter_utilisations(MarqueVehicule.objects.all(), 'vehicules', Q(vehicules__is_active=True))
         actif = self.request.query_params.get('actif')
         if actif is not None:
             qs = qs.filter(actif=(actif.lower() == 'true'))
         return qs
 
 
-class ModeleVehiculeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
+class ModeleVehiculeViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin, viewsets.ModelViewSet):
     serializer_class   = ModeleVehiculeSerializer
     pagination_class   = None
+    relations_utilisation = [('vehicules', 'véhicule(s)')]
 
     def get_queryset(self):
-        qs = ModeleVehicule.objects.select_related('marque')
+        qs = annoter_utilisations(ModeleVehicule.objects.select_related('marque'), 'vehicules', Q(vehicules__is_active=True))
         actif = self.request.query_params.get('actif')
         if actif is not None:
             qs = qs.filter(actif=(actif.lower() == 'true'))

@@ -18,6 +18,7 @@ from .serializers import (
     PrestataireSerializer, PneusSerializer
 )
 from apps.accounts.permissions import IsFleetManager, RoleBasedPermission
+from apps.core.referentiels import SuppressionProtegeeMixin, annoter_utilisations
 from apps.core.agences import (
     AgenceMixin, agence_effective, agence_pour_creation, controler_agence, filtrer_par_agence,
 )
@@ -150,8 +151,8 @@ class InterventionViewSet(viewsets.ModelViewSet):
         })
 
 
-class TypeInterventionViewSet(viewsets.ModelViewSet):
-    queryset = TypeIntervention.objects.filter(is_active=True)
+class TypeInterventionViewSet(SuppressionProtegeeMixin, viewsets.ModelViewSet):
+    relations_utilisation = [('interventions', 'intervention(s)')]
     module   = 'parametres'
     serializer_class = TypeInterventionSerializer
     permission_classes = [RoleBasedPermission]
@@ -167,8 +168,16 @@ class TypeInterventionViewSet(viewsets.ModelViewSet):
     search_fields = ['nom']
     filterset_fields = ['categorie']
 
+    def get_queryset(self):
+        qs = annoter_utilisations(TypeIntervention.objects.all(), 'interventions')
+        # Listes : éléments actifs, sauf ?tous=1 (page Paramètres)
+        if self.action == 'list' and not self.request.query_params.get('tous'):
+            qs = qs.filter(is_active=True)
+        return qs
 
-class PrestataireViewSet(AgenceMixin, viewsets.ModelViewSet):
+
+class PrestataireViewSet(SuppressionProtegeeMixin, AgenceMixin, viewsets.ModelViewSet):
+    relations_utilisation = [('interventions', 'intervention(s)')]
     serializer_class = PrestataireSerializer
     module   = 'parametres'
     permission_classes = [RoleBasedPermission]
@@ -188,7 +197,10 @@ class PrestataireViewSet(AgenceMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         # Prestataires de son agence et prestataires communs (sans agence)
-        qs = Prestataire.objects.filter(is_active=True)
+        qs = annoter_utilisations(Prestataire.objects.all(), 'interventions')
+        # Listes : éléments actifs, sauf ?tous=1 (page Paramètres)
+        if self.action == 'list' and not self.request.query_params.get('tous'):
+            qs = qs.filter(is_active=True)
         user = self.request.user
         if user.agence_id:
             qs = qs.filter(Q(agence__isnull=True) | Q(agence_id=user.agence_id))
