@@ -14,13 +14,13 @@ from django.db import transaction
 from django.db.models import Sum, Avg, Count, Q, Prefetch
 
 from .models import (
-    PleinsCarburant, DotationCarburant, Station, RapprochementCarburant, PrixCarburant, TourneeEffectuee,
+    PleinsCarburant, Station, RapprochementCarburant, PrixCarburant, TourneeEffectuee,
 )
 from . import analyses, suivi, tournees
 from apps.parametrage.models import TypeMouvement
 from .serializers import (
     PleinSerializer,
-    DotationSerializer, StationSerializer, RapprochementSerializer, PrixCarburantSerializer,
+    StationSerializer, RapprochementSerializer, PrixCarburantSerializer,
 )
 from apps.accounts.permissions import IsFleetManager, RoleBasedPermission
 from apps.core.referentiels import SuppressionProtegeeMixin, annoter_utilisations
@@ -276,30 +276,6 @@ class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
         if q.get('vehicule') or q.get('agence'):
             data['immatriculations_inconnues'] = []
         return Response({'periode': {'debut': debut, 'fin': fin}, **data})
-
-class DotationViewSet(AgenceMixin, viewsets.ModelViewSet):
-    serializer_class = DotationSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['vehicule', 'mois', 'annee']
-
-    module   = 'carburant'
-    role_map = {
-        'list': 'operateur',
-        'retrieve': 'operateur',
-        'create': 'gestionnaire',
-        'update': 'gestionnaire',
-        'partial_update': 'gestionnaire',
-        'destroy': 'responsable_flotte',
-    }
-
-    def get_permissions(self):
-        return [RoleBasedPermission()]
-
-    champ_agence = 'vehicule__agence'
-
-    def get_queryset(self):
-        return self.filtrer_agence(DotationCarburant.objects.select_related('vehicule'))
-
 
 class StationViewSet(SuppressionProtegeeMixin, viewsets.ModelViewSet):
     relations_utilisation = [('pleins', 'plein(s)'), ('rapprochements', 'rapprochement(s)')]

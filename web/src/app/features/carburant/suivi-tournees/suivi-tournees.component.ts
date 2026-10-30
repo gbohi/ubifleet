@@ -12,6 +12,7 @@ import { forkJoin } from 'rxjs';
 import { CarburantApiService } from '../../../core/services/api.service';
 import { FenetreSaisieService, heureLocale, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { OptionTournee, OptionVehicule, OptionsSaisieService } from '../../../core/services/options-saisie.service';
+import { InfoOngletComponent } from '../../../shared/info-onglet/info-onglet.component';
 import { SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { Agence } from '../../../core/models';
@@ -25,7 +26,7 @@ const debutDuMois = () => aujourdhui().substring(0, 8) + '01';
 @Component({
   selector: 'ubi-suivi-tournees',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, RouterLink, SelectRechercheComponent],
+  imports: [DatePipe, DecimalPipe, RouterLink, SelectRechercheComponent, InfoOngletComponent],
   templateUrl: './suivi-tournees.component.html',
   styleUrls: ['./suivi-tournees.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

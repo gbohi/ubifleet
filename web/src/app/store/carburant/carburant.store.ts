@@ -8,12 +8,11 @@ import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { tapResponse } from '@ngrx/operators';
 import { pipe, switchMap, tap } from 'rxjs';
 import { CarburantApiService } from '../../core/services/api.service';
-import { PleinCarburant, DotationCarburant } from '../../core/models';
+import { PleinCarburant } from '../../core/models';
 import { LoadingState, PaginationState, initialPagination } from '../store.utils';
 
 interface CarburantState {
   pleins:        PleinCarburant[];
-  dotations:     DotationCarburant[];
   anomalies:     PleinCarburant[];
   stats:         any | null;
   consommation:  any[];
@@ -27,14 +26,13 @@ interface CarburantState {
     vehicule:          string;
     chauffeur:         string;
     type_mouvement:    string;
-    mois:              string;
-    annee:             string;
+    date_min:          string;
+    date_max:          string;
   };
 }
 
 const initialState: CarburantState = {
   pleins:       [],
-  dotations:    [],
   anomalies:    [],
   stats:        null,
   consommation: [],
@@ -48,8 +46,8 @@ const initialState: CarburantState = {
     vehicule:          '',
     chauffeur:         '',
     type_mouvement:    '',
-    mois:              '',
-    annee:             '',
+    date_min:          '',
+    date_max:          '',
   },
 };
 
@@ -72,7 +70,7 @@ export const CarburantStore = signalStore(
     hasActiveFilters: computed(() => {
       const f = store.filters();
       return !!(f.search || f.agence || f.statut_validation || f.vehicule || f.chauffeur
-                || f.type_mouvement || f.mois || f.annee);
+                || f.type_mouvement || f.date_min || f.date_max);
     }),
   })),
 
@@ -93,8 +91,8 @@ export const CarburantStore = signalStore(
           if (f.vehicule)          params['vehicule']          = f.vehicule;
           if (f.chauffeur)         params['chauffeur']         = f.chauffeur;
           if (f.type_mouvement)    params['type_mouvement']    = f.type_mouvement;
-          if (f.mois)              params['mois']              = f.mois;
-          if (f.annee)             params['annee']             = f.annee;
+          if (f.date_min)          params['date_min']          = f.date_min;
+          if (f.date_max)          params['date_max']          = f.date_max;
 
           return api.getPleins(params).pipe(
             tapResponse({
@@ -145,21 +143,6 @@ export const CarburantStore = signalStore(
           api.getConsommation(params).pipe(
             tapResponse({
               next: (data) => patchState(store, { consommation: data }),
-              error: () => {},
-            })
-          )
-        )
-      )
-    ),
-
-    loadDotations: rxMethod<{ vehicule?: string; mois?: string; annee?: string }>(
-      pipe(
-        switchMap((params) =>
-          api.getDotations(params).pipe(
-            tapResponse({
-              next: (res) => patchState(store, {
-                dotations: Array.isArray(res) ? res : (res.results ?? []),
-              }),
               error: () => {},
             })
           )

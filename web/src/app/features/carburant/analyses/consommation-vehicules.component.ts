@@ -4,21 +4,21 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { CarburantApiService } from '../../../core/services/api.service';
 import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { Agence } from '../../../core/models';
+import { InfoOngletComponent } from '../../../shared/info-onglet/info-onglet.component';
 import { FiltresAnalyse, FiltresAnalyseComponent, exporterCsv } from './filtres-analyse.component';
 
 @Component({
   selector: 'ubi-consommation-vehicules',
   standalone: true,
-  imports: [DecimalPipe, DatePipe, FiltresAnalyseComponent],
+  imports: [DecimalPipe, DatePipe, FiltresAnalyseComponent, InfoOngletComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrls: ['./analyses.scss'],
   template: `
-    <div class="an-entete">
-      <h2><i class="fas fa-tachometer-alt"></i> Consommation par véhicule</h2>
-      <p>Méthode « plein à plein » : chaque prise couvre les km parcourus depuis la prise précédente du véhicule.
+    <ubi-info-onglet titre="Consommation par véhicule" icone="fas fa-tachometer-alt">
+      Méthode « plein à plein » : chaque prise couvre les km parcourus depuis la prise précédente du véhicule.
         Conso moyenne = litres ÷ km × 100 sur la période, comparée à la consommation théorique de référence de la fiche véhicule.
-        Avec un filtre chauffeur ou type, seuls les intervalles de ses prises sont comptés.</p>
-    </div>
+        Avec un filtre chauffeur ou type, seuls les intervalles de ses prises sont comptés.
+    </ubi-info-onglet>
     <ubi-filtres-analyse [agences]="agences()" [chargement]="chargement()" (appliquer)="charger($event)">
       <button class="btn btn-outline" [disabled]="!lignes().length" (click)="exporter()"><i class="fas fa-file-excel"></i> Exporter</button>
     </ubi-filtres-analyse>

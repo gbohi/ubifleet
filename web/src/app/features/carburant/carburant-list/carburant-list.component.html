@@ -54,10 +54,6 @@
             (click)="activeTab.set('pleins')">
       <i class="fas fa-gas-pump"></i> Prises de carburant
     </button>
-    <button class="tab" [class.active]="activeTab() === 'dotations'"
-            (click)="activeTab.set('dotations')">
-      <i class="fas fa-chart-bar"></i> Dotations
-    </button>
     <button class="tab" [class.active]="activeTab() === 'anomalies'"
             (click)="activeTab.set('anomalies')">
       <i class="fas fa-exclamation-triangle"></i> Anomalies
@@ -114,16 +110,13 @@
           @if (t.pour_prises) { <option [value]="t.code">{{ t.libelle }}</option> }
         }
       </select>
-      <select class="form-control filter-select" (change)="onMoisFilter($event)">
-        @for (m of moisList; track m.val) {
-          <option [value]="m.val">{{ m.label }}</option>
-        }
-      </select>
-      <select class="form-control filter-select" (change)="onAnneeFilter($event)">
-        @for (a of anneesList; track a.val) {
-          <option [value]="a.val">{{ a.label }}</option>
-        }
-      </select>
+      <div class="filter-dates" title="Période des prises de carburant">
+        <input type="date" class="form-control" aria-label="Du" [value]="store.filters().date_min"
+               (change)="onFiltreListe('date_min', $any($event.target).value)" />
+        <span>au</span>
+        <input type="date" class="form-control" aria-label="Au" [value]="store.filters().date_max"
+               (change)="onFiltreListe('date_max', $any($event.target).value)" />
+      </div>
     </div>
 
     @if (store.hasActiveFilters()) {
@@ -287,57 +280,6 @@
           <span class="pagination-info">{{ store.pagination().total }} prise(s) de carburant</span>
         </div>
       }
-    }
-  }
-
-  <!-- ── ONGLET DOTATIONS ── -->
-  @if (activeTab() === 'dotations') {
-    @if (store.dotations().length === 0) {
-      <div class="empty-state">
-        <i class="fas fa-chart-bar"></i>
-        <h3>Aucune dotation pour cette période</h3>
-        <p>Sélectionnez un autre mois ou agence.</p>
-      </div>
-    } @else {
-      <div class="card">
-        <div class="table-container">
-          <table class="ubi-table">
-            <thead>
-              <tr>
-                <th>Véhicule</th>
-                <th>Période</th>
-                <th>Volume alloué (L)</th>
-                <th>Volume consommé (L)</th>
-                <th>Taux utilisation</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (d of store.dotations(); track d.id) {
-                <tr>
-                  <td><strong>{{ d.vehicule_immat }}</strong></td>
-                  <td>{{ d.mois }}/{{ d.annee }}</td>
-                  <td>{{ d.volume_alloue | number:'1.0-0' }}</td>
-                  <td>{{ d.volume_consomme | number:'1.0-0' }}</td>
-                  <td>
-                    <div class="usure-bar">
-                      <div class="progress">
-                        <div class="progress-bar"
-                             [class.green]="d.taux_utilisation <= 100"
-                             [class.danger]="d.taux_utilisation > 100"
-                             [style.width.%]="d.taux_utilisation > 100 ? 100 : d.taux_utilisation">
-                        </div>
-                      </div>
-                      <span [class.text-danger]="d.taux_utilisation > 100">
-                        {{ d.taux_utilisation | number:'1.0-0' }}%
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </div>
     }
   }
 

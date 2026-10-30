@@ -17,7 +17,7 @@ import { OptionRecherche, SelectRechercheComponent } from '../../../shared/selec
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 
-type CarburantTab = 'pleins' | 'dotations' | 'anomalies' | 'suivi' | 'consommation' | 'evolution' | 'rapprochement';
+type CarburantTab = 'pleins' | 'anomalies' | 'suivi' | 'consommation' | 'evolution' | 'rapprochement';
 
 @Component({
   selector: 'ubi-carburant-list',
@@ -49,21 +49,6 @@ export class CarburantListComponent implements OnInit {
   deleteEnCours = signal(false);
   deleteErreur  = signal('');
 
-  readonly moisList = [
-    { val: '', label: 'Tous les mois' },
-    { val: '1', label: 'Janvier' }, { val: '2', label: 'Février' },
-    { val: '3', label: 'Mars' }, { val: '4', label: 'Avril' },
-    { val: '5', label: 'Mai' }, { val: '6', label: 'Juin' },
-    { val: '7', label: 'Juillet' }, { val: '8', label: 'Août' },
-    { val: '9', label: 'Septembre' }, { val: '10', label: 'Octobre' },
-    { val: '11', label: 'Novembre' }, { val: '12', label: 'Décembre' },
-  ];
-
-  readonly anneesList = [
-    new Date().getFullYear(),
-    new Date().getFullYear() - 1,
-    new Date().getFullYear() - 2,
-  ].map(a => ({ val: String(a), label: String(a) }));
 
   // Getters — jamais de filter dans le template
   get totalVolumeFormatted(): string {
@@ -88,7 +73,6 @@ export class CarburantListComponent implements OnInit {
 
     this.store.loadPleins();
     this.store.loadAnomalies();
-    this.store.loadDotations({});
     this.store.loadStats({});
 
     this.typesMvt.charger();
@@ -111,17 +95,7 @@ export class CarburantListComponent implements OnInit {
     this.store.loadPleins();
   }
 
-  onMoisFilter(event: Event): void {
-    this.store.setFilter('mois', (event.target as HTMLSelectElement).value);
-    this.store.loadPleins();
-  }
-
-  onAnneeFilter(event: Event): void {
-    this.store.setFilter('annee', (event.target as HTMLSelectElement).value);
-    this.store.loadPleins();
-  }
-
-  onFiltreListe(cle: 'vehicule' | 'chauffeur' | 'type_mouvement', valeur: string | null): void {
+  onFiltreListe(cle: 'vehicule' | 'chauffeur' | 'type_mouvement' | 'date_min' | 'date_max', valeur: string | null): void {
     this.store.setFilter(cle, valeur ?? '');
     this.store.loadPleins();
   }

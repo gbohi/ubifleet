@@ -6,6 +6,7 @@ import { DecimalPipe } from '@angular/common';
 import { CarburantApiService } from '../../../core/services/api.service';
 import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { Agence } from '../../../core/models';
+import { InfoOngletComponent } from '../../../shared/info-onglet/info-onglet.component';
 import { FiltresAnalyse, FiltresAnalyseComponent, exporterCsv } from './filtres-analyse.component';
 
 type Mesure = 'volume' | 'montant' | 'nb' | 'km' | 'conso';
@@ -23,7 +24,7 @@ const libelleMois = (m: string) => `${MOIS_FR[Number(m.slice(5, 7)) - 1]} ${m.sl
 @Component({
   selector: 'ubi-evolution-agences',
   standalone: true,
-  imports: [DecimalPipe, FiltresAnalyseComponent],
+  imports: [DecimalPipe, FiltresAnalyseComponent, InfoOngletComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrls: ['./analyses.scss'],
   styles: [`
@@ -32,11 +33,10 @@ const libelleMois = (m: string) => `${MOIS_FR[Number(m.slice(5, 7)) - 1]} ${m.sl
                  border: 1px solid var(--gray-200); border-radius: var(--radius-lg); }
   `],
   template: `
-    <div class="an-entete">
-      <h2><i class="fas fa-chart-line"></i> Évolution par agence</h2>
-      <p>Mois par mois (un mois sans prise vaut 0) : litres, montant, nombre de prises, km parcourus et consommation.
-        La vue « Tournées / hors tournée » découpe chaque mois et ajoute la dotation théorique des tournées commencées dans le mois.</p>
-    </div>
+    <ubi-info-onglet titre="Évolution par agence" icone="fas fa-chart-line">
+      Mois par mois (un mois sans prise vaut 0) : litres, montant, nombre de prises, km parcourus et consommation.
+        La vue « Tournées / hors tournée » découpe chaque mois et ajoute la dotation théorique des tournées commencées dans le mois.
+    </ubi-info-onglet>
     <ubi-filtres-analyse [agences]="agences()" [chargement]="chargement()" (appliquer)="charger($event)">
       <button class="btn btn-outline" [disabled]="!donnees()" (click)="exporter()"><i class="fas fa-file-excel"></i> Exporter</button>
     </ubi-filtres-analyse>

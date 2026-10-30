@@ -1,8 +1,6 @@
 // UbiFleet — Carburant › Suivi tournées
 :host { display: block; }
 .st { display: flex; flex-direction: column; gap: 14px; }
-.st-titre { margin: 0; font-size: 17px; color: var(--navy); i { color: var(--green-dark); margin-right: 6px; } }
-.st-aide { margin: 4px 0 0; font-size: 12.5px; color: var(--gray-500); max-width: 900px; line-height: 1.5; }
 
 .st-filtres {
   display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 14px;

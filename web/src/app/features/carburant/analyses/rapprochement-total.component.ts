@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { CarburantApiService } from '../../../core/services/api.service';
 import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { Agence } from '../../../core/models';
+import { InfoOngletComponent } from '../../../shared/info-onglet/info-onglet.component';
 import { FiltresAnalyse, FiltresAnalyseComponent, exporterCsv } from './filtres-analyse.component';
 
 type Vue = 'synthese' | 'transaction_sans_prise' | 'prise_sans_transaction' | 'ecart' | 'rapproche' | 'inconnues';
@@ -19,17 +20,16 @@ const STATUTS: Record<string, { libelle: string; classe: string }> = {
 @Component({
   selector: 'ubi-rapprochement-total',
   standalone: true,
-  imports: [DecimalPipe, DatePipe, RouterLink, FiltresAnalyseComponent],
+  imports: [DecimalPipe, DatePipe, RouterLink, FiltresAnalyseComponent, InfoOngletComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrls: ['./analyses.scss'],
   template: `
-    <div class="an-entete">
-      <h2><i class="fas fa-balance-scale"></i> Rapprochement TotalEnergies</h2>
-      <p>Les prises déclarées dans UbiFleet sont comparées aux transactions facturées par Total (ventes non annulées).
+    <ubi-info-onglet titre="Rapprochement TotalEnergies" icone="fas fa-balance-scale">
+      Les prises déclarées dans UbiFleet sont comparées aux transactions facturées par Total (ventes non annulées).
         Une transaction est associée au véhicule par sa carte carburant (fiche véhicule), sinon par la plaque ; puis à la prise
         la plus proche (écart d'heure ≤ {{ param()?.tolerance_heures ?? '…' }} h, volume proche).
-        Écart signalé au-delà de {{ param()?.ecart_pct ?? '…' }} % de volume ou de montant (Paramètres › Seuils).</p>
-    </div>
+        Écart signalé au-delà de {{ param()?.ecart_pct ?? '…' }} % de volume ou de montant (Paramètres › Seuils).
+    </ubi-info-onglet>
     <ubi-filtres-analyse [agences]="agences()" [avecType]="false" [chargement]="chargement()" (appliquer)="charger($event)">
       <button class="btn btn-outline" [disabled]="!donnees()" (click)="exporter()"><i class="fas fa-file-excel"></i> Exporter</button>
     </ubi-filtres-analyse>

@@ -4,7 +4,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { environment } from '@env/environment';
 import {
-  Vehicule, VehiculeDetail, ReleveKilometrage, AffectationVehicule, UbiUser, Role, HistoriqueImmatriculation, PleinCarburant, DotationCarburant, Station,
+  Vehicule, VehiculeDetail, ReleveKilometrage, AffectationVehicule, UbiUser, Role, HistoriqueImmatriculation, PleinCarburant, Station,
   Intervention, Prestataire, SuiviPneus, Sinistre, ContratAssurance, Assureur,
   Chauffeur, BudgetAnnuel, Depense, Alerte, DashboardData,
   PaginatedResponse, Agence, User
@@ -380,13 +380,6 @@ export class CarburantApiService extends ApiBaseService {
   getRapprochementTotal(params: Record<string, any>): Observable<any> {
     const p = this.buildParams(params);
     return this.http.get<any>(`${API}/carburant/pleins/rapprochement_total/`, { params: p });
-  }
-  getDotations(filters?: Record<string, any>): Observable<PaginatedResponse<DotationCarburant>> {
-    const params = filters ? this.buildParams(filters) : undefined;
-    return this.http.get<PaginatedResponse<DotationCarburant>>(`${API}/carburant/dotations/`, { params });
-  }
-  createDotation(data: Partial<DotationCarburant>): Observable<DotationCarburant> {
-    return this.http.post<DotationCarburant>(`${API}/carburant/dotations/`, data);
   }
   getStations(filters?: Record<string, any>): Observable<PaginatedResponse<Station>> {
     const params = filters ? this.buildParams(filters) : undefined;

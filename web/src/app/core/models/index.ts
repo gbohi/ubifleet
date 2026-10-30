@@ -160,17 +160,6 @@ export interface PleinCarburant {
   created_at: string;
 }
 
-export interface DotationCarburant {
-  id: string;
-  vehicule: string;
-  vehicule_immat: string;
-  mois: number;
-  annee: number;
-  volume_alloue: number;
-  volume_consomme: number;
-  taux_utilisation: number;
-}
-
 export interface Station {
   id: string;
   nom: string;

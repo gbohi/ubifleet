@@ -4,7 +4,7 @@ from rest_framework import serializers
 from apps.parametrage.fenetre_saisie import CARBURANT, FenetreSaisieSerializerMixin
 from apps.core.referentiels import NbUtilisationsField
 from django.utils import timezone
-from .models import PleinsCarburant, DotationCarburant, Station, RapprochementCarburant, PrixCarburant
+from .models import PleinsCarburant, Station, RapprochementCarburant, PrixCarburant
 
 
 class StationSerializer(serializers.ModelSerializer):
@@ -15,19 +15,6 @@ class StationSerializer(serializers.ModelSerializer):
         model = Station
         fields = ['id', 'nom', 'ville', 'adresse', 'agence', 'agence_nom', 'est_partenaire', 'is_active',
                   'nb_utilisations']
-
-
-class DotationSerializer(serializers.ModelSerializer):
-    vehicule_immat = serializers.CharField(source='vehicule.immatriculation', read_only=True)
-    volume_consomme = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)
-    taux_utilisation = serializers.FloatField(read_only=True)
-
-    class Meta:
-        model = DotationCarburant
-        fields = [
-            'id', 'vehicule', 'vehicule_immat', 'mois', 'annee',
-            'volume_alloue', 'volume_consomme', 'taux_utilisation', 'notes'
-        ]
 
 
 class PleinSerializer(FenetreSaisieSerializerMixin, serializers.ModelSerializer):
