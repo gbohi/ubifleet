@@ -33,10 +33,6 @@
       <i class="fas fa-list"></i> Relevés
       @if (total() > 0) { <span class="tab-badge">{{ total() }}</span> }
     </button>
-    <button class="tab" [class.active]="activeTab()==='consommation'"
-            (click)="activeTab.set('consommation')">
-      <i class="fas fa-file-invoice"></i> Consommation facturée
-    </button>
   </div>
 
   @if (activeTab() === 'releves') {
@@ -244,10 +240,6 @@
 
   } <!-- fin @if releves -->
 
-  <!-- ── ONGLET CONSOMMATION FACTURÉE ── -->
-  @if (activeTab() === 'consommation') {
-    <ubi-consommation-facturee [agences]="$any(agences())" />
-  }
 
 </div>
 

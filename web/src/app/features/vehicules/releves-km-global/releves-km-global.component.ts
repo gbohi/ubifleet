@@ -5,7 +5,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { VehiculeApiService, AgenceApiService } from '../../../core/services/api.service';
+import { VehiculeApiService } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { ReleveFormComponent } from '../../../shared/releve-form/releve-form.component';
@@ -13,15 +13,14 @@ import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/hist
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 import { OptionsSaisieService } from '../../../core/services/options-saisie.service';
 import { OptionRecherche, SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
-import { ConsommationFactureeComponent } from '../../carburant/analyses/consommation-facturee.component';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
 
-type Tab = 'releves' | 'consommation';
+type Tab = 'releves';
 
 @Component({
   selector: 'ubi-releves-km-global',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent, ReleveFormComponent, ConsommationFactureeComponent, SelectRechercheComponent],
+  imports: [RouterLink, DatePipe, DecimalPipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent, ReleveFormComponent, SelectRechercheComponent],
   templateUrl: './releves-km-global.component.html',
   styleUrls: ['./releves-km-global.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,7 +28,6 @@ type Tab = 'releves' | 'consommation';
 export class RelevesKmGlobalComponent implements OnInit {
   private options      = inject(OptionsSaisieService);
   private vehiculeApi  = inject(VehiculeApiService);
-  private agenceApi    = inject(AgenceApiService);
 
   // Onglets
   activeTab = signal<Tab>('releves');
@@ -42,7 +40,6 @@ export class RelevesKmGlobalComponent implements OnInit {
   chauffeurs = signal<OptionRecherche[]>([]);
   vehiculesFiltre = signal<OptionRecherche[]>([]);
   filterVehicule = signal('');
-  agences    = signal<{ id: string; nom: string }[]>([]);
 
   // Filtres
   searchImmat    = signal('');
@@ -69,10 +66,6 @@ export class RelevesKmGlobalComponent implements OnInit {
     this.loadReleves();
     this.options.chauffeurs(true).subscribe({ next: l => this.chauffeurs.set(l), error: () => {} });
     this.options.vehicules().subscribe({ next: l => this.vehiculesFiltre.set(l), error: () => {} });
-    this.agenceApi.getAll().subscribe({
-      next: (res: any) => this.agences.set(res.results ?? res ?? []),
-      error: () => {},
-    });
   }
 
   loadReleves(): void {
