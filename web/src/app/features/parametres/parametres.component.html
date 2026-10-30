@@ -56,7 +56,98 @@
 
         <!-- ════ RÈGLES & SEUILS ════ -->
         @case ('echeances') { <ubi-param-seuils vue="echeances" [ecriture]="ecritureSeuils()" /> }
-        @case ('carburant') { <ubi-param-seuils vue="carburant" [ecriture]="ecritureSeuils()" /> }
+        @case ('carburant') {
+          <ubi-param-prix-carburant [ecriture]="ecritureReferentiels()" />
+          <ubi-param-seuils vue="carburant" [ecriture]="ecritureSeuils()" />
+        }
+
+        <!-- ════ STATIONS ════ -->
+        @case ('stations') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Stations <span class="p-chip">{{ stations().length }}</span></h2>
+                <p>Stations-service où sont faits les pleins. Une station sans agence est commune à toutes les agences.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant (saisie des pleins)</span><span class="p-chip">Rapprochements</span></div>
+              </div>
+              <div class="p-actions">
+                <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
+                <button class="btn btn-outline btn-sm" (click)="exportStations()"><i class="fas fa-file-csv"></i> Exporter</button>
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-green btn-sm" (click)="ouvrirStation(null)"><i class="fas fa-plus"></i> Nouvelle station</button>
+                }
+              </div>
+            </div>
+            <div class="p-table-wrap">
+              <table class="p-table">
+                <thead><tr><th>Station</th><th class="p-hide-m">Ville</th><th>Agence</th><th class="num">Pleins</th><th class="p-col-toggle">Active</th><th class="p-col-actions"></th></tr></thead>
+                <tbody>
+                  @for (x of filtrer(stations(), 'nom', 'ville', 'agence_nom'); track x.id) {
+                    <tr [class.inactif]="!x.is_active">
+                      <td><strong>{{ x.nom }}</strong> @if (x.est_partenaire) { <span class="p-chip">Partenaire</span> }</td>
+                      <td class="p-hide-m">{{ x.ville || '—' }}</td>
+                      <td>{{ x.agence_nom || 'Toutes les agences' }}</td>
+                      <td class="num">{{ x.nb_utilisations }}</td>
+                      <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.is_active" [disabled]="!ecritureReferentiels()" (click)="basculerStation(x)"></button></td>
+                      <td class="p-col-actions">
+                        @if (ecritureReferentiels()) {
+                          <button class="p-icon-btn" title="Modifier" (click)="ouvrirStation(x)"><i class="fas fa-edit"></i></button>
+                          <button class="p-icon-btn danger" title="Supprimer" (click)="supprimerStation(x)"><i class="fas fa-trash"></i></button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="p-empty">Aucune station.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+
+        <!-- ════ TYPES DE MOUVEMENT ════ -->
+        @case ('types_mouvement') {
+          <section class="p-panel">
+            <div class="p-head">
+              <div>
+                <h2>Types de mouvement <span class="p-chip">{{ typesMouvement().length }}</span></h2>
+                <p>Nature d'un relevé kilométrique (sortie, retour, tournée…). L'option « tournée / destination » affiche ce champ lors de la saisie.</p>
+                <div class="p-used-in"><span class="p-chip">Utilisé dans : Relevés km</span><span class="p-chip">Fiche véhicule</span></div>
+              </div>
+              <div class="p-actions">
+                <input class="p-search" placeholder="Rechercher…" [value]="recherche()" (input)="recherche.set($any($event.target).value)" />
+                @if (ecritureReferentiels()) {
+                  <button class="btn btn-green btn-sm" (click)="ouvrirTypeMvt(null)"><i class="fas fa-plus"></i> Nouveau type</button>
+                }
+              </div>
+            </div>
+            <div class="p-table-wrap">
+              <table class="p-table">
+                <thead><tr><th class="num p-hide-m">Ordre</th><th>Libellé</th><th class="p-hide-m">Code</th><th class="p-hide-m">Tournée / destination</th><th class="num">Relevés</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
+                <tbody>
+                  @for (x of filtrer(typesMouvement(), 'libelle', 'code'); track x.id) {
+                    <tr [class.inactif]="!x.actif">
+                      <td class="num muted p-hide-m">{{ x.ordre }}</td>
+                      <td><span class="pastille-libelle"><span class="p-dot" [class]="'couleur-' + x.couleur"></span>{{ x.libelle }}</span></td>
+                      <td class="muted p-hide-m">{{ x.code }}</td>
+                      <td class="p-hide-m">{{ x.avec_tournee ? 'Oui' : '—' }}</td>
+                      <td class="num">{{ x.nb_utilisations ?? 0 }}</td>
+                      <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.actif" [disabled]="!ecritureReferentiels()" (click)="basculerTypeMvt(x)"></button></td>
+                      <td class="p-col-actions">
+                        @if (ecritureReferentiels()) {
+                          <button class="p-icon-btn" title="Modifier" (click)="ouvrirTypeMvt(x)"><i class="fas fa-edit"></i></button>
+                          <button class="p-icon-btn danger" title="Supprimer" (click)="supprimerTypeMvt(x)"><i class="fas fa-trash"></i></button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="7" class="p-empty">Aucun type de mouvement.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
 
         <!-- ════ MARQUES & MODÈLES (maître / détail) ════ -->
         @case ('marques') {
@@ -358,10 +449,18 @@
                         <td><strong class="mono">{{ x.code }}</strong></td>
                         <td>{{ x.libelle }}</td>
                         <td class="p-hide-m">{{ x.agence_nom }}</td>
-                        <td class="num">{{ x.dotation | number:'1.0-0' }} L</td>
+                        <td class="num">
+                          {{ x.dotation | number:'1.0-0' }} L
+                          @if (x.dotation_en_attente !== null && x.dotation_en_attente !== undefined) {
+                            <div class="en-attente" title="Demande de modification en attente de validation">
+                              → {{ x.dotation_en_attente | number:'1.0-0' }} L en attente
+                            </div>
+                          }
+                        </td>
                         <td class="num p-hide-m">{{ x.km_theorique | number:'1.0-0' }} km</td>
                         <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.actif" [disabled]="!ecritureReferentiels()" (click)="basculerTournee(x)"></button></td>
                         <td class="p-col-actions">
+                          <button class="p-icon-btn" title="Dotation : historique et demande de modification" (click)="ouvrirDotation(x)"><i class="fas fa-history"></i></button>
                           @if (ecritureReferentiels()) {
                             <button class="p-icon-btn" title="Modifier" (click)="editTournee(x)"><i class="fas fa-edit"></i></button>
                             <button class="p-icon-btn danger" title="Supprimer" (click)="demanderSuppressionTournee(x)"><i class="fas fa-trash"></i></button>
@@ -570,6 +669,9 @@
               <i class="fas fa-gas-pump" style="color:var(--gray-400)"></i> Dotation (L)
             </label>
             <input type="number" class="form-control" formControlName="dotation" min="0" />
+            @if (editTourneeId()) {
+              <small class="aide-dotation"><i class="fas fa-lock"></i> Modifiable par demande validée (bouton historique de la liste).</small>
+            }
           </div>
           <div class="form-group">
             <label class="form-label">
@@ -1271,6 +1373,151 @@
           }
         </button>
       </div>
+    </div>
+  </div>
+}
+
+<!-- ══ Fenêtre : Station ══ -->
+@if (stationEditee() !== undefined) {
+  <div class="modal-backdrop" (click)="stationEditee.set(undefined)">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-charging-station" style="color:var(--green-dark);margin-right:8px"></i>
+          {{ stationEditee() ? 'Modifier la station' : 'Nouvelle station' }}</div>
+        <button class="btn-close-modal" (click)="stationEditee.set(undefined)"><i class="fas fa-times"></i></button>
+      </div>
+      @if (stationErreur()) { <div class="p-notice err" style="margin:0 0 16px"><i class="fas fa-exclamation-triangle"></i> {{ stationErreur() }}</div> }
+      <form [formGroup]="stationForm" novalidate (ngSubmit)="enregistrerStation()">
+        <div class="form-group">
+          <label class="form-label">Nom *</label>
+          <input class="form-control" formControlName="nom" placeholder="ex. Total Plateau" />
+        </div>
+        <div class="p-form-grid-2">
+          <div class="form-group"><label class="form-label">Ville</label><input class="form-control" formControlName="ville" /></div>
+          <div class="form-group">
+            <label class="form-label">Agence</label>
+            <select class="form-control" formControlName="agence">
+              @if (peutCreerStationCommune()) { <option [ngValue]="null">Toutes les agences (station commune)</option> }
+              @for (a of agences(); track a.id) { <option [ngValue]="a.id">{{ a.nom }}</option> }
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label class="form-label">Adresse</label><textarea class="form-control" rows="2" formControlName="adresse"></textarea></div>
+        <label class="p-check" style="margin-bottom:8px"><input type="checkbox" formControlName="est_partenaire" /> Station partenaire</label>
+        <label class="p-check"><input type="checkbox" formControlName="is_active" /> Active</label>
+        <div class="p-modal-actions">
+          <button type="button" class="btn btn-outline" (click)="stationEditee.set(undefined)">Annuler</button>
+          <button type="submit" class="btn btn-green" [disabled]="stationForm.invalid"><i class="fas fa-save"></i> Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- ══ Fenêtre : Type de mouvement ══ -->
+@if (typeMvtEdite() !== undefined) {
+  <div class="modal-backdrop" (click)="typeMvtEdite.set(undefined)">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-exchange-alt" style="color:var(--green-dark);margin-right:8px"></i>
+          {{ typeMvtEdite() ? 'Modifier le type de mouvement' : 'Nouveau type de mouvement' }}</div>
+        <button class="btn-close-modal" (click)="typeMvtEdite.set(undefined)"><i class="fas fa-times"></i></button>
+      </div>
+      @if (typeMvtErreur()) { <div class="p-notice err" style="margin:0 0 16px"><i class="fas fa-exclamation-triangle"></i> {{ typeMvtErreur() }}</div> }
+      <form [formGroup]="typeMvtForm" novalidate (ngSubmit)="enregistrerTypeMvt()">
+        <div class="p-form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Libellé *</label>
+            <input class="form-control" formControlName="libelle" placeholder="ex. Entrée atelier" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Code *</label>
+            <input class="form-control" formControlName="code" placeholder="ex. atelier" />
+            <small class="aide-dotation">Minuscules, chiffres, - ou _. Non modifiable ensuite.</small>
+          </div>
+        </div>
+        <div class="p-form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Couleur du badge</label>
+            <select class="form-control" formControlName="couleur">
+              @for (c of couleursTypeMvt; track c.value) { <option [value]="c.value">{{ c.label }}</option> }
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Ordre d'affichage</label><input type="number" min="0" class="form-control" formControlName="ordre" /></div>
+        </div>
+        <label class="p-check" style="margin-bottom:8px"><input type="checkbox" formControlName="avec_tournee" /> Demande une tournée / destination</label>
+        <label class="p-check"><input type="checkbox" formControlName="actif" /> Actif</label>
+        <div class="p-modal-actions">
+          <button type="button" class="btn btn-outline" (click)="typeMvtEdite.set(undefined)">Annuler</button>
+          <button type="submit" class="btn btn-green" [disabled]="typeMvtForm.invalid"><i class="fas fa-save"></i> Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- ══ Fenêtre : Dotation d'une tournée (historique + demande) ══ -->
+@if (tourneeDotation(); as t) {
+  <div class="modal-backdrop" (click)="tourneeDotation.set(null)">
+    <div class="modal-container modal-dotation" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-gas-pump" style="color:var(--green-dark);margin-right:8px"></i>
+          Dotation — {{ t.code }} · {{ t.libelle }}</div>
+        <button class="btn-close-modal" (click)="tourneeDotation.set(null)"><i class="fas fa-times"></i></button>
+      </div>
+
+      <div class="dotation-actuelle">
+        <span>Dotation actuelle</span>
+        <strong>{{ t.dotation | number:'1.0-0' }} L</strong>
+        @if (t.dotation_en_attente !== null && t.dotation_en_attente !== undefined) {
+          <span class="badge badge-warning">{{ t.dotation_en_attente | number:'1.0-0' }} L en attente de validation</span>
+        }
+      </div>
+
+      @if (dotationErreur()) { <div class="p-notice err" style="margin:0 0 12px"><i class="fas fa-exclamation-triangle"></i> {{ dotationErreur() }}</div> }
+
+      @if (ecritureReferentiels() && (t.dotation_en_attente === null || t.dotation_en_attente === undefined)) {
+        <form class="dotation-form" [formGroup]="dotationForm" (ngSubmit)="demanderDotation()">
+          <div class="dotation-form-titre">Demander une modification</div>
+          <p class="aide-dotation">La demande suit le circuit « Modification de dotation » (Paramètres › Circuits de validation) ; la tournée est mise à jour à l'approbation finale.</p>
+          <div class="p-form-grid-2">
+            <div class="form-group"><label class="form-label">Nouvelle dotation (L) *</label>
+              <input type="number" min="0" class="form-control" formControlName="nouvelle_dotation" /></div>
+            <div class="form-group"><label class="form-label">Motif *</label>
+              <input class="form-control" formControlName="motif" placeholder="ex. Ajout d'une localité à la tournée" /></div>
+          </div>
+          <div class="p-modal-actions">
+            <button type="submit" class="btn btn-green btn-sm" [disabled]="dotationForm.invalid || dotationEnvoi()">
+              @if (dotationEnvoi()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-paper-plane"></i> }
+              Soumettre à validation
+            </button>
+          </div>
+        </form>
+      }
+
+      <div class="dotation-form-titre" style="margin-top:12px">Historique</div>
+      <ol class="historique-dotation">
+        @for (h of historiqueDotation(); track h.id) {
+          <li>
+            <div class="h-ligne">
+              <span class="badge" [class]="statutDotationClasse(h.statut)">{{ h.statut_display }}</span>
+              <strong>
+                @if (h.ancienne_dotation !== null) { {{ h.ancienne_dotation | number:'1.0-0' }} L → }
+                {{ h.nouvelle_dotation | number:'1.0-0' }} L
+              </strong>
+              <span class="muted">{{ h.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+            <div class="h-detail">
+              @if (h.motif) { <span>{{ h.motif }}</span> }
+              @if (h.demandeur_nom) { <span class="muted"> · demandé par {{ h.demandeur_nom }}</span> }
+              @if (h.decide_par_nom) { <span class="muted"> · décision de {{ h.decide_par_nom }} le {{ h.date_decision | date:'dd/MM/yyyy' }}</span> }
+              @if (h.demande_numero) { <span class="muted"> · demande {{ h.demande_numero }}</span> }
+            </div>
+          </li>
+        } @empty {
+          <li class="muted">Aucun historique.</li>
+        }
+      </ol>
     </div>
   </div>
 }

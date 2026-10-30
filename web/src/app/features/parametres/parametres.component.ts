@@ -3,20 +3,21 @@ import {
   Component, inject, OnInit,
   ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable } from 'rxjs';
-import { EntretienApiService, ParametrageApiService, SinistreApiService, AgenceApiService, VehiculeApiService } from '../../core/services/api.service';
+import { CarburantApiService, EntretienApiService, ParametrageApiService, SinistreApiService, AgenceApiService, VehiculeApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Prestataire, Assureur, Agence } from '../../core/models';
 import { SeuilsComponent } from './seuils/seuils.component';
 import { CircuitsValidationComponent } from './circuits-validation/circuits-validation.component';
 import { ElementsControleComponent } from './elements-controle/elements-controle.component';
+import { PrixCarburantComponent } from './prix-carburant/prix-carburant.component';
 
 export type Section =
-  | 'echeances' | 'carburant'
-  | 'marques' | 'statuts' | 'affectations' | 'types_doc'
+  | 'echeances' | 'carburant' | 'stations'
+  | 'marques' | 'statuts' | 'affectations' | 'types_doc' | 'types_mouvement'
   | 'agences' | 'tournees'
   | 'types' | 'prestataires' | 'assureurs'
   | 'circuits' | 'elements';
@@ -27,7 +28,7 @@ interface NavGroupe { titre: string; items: NavItem[]; }
 @Component({
   selector: 'ubi-parametres',
   standalone: true,
-  imports: [ReactiveFormsModule, DecimalPipe, SeuilsComponent, CircuitsValidationComponent, ElementsControleComponent],
+  imports: [ReactiveFormsModule, DecimalPipe, DatePipe, SeuilsComponent, CircuitsValidationComponent, ElementsControleComponent, PrixCarburantComponent],
   templateUrl: './parametres.component.html',
   styleUrls: ['./parametres.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -39,6 +40,7 @@ export class ParametresComponent implements OnInit {
   private sinistreApi    = inject(SinistreApiService);
   private vehiculeApi    = inject(VehiculeApiService);
   private agenceApi      = inject(AgenceApiService);
+  private carburantApi   = inject(CarburantApiService);
   private auth           = inject(AuthService);
   private route          = inject(ActivatedRoute);
   private router         = inject(Router);
@@ -47,13 +49,17 @@ export class ParametresComponent implements OnInit {
   readonly navigation: NavGroupe[] = [
     { titre: 'Règles & seuils', items: [
       { section: 'echeances',    libelle: 'Échéances',                icone: 'fas fa-bell' },
-      { section: 'carburant',    libelle: 'Carburant & consommation', icone: 'fas fa-gas-pump' },
+    ]},
+    { titre: 'Carburant', items: [
+      { section: 'carburant',    libelle: 'Prix & consommation',      icone: 'fas fa-gas-pump' },
+      { section: 'stations',     libelle: 'Stations',                 icone: 'fas fa-charging-station' },
     ]},
     { titre: 'Parc automobile', items: [
       { section: 'marques',      libelle: 'Marques & modèles',        icone: 'fas fa-car-side' },
       { section: 'statuts',      libelle: 'Statuts véhicule',         icone: 'fas fa-circle' },
       { section: 'affectations', libelle: 'Affectations / usages',    icone: 'fas fa-tag' },
       { section: 'types_doc',    libelle: 'Types de documents',       icone: 'fas fa-file-alt' },
+      { section: 'types_mouvement', libelle: 'Types de mouvement',    icone: 'fas fa-exchange-alt' },
     ]},
     { titre: 'Organisation', items: [
       { section: 'agences',      libelle: 'Agences',                  icone: 'fas fa-map-marker-alt' },
@@ -86,6 +92,7 @@ export class ParametresComponent implements OnInit {
     agences: this.agences().length, tournees: this.tournees().length,
     types: this.types().length, prestataires: this.prestataires().length,
     assureurs: this.assureurs().length,
+    stations: this.stations().length, types_mouvement: this.typesMouvement().length,
   }));
 
   // Droits d'écriture (calculés par l'API, cf. /auth/me/acces/)
@@ -249,6 +256,8 @@ export class ParametresComponent implements OnInit {
     this.loadMarques();
     this.loadModeles();
     this.loadStatutsVehicule();
+    this.loadStations();
+    this.loadTypesMouvement();
   }
 
   // ── Types ──
@@ -590,10 +599,13 @@ export class ParametresComponent implements OnInit {
     this.editTourneeId.set(null);
     this.tourneesError.set('');
     this.tourneeForm.reset({ agence: null, dotation: 0, km_theorique: 0, actif: true });
+    this.tourneeForm.controls.dotation.enable();
     this.showTourneeModal.set(true);
   }
 
   editTournee(t: any): void {
+    // La dotation ne se modifie que par une demande validée (bouton « Dotation »)
+    this.tourneeForm.controls.dotation.disable();
     this.editTourneeId.set(t.id);
     this.tourneesError.set('');
     this.tourneeForm.patchValue({
@@ -1128,5 +1140,157 @@ export class ParametresComponent implements OnInit {
       this.modeles().map((m: any) => [
         m.marque_libelle ?? '', m.libelle, this.ouiNon(m.actif),
       ]));
+  }
+
+  // ── Stations ─────────────────────────────────────────────────────
+  stations          = signal<any[]>([]);
+  stationEditee     = signal<any | null | undefined>(undefined);   // undefined = fermée, null = création
+  stationErreur     = signal('');
+  stationForm = this.fb.group({
+    nom:            ['', Validators.required],
+    ville:          [''],
+    adresse:        [''],
+    agence:         [null as string | null],
+    est_partenaire: [false],
+    is_active:      [true],
+  });
+  /** Une station commune (sans agence) n'est possible que pour un utilisateur « Toutes les agences ». */
+  peutCreerStationCommune = computed(() => !this.auth.currentUser()?.agence);
+
+  loadStations(): void {
+    this.carburantApi.getStations({ tous: 1, page_size: 500 }).subscribe({
+      next: (res: any) => this.stations.set(Array.isArray(res) ? res : (res.results ?? [])),
+      error: () => this.stations.set([]),
+    });
+  }
+
+  ouvrirStation(st: any | null): void {
+    this.stationErreur.set('');
+    this.stationForm.reset(st
+      ? { nom: st.nom, ville: st.ville, adresse: st.adresse, agence: st.agence, est_partenaire: st.est_partenaire, is_active: st.is_active }
+      : { nom: '', ville: '', adresse: '', agence: null, est_partenaire: false, is_active: true });
+    this.stationEditee.set(st);
+  }
+
+  enregistrerStation(): void {
+    if (this.stationForm.invalid) return;
+    const st = this.stationEditee();
+    const req = st ? this.carburantApi.updateStation(st.id, this.stationForm.value)
+                   : this.carburantApi.createStation(this.stationForm.value);
+    req.subscribe({
+      next: () => { this.stationEditee.set(undefined); this.notice.set({ type: 'ok', texte: st ? 'Station modifiée.' : 'Station créée.' }); this.loadStations(); },
+      error: (err: any) => this.stationErreur.set(err?.error?.detail ?? "Erreur lors de l'enregistrement."),
+    });
+  }
+
+  basculerStation(x: any): void { this.basculer(this.carburantApi.updateStation(x.id, { is_active: !x.is_active }), () => this.loadStations()); }
+
+  supprimerStation(x: any): void {
+    if (!confirm(`Supprimer la station « ${x.nom} » ?`)) return;
+    this.carburantApi.deleteStation(x.id).subscribe({ next: () => this.loadStations(), error: (err) => this.erreurSuppression(err) });
+  }
+
+  exportStations(): void {
+    this.exporterCsv('stations',
+      ['Nom', 'Ville', 'Agence', 'Partenaire', 'Pleins', 'Active'],
+      this.stations().map((x: any) => [x.nom, x.ville ?? '', x.agence_nom ?? 'Toutes', this.ouiNon(x.est_partenaire),
+                                        x.nb_utilisations ?? 0, this.ouiNon(x.is_active)]));
+  }
+
+  // ── Types de mouvement ───────────────────────────────────────────
+  typesMouvement      = signal<any[]>([]);
+  typeMvtEdite        = signal<any | null | undefined>(undefined);
+  typeMvtErreur       = signal('');
+  readonly couleursTypeMvt = [
+    { value: 'gray', label: 'Gris' }, { value: 'green', label: 'Vert' }, { value: 'orange', label: 'Orange' },
+    { value: 'blue', label: 'Bleu' }, { value: 'red', label: 'Rouge' },
+  ];
+  typeMvtForm = this.fb.group({
+    code:         ['', [Validators.required, Validators.pattern(/^[a-z0-9_-]+$/)]],
+    libelle:      ['', Validators.required],
+    couleur:      ['gray'],
+    avec_tournee: [false],
+    ordre:        [0],
+    actif:        [true],
+  });
+
+  loadTypesMouvement(): void {
+    this.parametrageApi.getTypesMouvement().subscribe({
+      next: l => this.typesMouvement.set(l),
+      error: () => this.typesMouvement.set([]),
+    });
+  }
+
+  ouvrirTypeMvt(t: any | null): void {
+    this.typeMvtErreur.set('');
+    this.typeMvtForm.reset(t
+      ? { code: t.code, libelle: t.libelle, couleur: t.couleur, avec_tournee: t.avec_tournee, ordre: t.ordre, actif: t.actif }
+      : { code: '', libelle: '', couleur: 'gray', avec_tournee: false, ordre: this.typesMouvement().length + 1, actif: true });
+    if (t) this.typeMvtForm.controls.code.disable(); else this.typeMvtForm.controls.code.enable();
+    this.typeMvtEdite.set(t);
+  }
+
+  enregistrerTypeMvt(): void {
+    if (this.typeMvtForm.invalid) return;
+    const t = this.typeMvtEdite();
+    const req = t ? this.parametrageApi.updateTypeMouvement(t.id, this.typeMvtForm.value)
+                  : this.parametrageApi.createTypeMouvement(this.typeMvtForm.value);
+    req.subscribe({
+      next: () => { this.typeMvtEdite.set(undefined); this.notice.set({ type: 'ok', texte: t ? 'Type modifié.' : 'Type créé.' }); this.loadTypesMouvement(); },
+      error: (err: any) => this.typeMvtErreur.set(
+        err?.error?.detail ?? err?.error?.code?.[0] ?? "Erreur lors de l'enregistrement."),
+    });
+  }
+
+  basculerTypeMvt(x: any): void { this.basculer(this.parametrageApi.updateTypeMouvement(x.id, { actif: !x.actif }), () => this.loadTypesMouvement()); }
+
+  supprimerTypeMvt(x: any): void {
+    if (!confirm(`Supprimer le type « ${x.libelle} » ?`)) return;
+    this.parametrageApi.deleteTypeMouvement(x.id).subscribe({ next: () => this.loadTypesMouvement(), error: (err) => this.erreurSuppression(err) });
+  }
+
+  // ── Dotation des tournées (demande soumise au circuit de validation) ──
+  tourneeDotation    = signal<any | null>(null);
+  historiqueDotation = signal<any[]>([]);
+  dotationErreur     = signal('');
+  dotationEnvoi      = signal(false);
+  dotationForm = this.fb.group({
+    nouvelle_dotation: [null as number | null, [Validators.required, Validators.min(0)]],
+    motif:             ['', Validators.required],
+  });
+
+  ouvrirDotation(t: any): void {
+    this.dotationErreur.set('');
+    this.dotationForm.reset({ nouvelle_dotation: null, motif: '' });
+    this.tourneeDotation.set(t);
+    this.historiqueDotation.set([]);
+    this.parametrageApi.historiqueDotation(t.id).subscribe({
+      next: h => this.historiqueDotation.set(h),
+      error: () => this.dotationErreur.set("Impossible de charger l'historique."),
+    });
+  }
+
+  demanderDotation(): void {
+    const t = this.tourneeDotation();
+    if (!t || this.dotationForm.invalid || this.dotationEnvoi()) return;
+    this.dotationEnvoi.set(true);
+    this.parametrageApi.demanderDotation(t.id, this.dotationForm.value as any).subscribe({
+      next: () => {
+        this.dotationEnvoi.set(false);
+        this.tourneeDotation.set(null);
+        this.notice.set({ type: 'ok', texte: `Demande envoyée : la dotation de ${t.code} sera mise à jour après validation (suivi dans Demandes).` });
+        this.loadTournees();
+      },
+      error: (err: any) => {
+        this.dotationEnvoi.set(false);
+        const e = err?.error ?? {};
+        this.dotationErreur.set(e.detail ?? e.nouvelle_dotation ?? e.motif ?? "Erreur lors de l'envoi de la demande.");
+      },
+    });
+  }
+
+  statutDotationClasse(statut: string): string {
+    return ({ initiale: 'badge-gray', en_attente: 'badge-warning', approuvee: 'badge-green',
+              rejetee: 'badge-danger', annulee: 'badge-gray' } as Record<string, string>)[statut] ?? 'badge-gray';
   }
 }

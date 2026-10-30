@@ -103,7 +103,7 @@
                   </td>
                   <td>
                     <div class="km-value">
-                      <i class="fas" [class]="'fa-' + typeMouvementIcon(r.type_mouvement)"
+                      <i class="fas" [class]="typeMouvementIcon(r.type_mouvement)"
                          style="font-size:11px;color:var(--gray-300)"></i>
                       {{ r.kilometrage | number:'1.0-0' }} km
                     </div>
@@ -206,12 +206,12 @@
         <div class="form-group">
           <label class="form-label">Type de mouvement *</label>
           <div class="type-grid">
-            @for (t of typesMouvement; track t.value) {
-              <label class="type-option" [class.active]="f['type_mouvement'].value === t.value">
-                <input type="radio" formControlName="type_mouvement" [value]="t.value"
+            @for (t of typesMvt.actifs(); track t.code) {
+              <label class="type-option" [class.active]="f['type_mouvement'].value === t.code">
+                <input type="radio" formControlName="type_mouvement" [value]="t.code"
                        style="display:none" />
-                <i class="fas" [class]="t.icon"></i>
-                <span>{{ t.label }}</span>
+                <i class="fas" [class]="typeMouvementIcon(t.code)"></i>
+                <span>{{ t.libelle }}</span>
               </label>
             }
           </div>
@@ -227,7 +227,7 @@
           </select>
         </div>
 
-        @if (f['type_mouvement'].value === 'tournee' || f['type_mouvement'].value === 'sortie') {
+        @if (typesMvt.avecTournee(f['type_mouvement'].value)) {
           <div class="form-group">
             <label class="form-label">Tournée / Destination</label>
             <input formControlName="tournee" class="form-control"

@@ -29,6 +29,7 @@ export class CircuitsValidationComponent implements OnInit {
     { value: 'carburant', label: 'Carburant (véhicule)' },
     { value: 'achat',     label: 'Achat (lignes de matériel, montant)' },
     { value: 'autre',     label: 'Simple (titre + description)' },
+    { value: 'dotation',  label: 'Dotation de tournée (créée depuis Paramètres › Tournées)' },
   ];
 
   types      = signal<any[]>([]);

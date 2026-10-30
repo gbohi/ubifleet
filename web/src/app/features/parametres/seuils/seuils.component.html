@@ -19,9 +19,9 @@
   } @else {
     <div class="p-head">
       <div>
-        <h2>Carburant & consommation</h2>
-        <p>Valeurs utilisées lors de la saisie des pleins et pour détecter les consommations anormales.</p>
-        <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant</span><span class="p-chip">Alertes</span></div>
+        <h2>Consommation anormale</h2>
+        <p>Seuil de détection des consommations anormales lors de l'enregistrement d'un plein.</p>
+        <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant</span></div>
       </div>
     </div>
   }
@@ -88,16 +88,8 @@
         }
       } @else {
         <div class="cartes">
-          <label class="carte" [class.modifie]="modifie('prix_carburant_litre')">
-            <span class="carte-titre"><i class="fas fa-gas-pump"></i> Prix du litre</span>
-            <span class="carte-aide">Proposé par défaut lors de la saisie d'un plein.</span>
-            <span class="carte-saisie">
-              <input type="number" min="1" formControlName="prix_carburant_litre" />
-              <span class="unite">FCFA / L</span>
-            </span>
-          </label>
           <label class="carte" [class.modifie]="modifie('conso_anomalie_pct')">
-            <span class="carte-titre"><i class="fas fa-chart-line"></i> Consommation anormale</span>
+            <span class="carte-titre"><i class="fas fa-chart-line"></i> Seuil d'anomalie</span>
             <span class="carte-aide">Un plein est marqué « anomalie » si la consommation dépasse la moyenne du véhicule de plus de :</span>
             <span class="carte-saisie">
               <input type="number" min="1" formControlName="conso_anomalie_pct" />

@@ -7,6 +7,7 @@ import { Router, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { VehiculeApiService, ChauffeurApiService } from '../../../core/services/api.service';
+import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
 
 @Component({
@@ -42,12 +43,8 @@ export class VehiculeRelevesKmComponent implements OnInit {
   photoPreview = signal<string | null>(null);
   photoLightbox = signal<string | null>(null);
 
-  readonly typesMouvement = [
-    { value: 'releve',  label: 'Relevé simple',           icon: 'fa-tachometer-alt' },
-    { value: 'sortie',  label: 'Sortie (mise à disposition)', icon: 'fa-sign-out-alt' },
-    { value: 'entree',  label: 'Entrée (retour véhicule)',    icon: 'fa-sign-in-alt' },
-    { value: 'tournee', label: 'Tournée',                  icon: 'fa-route' },
-  ];
+  // Types de mouvement paramétrables (Paramètres › Types de mouvement)
+  typesMvt = inject(TypesMouvementService);
 
   form = this.fb.group({
     kilometrage:    [null as number | null, [Validators.required, Validators.min(0)]],
@@ -70,6 +67,7 @@ export class VehiculeRelevesKmComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.typesMvt.charger();
     this.loadReleves();
     // Charger les infos du véhicule
     this.chauffeurApi.getAll({ page_size: 200, statut: 'actif' }).subscribe({
@@ -205,13 +203,7 @@ export class VehiculeRelevesKmComponent implements OnInit {
   goBack(): void { this.router.navigate(['/vehicules', this.id()]); }
 
   typeMouvementClass(type: TypeMouvement): string {
-    const map: Record<string, string> = {
-      entree:  'badge-green',
-      sortie:  'badge-warning',
-      releve:  'badge-navy',
-      tournee: 'badge-info',
-    };
-    return map[type] ?? 'badge-gray';
+    return this.typesMvt.classeBadge(type);
   }
 
   typeMouvementIcon(type: TypeMouvement): string {

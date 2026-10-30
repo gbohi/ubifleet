@@ -1,14 +1,19 @@
 """UbiFleet — Carburant Serializers"""
 
 from rest_framework import serializers
+from apps.core.referentiels import NbUtilisationsField
 from django.utils import timezone
 from .models import PleinsCarburant, DotationCarburant, Station, RapprochementCarburant, PrixCarburant
 
 
 class StationSerializer(serializers.ModelSerializer):
+    agence_nom      = serializers.CharField(source='agence.nom', read_only=True, allow_null=True)
+    nb_utilisations = NbUtilisationsField()
+
     class Meta:
         model = Station
-        fields = ['id', 'nom', 'ville', 'adresse', 'agence', 'est_partenaire', 'is_active']
+        fields = ['id', 'nom', 'ville', 'adresse', 'agence', 'agence_nom', 'est_partenaire', 'is_active',
+                  'nb_utilisations']
 
 
 class DotationSerializer(serializers.ModelSerializer):

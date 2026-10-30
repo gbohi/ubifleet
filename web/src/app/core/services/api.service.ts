@@ -356,6 +356,30 @@ export class CarburantApiService extends ApiBaseService {
     const params = filters ? this.buildParams(filters) : undefined;
     return this.http.get<PaginatedResponse<Station>>(`${API}/carburant/stations/`, { params });
   }
+  createStation(data: any): Observable<any> {
+    return this.http.post(`${API}/carburant/stations/`, data);
+  }
+  updateStation(id: string, data: any): Observable<any> {
+    return this.http.patch(`${API}/carburant/stations/${id}/`, data);
+  }
+  deleteStation(id: string): Observable<any> {
+    return this.http.delete(`${API}/carburant/stations/${id}/`);
+  }
+  // Historique des prix du carburant
+  getPrix(filters?: Record<string, any>): Observable<any[]> {
+    const params = filters ? this.buildParams(filters) : undefined;
+    return this.http.get<any[]>(`${API}/carburant/prix/`, { params });
+  }
+  createPrix(data: any): Observable<any> {
+    return this.http.post(`${API}/carburant/prix/`, data);
+  }
+  deletePrix(id: number): Observable<any> {
+    return this.http.delete(`${API}/carburant/prix/${id}/`);
+  }
+  /** Prix en vigueur à une date, pour un véhicule (son carburant) ou un type de carburant. */
+  prixEnVigueur(params: { vehicule?: string; type_carburant?: string; date?: string }): Observable<any> {
+    return this.http.get(`${API}/carburant/prix/en_vigueur/`, { params: this.buildParams(params) });
+  }
   getRapprochements(filters?: Record<string, any>): Observable<PaginatedResponse<any>> {
     const params = filters ? this.buildParams(filters) : undefined;
     return this.http.get<PaginatedResponse<any>>(`${API}/carburant/rapprochements/`, { params });
@@ -866,6 +890,44 @@ export class ParametrageApiService extends ApiBaseService {
   }
   deleteTournee(id: number): Observable<any> {
     return this.http.delete(`${API}/parametrage/tournees/${id}/`);
+  }
+  demanderDotation(id: number, data: { nouvelle_dotation: number; motif: string }): Observable<any> {
+    return this.http.post(`${API}/parametrage/tournees/${id}/demander_dotation/`, data);
+  }
+  historiqueDotation(id: number): Observable<any[]> {
+    return this.http.get<any[]>(`${API}/parametrage/tournees/${id}/historique_dotation/`);
+  }
+  // Types de mouvement (relevés kilométriques)
+  getTypesMouvement(filters?: { actif?: boolean }): Observable<any[]> {
+    const params = filters ? this.buildParams(filters) : undefined;
+    return this.http.get<any[]>(`${API}/parametrage/types-mouvement/`, { params });
+  }
+  createTypeMouvement(data: any): Observable<any> {
+    return this.http.post(`${API}/parametrage/types-mouvement/`, data);
+  }
+  updateTypeMouvement(id: number, data: any): Observable<any> {
+    return this.http.patch(`${API}/parametrage/types-mouvement/${id}/`, data);
+  }
+  deleteTypeMouvement(id: number): Observable<any> {
+    return this.http.delete(`${API}/parametrage/types-mouvement/${id}/`);
+  }
+}
+
+// ── Faits marquants API ──
+@Injectable({ providedIn: 'root' })
+export class FaitsMarquantsApiService extends ApiBaseService {
+  getAll(filters?: Record<string, any>): Observable<PaginatedResponse<any>> {
+    const params = filters ? this.buildParams(filters) : undefined;
+    return this.http.get<PaginatedResponse<any>>(`${API}/faits-marquants/`, { params });
+  }
+  create(data: FormData): Observable<any> {
+    return this.http.post(`${API}/faits-marquants/`, data);
+  }
+  update(id: string, data: FormData): Observable<any> {
+    return this.http.patch(`${API}/faits-marquants/${id}/`, data);
+  }
+  delete(id: string): Observable<any> {
+    return this.http.delete(`${API}/faits-marquants/${id}/`);
   }
 }
 // ── Total Import API ──

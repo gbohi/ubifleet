@@ -72,6 +72,8 @@ export class DemandesComponent implements OnInit {
 
   // ── Nouvelle demande ──────────────────────────────────────────────
   typesDemande = signal<any[]>([]);
+  /** Types proposés dans « Nouvelle demande » (la dotation de tournée se demande depuis Paramètres › Tournées). */
+  typesSaisissables = computed(() => this.typesDemande().filter(t => t.actif !== false && t.code !== 'dotation'));
   agences      = signal<any[]>([]);
   chauffeurs   = signal<any[]>([]);
   newLoading   = signal(false);

@@ -255,7 +255,7 @@
             <label class="form-label">Type de demande *</label>
             <select class="form-control" formControlName="type_demande">
               <option value="">Sélectionner...</option>
-              @for (t of typesDemande(); track t.id) {
+              @for (t of typesSaisissables(); track t.id) {
                 <option [value]="t.id">{{ t.nom }} ({{ t.nb_niveaux }} niveau(x))</option>
               }
             </select>

@@ -124,6 +124,7 @@ export interface PleinCarburant {
   chauffeur_nom: string | null;
   station: string | null;
   station_nom: string | null;
+  tournee?: number | null;
   date_plein: string;
   heure_plein: string | null;
   volume_litres: number;
@@ -387,7 +388,8 @@ export interface ApiError {
   [key: string]: any;
 }
 
-export type TypeMouvement = 'entree' | 'sortie' | 'releve' | 'tournee';
+/** Code d'un type de mouvement paramétrable (Paramètres › Types de mouvement). */
+export type TypeMouvement = string;
 
 export interface ReleveKilometrage {
   id: string;

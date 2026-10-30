@@ -1,0 +1,89 @@
+<!-- UbiFleet — Paramètres › Prix du carburant -->
+<section class="p-panel">
+  <div class="p-head">
+    <div>
+      <h2>Prix du carburant</h2>
+      <p>
+        Historique daté par type de carburant. Lors de la saisie d'un plein, le prix proposé est celui
+        en vigueur à la date du plein pour le carburant du véhicule. Un prix passé ne se modifie pas :
+        ajoutez un nouveau prix avec sa date d'effet.
+      </p>
+      <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant (saisie des pleins)</span><span class="p-chip">Suivi des tournées</span></div>
+    </div>
+  </div>
+
+  @if (notice(); as n) {
+    <div class="p-notice" [class]="n.type">
+      <i [class]="n.type === 'ok' ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i> {{ n.texte }}
+      <button class="p-notice-close" (click)="notice.set(null)" aria-label="Fermer"><i class="fas fa-times"></i></button>
+    </div>
+  }
+
+  @if (chargement()) {
+    <div class="p-empty"><i class="fas fa-circle-notch fa-spin"></i></div>
+  } @else {
+    <div class="types">
+      @for (t of actuels(); track t.value) {
+        <button type="button" class="type-carte" [class.on]="typeFiltre() === t.value" (click)="typeFiltre.set(t.value); ajoutOuvert.set(false)">
+          <span class="type-nom">{{ t.label }}</span>
+          <span class="type-prix">
+            @if (t.prix !== null) { {{ t.prix | number:'1.0-0' }} <small>FCFA / L</small> } @else { <small>Aucun prix</small> }
+          </span>
+          @if (t.depuis) { <span class="type-depuis">depuis le {{ t.depuis | date:'dd/MM/yyyy' }}</span> }
+        </button>
+      }
+      <select class="p-search autre-type" [value]="typeFiltre()" (change)="typeFiltre.set($any($event.target).value)" aria-label="Type de carburant">
+        @for (t of types; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+      </select>
+    </div>
+
+    <div class="historique-head">
+      <h3>Historique — {{ typeFiltre() }}</h3>
+      @if (ecriture() && !ajoutOuvert()) {
+        <button class="btn btn-green btn-sm" (click)="ouvrirAjout()"><i class="fas fa-plus"></i> Nouveau prix</button>
+      }
+    </div>
+
+    @if (ajoutOuvert()) {
+      <form class="ajout" [formGroup]="form" (ngSubmit)="ajouter()">
+        <label>Prix (FCFA / L)<input type="number" min="1" formControlName="prix" class="p-search" /></label>
+        <label>Date d'effet<input type="date" formControlName="date_effet" class="p-search" /></label>
+        <label class="large">Commentaire<input formControlName="commentaire" class="p-search" placeholder="ex. Arrêté ministériel du…" /></label>
+        <div class="p-actions">
+          <button type="button" class="btn btn-outline btn-sm" (click)="ajoutOuvert.set(false)">Annuler</button>
+          <button type="submit" class="btn btn-green btn-sm" [disabled]="form.invalid">Enregistrer</button>
+        </div>
+      </form>
+    }
+
+    <div class="p-table-wrap">
+      <table class="p-table">
+        <thead><tr><th>Date d'effet</th><th class="num">Prix</th><th>Statut</th><th class="p-hide-m">Commentaire</th><th class="p-hide-m">Saisi par</th><th class="p-col-actions"></th></tr></thead>
+        <tbody>
+          @for (p of historique(); track p.id) {
+            <tr [class.inactif]="p.statut === 'passe'">
+              <td>{{ p.date_effet | date:'dd/MM/yyyy' }}</td>
+              <td class="num"><strong>{{ p.prix | number:'1.0-0' }}</strong> FCFA</td>
+              <td>
+                @switch (p.statut) {
+                  @case ('en_vigueur') { <span class="badge badge-green">En vigueur</span> }
+                  @case ('futur') { <span class="badge badge-info">Prévu</span> }
+                  @default { <span class="badge badge-gray">Historique</span> }
+                }
+              </td>
+              <td class="p-hide-m muted">{{ p.commentaire || '—' }}</td>
+              <td class="p-hide-m muted">{{ p.created_by_nom || '—' }}</td>
+              <td class="p-col-actions">
+                @if (ecriture() && p.statut === 'futur') {
+                  <button class="p-icon-btn danger" title="Supprimer ce prix prévu" (click)="supprimer(p)"><i class="fas fa-trash"></i></button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="6" class="p-empty">Aucun prix pour ce carburant : les pleins seront saisis sans prix proposé.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

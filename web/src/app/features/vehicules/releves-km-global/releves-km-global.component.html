@@ -57,8 +57,9 @@
       <div class="filter-group">
         <label class="filter-label"><i class="fas fa-tag"></i> Type de mouvement</label>
         <select class="form-control" [value]="filterType()" (change)="onType($event)">
-          @for (t of typesMouvement; track t.value) {
-            <option [value]="t.value">{{ t.label }}</option>
+          <option value="">Tous les types</option>
+          @for (t of typesMvt.tous(); track t.code) {
+            <option [value]="t.code">{{ t.libelle }}</option>
           }
         </select>
       </div>
@@ -464,10 +465,9 @@
           <label class="form-label"><i class="fas fa-exchange-alt"></i> Type de mouvement *</label>
           <select class="form-control"
                   [value]="nrType()" (change)="nrType.set($any($event.target).value)">
-            <option value="releve">Relevé simple</option>
-            <option value="sortie">Sortie véhicule</option>
-            <option value="entree">Retour véhicule</option>
-            <option value="tournee">Tournée</option>
+            @for (t of typesMvt.actifs(); track t.code) {
+              <option [value]="t.code" [selected]="t.code === nrType()">{{ t.libelle }}</option>
+            }
           </select>
         </div>
 

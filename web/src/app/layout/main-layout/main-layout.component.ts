@@ -1,7 +1,7 @@
 // UbiFleet — Main Layout (Angular 18 + NgRx Signals Store)
 import {
   Component, inject, signal, computed,
-  OnInit, ChangeDetectionStrategy
+  OnInit, ChangeDetectionStrategy, HostListener
 } from '@angular/core';
 import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -36,7 +36,10 @@ export class MainLayoutComponent implements OnInit {
   private router = inject(Router);
   alertesStore   = inject(AlertesStore);
 
-  sidebarOpen = signal(true);
+  // Mobile : menu fermé par défaut, superposé à la page quand il est ouvert
+  private readonly ecranMobile = typeof window !== 'undefined'
+    && window.matchMedia('(max-width: 768px)').matches;
+  sidebarOpen = signal(!this.ecranMobile);
   user        = computed(() => this.auth.currentUser());
   currentUrl  = signal(this.router.url);
 
@@ -64,6 +67,7 @@ export class MainLayoutComponent implements OnInit {
         { label: 'Budget & Comptabilité',    icon: 'fas fa-coins',        route: '/budget', acces: 'budget'     },
         { label: 'Grand Livre',              icon: 'fas fa-book',         route: '/grand-livre', acces: 'grand_livre' },
         { label: 'Chauffeurs',               icon: 'fas fa-id-badge',     route: '/chauffeurs', acces: 'chauffeurs' },
+        { label: 'Faits marquants',          icon: 'fas fa-flag',         route: '/faits-marquants', acces: 'faits_marquants' },
       ]
     },
     {
@@ -108,7 +112,10 @@ export class MainLayoutComponent implements OnInit {
     // Suivre l'URL active pour un surlignage précis du menu
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
-      .subscribe(e => this.currentUrl.set(e.urlAfterRedirects));
+      .subscribe(e => {
+        this.currentUrl.set(e.urlAfterRedirects);
+        if (this.estMobile()) this.sidebarOpen.set(false);   // fermer après navigation
+      });
   }
 
   // Toutes les routes du menu, utilisées pour déterminer la correspondance
@@ -139,6 +146,19 @@ export class MainLayoutComponent implements OnInit {
 
   toggleSidebar(): void {
     this.sidebarOpen.update(v => !v);
+  }
+
+  fermerSidebar(): void {
+    this.sidebarOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEchap(): void {
+    if (this.estMobile()) this.sidebarOpen.set(false);
+  }
+
+  private estMobile(): boolean {
+    return window.matchMedia('(max-width: 768px)').matches;
   }
 
   logout(): void {

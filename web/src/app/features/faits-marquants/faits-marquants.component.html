@@ -1,0 +1,131 @@
+<!-- UbiFleet — Faits marquants -->
+<div class="fm-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><i class="fas fa-flag" style="color:var(--green-dark)"></i> Faits marquants</h1>
+      <p class="page-subtitle">Événements notables de la flotte, datés et documentés</p>
+    </div>
+    @if (peutSaisir()) {
+      <button class="btn btn-green" (click)="ouvrir(null)"><i class="fas fa-plus"></i> Nouveau fait marquant</button>
+    }
+  </div>
+
+  <div class="card filtres">
+    <input class="form-control" placeholder="Rechercher dans le libellé ou la description…" [value]="recherche()"
+           (input)="recherche.set($any($event.target).value)" (keyup.enter)="filtrer()" />
+    <label>Du <input type="date" class="form-control" [value]="dateDebut()" (change)="dateDebut.set($any($event.target).value); filtrer()" /></label>
+    <label>au <input type="date" class="form-control" [value]="dateFin()" (change)="dateFin.set($any($event.target).value); filtrer()" /></label>
+    <button class="btn btn-outline btn-sm" (click)="filtrer()"><i class="fas fa-search"></i> Rechercher</button>
+  </div>
+
+  @if (notice(); as n) {
+    <div class="fm-notice" [class]="n.type">
+      <i [class]="n.type === 'ok' ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i> {{ n.texte }}
+      <button (click)="notice.set(null)" aria-label="Fermer"><i class="fas fa-times"></i></button>
+    </div>
+  }
+
+  @if (chargement()) {
+    <div class="fm-vide"><i class="fas fa-circle-notch fa-spin"></i></div>
+  } @else if (faits().length === 0) {
+    <div class="fm-vide"><i class="fas fa-flag"></i><p>Aucun fait marquant.</p></div>
+  } @else {
+    <ol class="chronologie">
+      @for (f of faits(); track f.id) {
+        <li class="fait">
+          <div class="fait-date">
+            <span class="jour">{{ f.date | date:'dd' }}</span>
+            <span class="mois">{{ f.date | date:'MMM yyyy' }}</span>
+          </div>
+          <div class="fait-corps">
+            <div class="fait-titre">{{ f.libelle }}</div>
+            <div class="fait-meta">
+              <span><i class="fas fa-building"></i> {{ f.agence_nom || 'Toutes les agences' }}</span>
+              @if (f.created_by_nom) { <span><i class="fas fa-user"></i> {{ f.created_by_nom }}</span> }
+            </div>
+            @if (f.description) { <p class="fait-desc">{{ f.description }}</p> }
+            @if (f.document) {
+              <a class="fait-doc" [href]="f.document" target="_blank" rel="noopener">
+                <i class="fas fa-paperclip"></i> {{ f.document_nom }}
+              </a>
+            }
+          </div>
+          <div class="fait-actions">
+            @if (modifiable(f)) {
+              <button class="btn btn-icon" title="Modifier" (click)="ouvrir(f)"><i class="fas fa-edit"></i></button>
+            }
+            @if (peutSupprimer() && modifiable(f)) {
+              <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="supprimer(f)"><i class="fas fa-trash"></i></button>
+            }
+          </div>
+        </li>
+      }
+    </ol>
+
+    @if (nbPages() > 1) {
+      <div class="pagination">
+        <button class="btn btn-outline btn-sm" [disabled]="page() <= 1" (click)="allerPage(page() - 1)"><i class="fas fa-chevron-left"></i></button>
+        <span>Page {{ page() }} / {{ nbPages() }} · {{ total() }} faits</span>
+        <button class="btn btn-outline btn-sm" [disabled]="page() >= nbPages()" (click)="allerPage(page() + 1)"><i class="fas fa-chevron-right"></i></button>
+      </div>
+    }
+  }
+</div>
+
+@if (faitEdite() !== undefined) {
+  <div class="modal-backdrop" (click)="faitEdite.set(undefined)">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-flag" style="color:var(--green-dark);margin-right:8px"></i>
+          {{ faitEdite() ? 'Modifier le fait marquant' : 'Nouveau fait marquant' }}</div>
+        <button class="btn-close-modal" (click)="faitEdite.set(undefined)"><i class="fas fa-times"></i></button>
+      </div>
+      @if (erreurForm()) { <div class="fm-notice err" style="margin-bottom:14px"><i class="fas fa-exclamation-triangle"></i> {{ erreurForm() }}</div> }
+      <form [formGroup]="form" novalidate (ngSubmit)="enregistrer()">
+        <div class="form-group">
+          <label class="form-label">Libellé *</label>
+          <input class="form-control" formControlName="libelle" placeholder="ex. Accident sans blessé sur l'axe Abidjan–Yamoussoukro" />
+        </div>
+        <div class="fm-grille">
+          <div class="form-group">
+            <label class="form-label">Date *</label>
+            <input type="date" class="form-control" formControlName="date" />
+          </div>
+          @if (toutesAgences()) {
+            <div class="form-group">
+              <label class="form-label">Agence</label>
+              <select class="form-control" formControlName="agence">
+                <option [ngValue]="null">Toutes les agences</option>
+                @for (a of agences(); track a.id) { <option [ngValue]="a.id">{{ a.nom }}</option> }
+              </select>
+            </div>
+          }
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" rows="3" formControlName="description"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Document</label>
+          @if (faitEdite(); as fe) {
+            @if (fe.document && !fichier() && !supprimerDoc()) {
+            <div class="doc-actuel">
+              <a [href]="fe.document" target="_blank" rel="noopener"><i class="fas fa-paperclip"></i> {{ fe.document_nom }}</a>
+              <button type="button" class="btn btn-outline btn-sm" (click)="supprimerDoc.set(true)">Retirer</button>
+            </div>
+            }
+          }
+          <input type="file" class="form-control" [accept]="accept" (change)="onFichier($event)" />
+          <small class="aide">PDF, images, Word, Excel, OpenOffice ou texte — 10 Mo maximum.</small>
+        </div>
+        <div class="fm-actions">
+          <button type="button" class="btn btn-outline" (click)="faitEdite.set(undefined)">Annuler</button>
+          <button type="submit" class="btn btn-green" [disabled]="form.invalid || enregistrement()">
+            @if (enregistrement()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-save"></i> }
+            Enregistrer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

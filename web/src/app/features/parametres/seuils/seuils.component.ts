@@ -22,7 +22,8 @@ const ECHEANCES: Echeance[] = [
   { code: 'pneus',           libelle: 'Pneus',              unite: 'km' },
 ];
 
-const AUTRES_CLES = ['conso_anomalie_pct', 'prix_carburant_litre'];
+// Le prix du carburant a son propre historique daté (rubrique Prix du carburant)
+const AUTRES_CLES = ['conso_anomalie_pct'];
 
 @Component({
   selector: 'ubi-param-seuils',

@@ -97,6 +97,14 @@ export const routes: Routes = [
         title: 'Chauffeurs — UbiFleet'
       },
       {
+        path: 'faits-marquants',
+        canActivate: [accesGuard],
+        data: { acces: 'faits_marquants' },
+        loadComponent: () =>
+          import('./features/faits-marquants/faits-marquants.component').then(m => m.FaitsMarquantsComponent),
+        title: 'Faits marquants — UbiFleet'
+      },
+      {
         path: 'alertes',
         canActivate: [accesGuard],
         data: { acces: 'alertes' },

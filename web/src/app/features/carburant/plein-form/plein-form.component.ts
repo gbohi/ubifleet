@@ -4,7 +4,7 @@ import {
   ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CarburantApiService, AgenceApiService, VehiculeApiService, ChauffeurApiService, ParametrageApiService } from '../../../core/services/api.service';
 import { Agence } from '../../../core/models';
@@ -12,7 +12,7 @@ import { Agence } from '../../../core/models';
 @Component({
   selector: 'ubi-plein-form',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, DecimalPipe],
+  imports: [ReactiveFormsModule, RouterLink, DecimalPipe, DatePipe],
   templateUrl: './plein-form.component.html',
   styleUrls: ['./plein-form.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,6 +33,10 @@ export class PleinFormComponent implements OnInit {
   vehicules  = signal<{ id: string; immatriculation: string; designation: string; agenceId: string }[]>([]);
   chauffeurs = signal<{ id: string; nom_complet: string }[]>([]);
   tournees   = signal<any[]>([]);
+  stations   = signal<any[]>([]);
+  /** Prix en vigueur à la date du plein pour le carburant du véhicule. */
+  prixReference = signal<{ prix: number | null; date_effet: string | null; type_carburant: string } | null>(null);
+  private dernierPrixAuto: number | null = null;
   loading    = signal(false);
   saving     = signal(false);
   error      = signal('');
@@ -48,6 +52,7 @@ export class PleinFormComponent implements OnInit {
     vehicule:           ['', Validators.required],
     chauffeur:          [null as string | null],
     tournee:            [null as number | null],
+    station:            [null as string | null],
     date_plein:         [new Date().toISOString().split('T')[0], Validators.required],
     heure_plein:        [this.currentTimeStr(), Validators.required],
     volume_litres:      [null as number | null, [Validators.required, Validators.min(0.1)]],
@@ -76,16 +81,14 @@ export class PleinFormComponent implements OnInit {
       next: (l) => this.tournees.set(l.filter((t: any) => t.actif)),
       error: () => {},
     });
-    // Récupérer le prix par défaut du carburant
-    this.parametrageApi.getAll().subscribe({
-      next: (params: any[]) => {
-        const p = params.find((x: any) => x.cle === 'prix_carburant_litre');
-        if (p?.valeur && !this.form.get('prix_litre')?.value) {
-          this.form.patchValue({ prix_litre: parseFloat(p.valeur) });
-        }
-      },
+    // Stations actives (de l'agence de l'utilisateur et stations communes)
+    this.carburantApi.getStations({ page_size: 500 }).subscribe({
+      next: (res: any) => this.stations.set(Array.isArray(res) ? res : (res.results ?? [])),
       error: () => {},
     });
+    // Prix au litre : prix en vigueur à la date du plein, recalculé quand le
+    // véhicule ou la date change (sauf si l'utilisateur a saisi un autre prix)
+    this.form.controls.date_plein.valueChanges.subscribe(() => this.chargerPrix());
     this.agenceApi.getAll().subscribe({
       next: (list) => this.agences.set(Array.isArray(list) ? list : []),
       error: () => {},
@@ -118,6 +121,8 @@ export class PleinFormComponent implements OnInit {
             this.form.patchValue({
               vehicule:           p.vehicule,
               chauffeur:          p.chauffeur,
+              tournee:            p.tournee ?? null,
+              station:            p.station ?? null,
               date_plein:         p.date_plein,
               heure_plein:        p.heure_plein ?? this.currentTimeStr(),
               volume_litres:      p.volume_litres,
@@ -142,6 +147,27 @@ export class PleinFormComponent implements OnInit {
     const id = (event.target as HTMLSelectElement).value;
     const v  = this.vehicules().find(x => x.id === id);
     if (v && v.agenceId) this.form.patchValue({ agence: v.agenceId });
+    this.chargerPrix(id);
+  }
+
+  /** `vehiculeId` : valeur venant de l'événement (le contrôle peut ne pas être encore à jour). */
+  chargerPrix(vehiculeId?: string): void {
+    const vehicule = vehiculeId ?? this.form.value.vehicule;
+    const date = this.form.value.date_plein;
+    if (!vehicule || !date) { this.prixReference.set(null); return; }
+    this.carburantApi.prixEnVigueur({ vehicule, date }).subscribe({
+      next: (r: any) => {
+        const prix = r.prix !== null ? Number(r.prix) : null;
+        this.prixReference.set({ prix, date_effet: r.date_effet, type_carburant: r.type_carburant });
+        const actuel = this.form.value.prix_litre;
+        // Ne pas écraser un prix saisi à la main
+        if (prix !== null && (actuel === null || actuel === undefined || Number(actuel) === this.dernierPrixAuto)) {
+          this.form.patchValue({ prix_litre: prix });
+          this.dernierPrixAuto = prix;
+        }
+      },
+      error: () => this.prixReference.set(null),
+    });
   }
 
   // ── Gestion photo tableau de bord ──

@@ -88,18 +88,34 @@
               </div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Agence</label>
-              <select formControlName="agence" class="form-control">
-                <option value="">-- Rempli automatiquement depuis le véhicule --</option>
-                @for (a of agences(); track a.id) {
-                  <option [value]="a.id">{{ a.nom }}</option>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Station</label>
+                <select formControlName="station" class="form-control">
+                  <option [ngValue]="null">-- Non précisée --</option>
+                  @for (st of stations(); track st.id) {
+                    <option [ngValue]="st.id">{{ st.nom }}{{ st.ville ? ' — ' + st.ville : '' }}{{ st.est_partenaire ? ' (partenaire)' : '' }}</option>
+                  }
+                </select>
+                @if (stations().length === 0) {
+                  <small style="font-size:11px;color:var(--gray-400)">
+                    <i class="fas fa-info-circle"></i> Aucune station : ajoutez-en dans Paramètres › Stations.
+                  </small>
                 }
-              </select>
-              <small style="font-size:11px;color:var(--gray-400)">
-                <i class="fas fa-info-circle"></i>
-                L'agence est déduite automatiquement du véhicule sélectionné.
-              </small>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Agence</label>
+                <select formControlName="agence" class="form-control">
+                  <option value="">-- Rempli automatiquement depuis le véhicule --</option>
+                  @for (a of agences(); track a.id) {
+                    <option [value]="a.id">{{ a.nom }}</option>
+                  }
+                </select>
+                <small style="font-size:11px;color:var(--gray-400)">
+                  <i class="fas fa-info-circle"></i>
+                  L'agence est déduite automatiquement du véhicule sélectionné.
+                </small>
+              </div>
             </div>
           </div>
         </div>
@@ -164,6 +180,16 @@
                 <label class="form-label">Prix au litre (FCFA)</label>
                 <input type="number" formControlName="prix_litre" class="form-control"
                        min="0" step="1" placeholder="0" />
+                @if (prixReference(); as ref) {
+                  <small class="prix-ref" [class.ecart]="ref.prix !== null && f['prix_litre'].value !== null && +f['prix_litre'].value !== ref.prix">
+                    @if (ref.prix !== null) {
+                      <i class="fas fa-tag"></i> Prix en vigueur ({{ ref.type_carburant }}) : {{ ref.prix | number:'1.0-0' }} FCFA
+                      depuis le {{ ref.date_effet | date:'dd/MM/yyyy' }}
+                    } @else {
+                      <i class="fas fa-exclamation-triangle"></i> Aucun prix défini pour ce carburant à cette date
+                    }
+                  </small>
+                }
               </div>
               <div class="form-group">
                 <label class="form-label">N° Bon carburant</label>

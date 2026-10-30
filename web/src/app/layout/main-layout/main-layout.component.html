@@ -103,6 +103,11 @@
 
   </aside>
 
+  <!-- Mobile : voile derrière le menu ouvert (clic = fermer) -->
+  @if (sidebarOpen()) {
+    <div class="sidebar-voile" (click)="fermerSidebar()" aria-hidden="true"></div>
+  }
+
   <!-- ── MAIN AREA ── -->
   <div class="main-area">
 

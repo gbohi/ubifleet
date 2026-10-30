@@ -15,6 +15,7 @@ import {
   ChauffeurApiService,
   ParametrageApiService
 } from '../../../core/services/api.service';
+import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import {
   Intervention, PleinCarburant, DocumentVehicule,
   StatutIntervention, ContratAssurance, HistoriqueImmatriculation,
@@ -108,7 +109,9 @@ export class VehiculeDetailComponent implements OnInit {
   showKmModal     = signal(false);
   kmValue         = signal<number>(0);
   kmDate          = signal(new Date().toISOString().split('T')[0]);
-  kmTypeMouvement = signal<'entree' | 'sortie' | 'releve' | 'tournee'>('releve');
+  kmTypeMouvement = signal<string>('releve');
+  // Types de mouvement paramétrables (Paramètres › Types de mouvement)
+  typesMvt = inject(TypesMouvementService);
   kmChauffeur     = signal('');
   kmTournee       = signal('');
   kmNotes         = signal('');
@@ -119,6 +122,7 @@ export class VehiculeDetailComponent implements OnInit {
   photoLightbox   = signal<string | null>(null);
 
   ngOnInit(): void {
+    this.typesMvt.charger();
     this.store.loadVehiculeDetail(this.id());
     this.vehiculeApi.getTypesDocument(true).subscribe({
       next: (list) => this.typesDocument.set(list ?? []),
@@ -596,11 +600,7 @@ export class VehiculeDetailComponent implements OnInit {
   }
 
   typeMouvementClass(type: string): string {
-    const map: Record<string, string> = {
-      entree: 'badge-green', sortie: 'badge-warning',
-      releve: 'badge-navy',  tournee: 'badge-info',
-    };
-    return map[type] ?? 'badge-gray';
+    return this.typesMvt.classeBadge(type);
   }
 
   goToEdit(): void { this.router.navigate(['/vehicules', this.id(), 'modifier']); }

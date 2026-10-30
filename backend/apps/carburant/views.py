@@ -18,6 +18,7 @@ from .serializers import (
     DotationSerializer, StationSerializer, RapprochementSerializer, PrixCarburantSerializer,
 )
 from apps.accounts.permissions import IsFleetManager, RoleBasedPermission
+from apps.core.referentiels import SuppressionProtegeeMixin, annoter_utilisations
 from apps.core.agences import (
     AgenceMixin, agence_pour_creation, controler_agence,
     filtrer_par_agence, filtrer_transactions_total, voit_toutes_agences,
@@ -689,7 +690,8 @@ class DotationViewSet(AgenceMixin, viewsets.ModelViewSet):
         return self.filtrer_agence(DotationCarburant.objects.select_related('vehicule'))
 
 
-class StationViewSet(viewsets.ModelViewSet):
+class StationViewSet(SuppressionProtegeeMixin, viewsets.ModelViewSet):
+    relations_utilisation = [('pleins', 'plein(s)'), ('rapprochements', 'rapprochement(s)')]
     serializer_class = StationSerializer
     module   = 'carburant'
     permission_classes = [RoleBasedPermission]
@@ -706,8 +708,11 @@ class StationViewSet(viewsets.ModelViewSet):
     filterset_fields = ['agence', 'est_partenaire', 'is_active']
 
     def get_queryset(self):
-        # Stations de son agence et stations communes (sans agence)
-        qs = Station.objects.filter(is_active=True)
+        # Stations de son agence et stations communes (sans agence) ;
+        # listes : actives seulement, sauf ?tous=1 (page Paramètres)
+        qs = annoter_utilisations(Station.objects.select_related('agence'), 'pleins')
+        if self.action == 'list' and not self.request.query_params.get('tous'):
+            qs = qs.filter(is_active=True)
         user = self.request.user
         if not voit_toutes_agences(user):
             qs = qs.filter(Q(agence__isnull=True) | Q(agence_id=user.agence_id))

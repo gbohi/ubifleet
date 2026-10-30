@@ -1,0 +1,33 @@
+@use '../parametres-commun' as *;
+
+.types { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; padding: 16px 24px 4px; }
+.type-carte {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; min-width: 150px;
+  border: 1px solid var(--gray-100); border-radius: 12px; padding: 12px 16px; background: #fff;
+  cursor: pointer; font-family: inherit;
+  &:hover { border-color: var(--gray-200); }
+  &.on { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-alpha); }
+}
+.type-nom { font-size: 12px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .04em; }
+.type-prix { font-size: 20px; font-weight: 700; color: var(--navy); small { font-size: 12px; font-weight: 500; color: var(--gray-500); } }
+.type-depuis { font-size: 11.5px; color: var(--gray-400); }
+.autre-type { width: 160px; align-self: center; }
+
+.historique-head {
+  display: flex; align-items: center; gap: 12px; padding: 16px 24px 10px;
+  h3 { margin: 0; font-size: 14.5px; color: var(--navy); font-family: var(--font-body); text-transform: capitalize; }
+  .btn { margin-left: auto; }
+}
+
+.ajout {
+  margin: 0 24px 14px; padding: 14px; border-radius: 12px; background: var(--gray-50);
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--gray-500);
+          .p-search { width: 160px; } }
+  label.large { flex: 1; .p-search { width: 100%; min-width: 200px; } }
+}
+
+@media (max-width: 900px) {
+  .types, .historique-head { padding-left: 16px; padding-right: 16px; }
+  .ajout { margin: 0 16px 14px; }
+}

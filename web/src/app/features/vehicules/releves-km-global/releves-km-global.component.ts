@@ -7,6 +7,7 @@ import { RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { forkJoin } from 'rxjs';
 import { VehiculeApiService, AgenceApiService, ChauffeurApiService, TotalImportApiService } from '../../../core/services/api.service';
+import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
 
 type Tab = 'releves' | 'consommation';
@@ -58,13 +59,8 @@ export class RelevesKmGlobalComponent implements OnInit {
   filterKmMin    = signal('');
   filterKmMax    = signal('');
 
-  readonly typesMouvement = [
-    { value: '',        label: 'Tous les types' },
-    { value: 'releve',  label: 'Relevé simple' },
-    { value: 'sortie',  label: 'Sortie' },
-    { value: 'entree',  label: 'Entrée' },
-    { value: 'tournee', label: 'Tournée' },
-  ];
+  // Types de mouvement paramétrables (Paramètres › Types de mouvement)
+  typesMvt = inject(TypesMouvementService);
 
   get totalPages(): number { return Math.ceil(this.total() / 20) || 1; }
   get pages(): number[] {
@@ -75,6 +71,7 @@ export class RelevesKmGlobalComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.typesMvt.charger();
     this.loadReleves();
     this.chauffeurApi.getAll({ page_size: 200, statut: 'actif' }).subscribe({
       next: (res) => this.chauffeurs.set(
@@ -171,11 +168,7 @@ export class RelevesKmGlobalComponent implements OnInit {
   onPageChange(p: number): void { this.page.set(p); this.loadReleves(); }
 
   typeMouvementClass(type: TypeMouvement): string {
-    const map: Record<string, string> = {
-      entree: 'badge-green', sortie: 'badge-warning',
-      releve: 'badge-navy',  tournee: 'badge-info',
-    };
-    return map[type] ?? 'badge-gray';
+    return this.typesMvt.classeBadge(type);
   }
 
   // ── Onglet Consommation L/100 ────────────────────────────────────
@@ -329,7 +322,7 @@ export class RelevesKmGlobalComponent implements OnInit {
   nrVehicule       = signal('');
   nrKm             = signal<number>(0);
   nrDate           = signal(new Date().toISOString().split('T')[0]);
-  nrType           = signal<'entree' | 'sortie' | 'releve' | 'tournee'>('releve');
+  nrType           = signal<string>('releve');
   nrChauffeur      = signal('');
   nrTournee        = signal('');
   nrNotes          = signal('');

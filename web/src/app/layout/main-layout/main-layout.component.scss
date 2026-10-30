@@ -427,6 +427,9 @@
   flex: 1;
 }
 
+// Voile du menu mobile (affiché uniquement sur petit écran)
+.sidebar-voile { display: none; }
+
 // ── Responsive ──
 @media (max-width: 768px) {
   .sidebar {
@@ -443,6 +446,11 @@
   }
 
   .topbar-user-info { display: none; }
+
+  .sidebar-voile {
+    display: block; position: fixed; inset: 0; z-index: 45;
+    background: rgba(9, 36, 64, .45); animation: fadeIn var(--transition-fast) ease;
+  }
 }
 
 // ══ CSS PRINT — masquer sidebar et topbar ════════════════════════
