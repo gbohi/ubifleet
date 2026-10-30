@@ -77,7 +77,7 @@ class AnomalieConsommationTests(UtilisateursMixin, APITestCase):
         self.client.force_authenticate(self.responsable_flotte)
         resp = self.client.post('/api/v1/carburant/pleins/', {
             'vehicule': str(self.vehicule.id), 'date_plein': (self.debut + datetime.timedelta(days=n)).isoformat(),
-            'heure_plein': '08:00', 'tournee': self.tournee.id, 'volume_litres': litres,
+            'heure_plein': '08:00', 'type_mouvement': 'tournee', 'tournee': self.tournee.id, 'volume_litres': litres,
             'montant_fcfa': 28000, 'kilometrage_releve': km,
         }, format='json')
         self.assertEqual(resp.status_code, 201, resp.data)
@@ -184,3 +184,165 @@ class AnomalieConsommationTests(UtilisateursMixin, APITestCase):
         self.client.force_authenticate(self.operateur_b)
         resp = self.client.get('/api/v1/alertes/', {'type_alerte': 'conso_anormale'})
         self.assertEqual(len(resp.data.get('results', resp.data)), 0)
+
+
+class TourneesEffectueesTests(UtilisateursMixin, APITestCase):
+    """Tournée ouverte par sa 1re prise, prises rattachées, clôture avec KM
+    retour, droits configurables, suivi tournées / hors tournée."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from apps.parametrage.models import Parametre, Tournee
+        cls.vehicule = Vehicule.objects.create(immatriculation='TE-1', agence=cls.agence_a, annee=2020,
+                                               type_carburant='diesel', kilometrage_actuel=10000,
+                                               kilometrage_initial=10000, conso_theorique_origine=10)
+        cls.a01 = Tournee.objects.create(code='A01', libelle='Tournée A01', agence=cls.agence_a,
+                                         dotation=30, km_theorique=250)
+        Parametre.objects.update_or_create(cle='fenetre_saisie_carburant_jours',
+                                           defaults={'valeur': '0', 'type_valeur': 'int'})
+        Parametre.objects.update_or_create(cle='fenetre_saisie_releves_jours',
+                                           defaults={'valeur': '0', 'type_valeur': 'int'})
+        cls.j0 = timezone.localdate() - datetime.timedelta(days=20)
+
+    def setUp(self):
+        from apps.accounts.permission_cache import invalidate
+        invalidate()
+
+    def prise(self, jour, heure, km, litres, type_mvt='tournee', tournee=True, user=None, **extra):
+        self.client.force_authenticate(user or self.operateur)
+        data = {'vehicule': str(self.vehicule.id), 'date_plein': (self.j0 + datetime.timedelta(days=jour)).isoformat(),
+                'heure_plein': heure, 'type_mouvement': type_mvt, 'volume_litres': litres,
+                'montant_fcfa': litres * 700, 'kilometrage_releve': km, **extra}
+        if tournee:
+            data['tournee'] = self.a01.id
+        return self.client.post('/api/v1/carburant/pleins/', data, format='json')
+
+    def suivi(self, user=None):
+        self.client.force_authenticate(user or self.operateur)
+        return self.client.get('/api/v1/carburant/tournees/').data
+
+    def test_exemple_a01_deux_realisations(self):
+        # 1re réalisation : 3 prises sur deux jours, clôture à la dernière
+        self.assertEqual(self.prise(0, '18:00', 10000, 10).status_code, 201)
+        r = self.prise(0, '20:00', 10100, 12, tournee=False)   # tournée en cours : déduite
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['tournee_code'], 'A01')
+        r = self.prise(1, '10:00', 10240, 5, cloturer_tournee=True, commentaire_tournee='RAS')
+        self.assertEqual(r.status_code, 201, r.data)
+        # 2e réalisation, clôturée plus tard avec un KM retour
+        self.prise(3, '18:00', 10300, 10)
+        self.prise(3, '21:00', 10400, 12, tournee=False)
+        lignes = self.suivi()['resultats']
+        self.assertEqual(len(lignes), 2)
+        l1, l2 = lignes
+        self.assertEqual((l1['statut'], l1['nb_prises'], l1['vol_reel']), ('cloturee', 3, 27.0))
+        self.assertEqual((l1['km_depart'], l1['km_retour'], l1['km_parcouru']), (10000, 10240, 240))
+        self.assertEqual(l1['vol_theorique'], 30)
+        self.assertEqual(l1['ecart_dotation'], -3.0)
+        self.assertEqual(l1['conso_reel'], 11.25)
+        self.assertEqual(l1['conso_theorique'], 12.0)
+        self.assertEqual(l1['ecart_conso'], -0.8)
+        self.assertEqual(l1['commentaire'], 'RAS')
+        self.assertEqual(l2['statut'], 'en_cours')
+        self.assertNotEqual(l1['numero'], l2['numero'])
+        self.client.force_authenticate(self.operateur)
+        r = self.client.post(f"/api/v1/carburant/tournees/{l2['id']}/cloturer/",
+                             {'km_retour': 10350}, format='json')
+        self.assertEqual(r.status_code, 400)                    # < dernière prise
+        r = self.client.post(f"/api/v1/carburant/tournees/{l2['id']}/cloturer/",
+                             {'km_retour': 10560, 'date_fin': (self.j0 + datetime.timedelta(days=4)).isoformat(),
+                              'heure_fin': '09:00'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual((r.data['km_parcouru'], r.data['vol_reel']), (260, 22.0))
+        # Relevé de retour créé : compteur à jour
+        self.vehicule.refresh_from_db()
+        self.assertEqual(self.vehicule.kilometrage_actuel, 10560)
+
+    def test_prise_d_un_autre_type_pendant_une_tournee(self):
+        self.prise(0, '08:00', 10000, 20)
+        r = self.prise(0, '12:00', 10100, 10, type_mvt='course', tournee=False)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Clôturez', str(r.data['type_mouvement']))
+
+    def test_hors_tournee_estimation(self):
+        self.prise(0, '08:00', 10000, 20, type_mvt='course', tournee=False)
+        r = self.prise(1, '08:00', 10200, 25, type_mvt='ramassage', tournee=False)
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertIsNone(r.data['tournee'])
+        self.client.force_authenticate(self.operateur)
+        lignes = self.client.get('/api/v1/carburant/tournees/hors_tournee/').data['resultats']
+        l = lignes[-1]
+        self.assertEqual((l['type_display'], l['km_parcouru'], l['vol_estime'], l['ecart']), ('Ramassage', 200, 20.0, 5.0))
+        self.assertEqual(l['source_reference'], 'reference')
+        syn = self.client.get('/api/v1/carburant/tournees/synthese/').data
+        self.assertEqual((syn['vol_hors'], syn['part_hors_pct']), (45.0, 100.0))
+
+    def test_tournee_a_une_seule_prise(self):
+        r = self.prise(0, '08:00', 10000, 25, cloturer_tournee=True)
+        self.assertEqual(r.status_code, 201, r.data)
+        l = self.suivi()['resultats'][0]
+        self.assertEqual((l['statut'], l['nb_prises'], l['km_parcouru']), ('cloturee', 1, None))
+
+    def test_droit_de_cloturer_configurable(self):
+        from apps.accounts.models import PermissionRole
+        PermissionRole.objects.create(role=self.roles['operateur'], module='carburant',
+                                      action='cloturer_tournee', autorise=False)
+        r = self.prise(0, '08:00', 10000, 25, cloturer_tournee=True)
+        self.assertEqual(r.status_code, 403)
+        self.prise(0, '08:00', 10000, 25)
+        data = self.suivi()
+        self.assertFalse(data['droits']['cloturer'])
+        r = self.client.post(f"/api/v1/carburant/tournees/{data['resultats'][0]['id']}/cloturer/", {}, format='json')
+        self.assertEqual(r.status_code, 403)
+        # Le gestionnaire garde le droit par défaut
+        self.client.force_authenticate(self.gestionnaire)
+        r = self.client.post(f"/api/v1/carburant/tournees/{data['resultats'][0]['id']}/cloturer/", {}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+
+    def test_rouvrir_et_annuler(self):
+        self.prise(0, '08:00', 10000, 25)
+        te = self.suivi()['resultats'][0]
+        self.client.force_authenticate(self.operateur)
+        self.client.post(f"/api/v1/carburant/tournees/{te['id']}/cloturer/",
+                         {'km_retour': 10300, 'date_fin': (self.j0 + datetime.timedelta(days=1)).isoformat()},
+                         format='json')
+        r = self.client.post(f"/api/v1/carburant/tournees/{te['id']}/rouvrir/", {}, format='json')
+        self.assertEqual(r.status_code, 403)                    # opérateur : pas le droit par défaut
+        self.client.force_authenticate(self.responsable_flotte)
+        r = self.client.post(f"/api/v1/carburant/tournees/{te['id']}/rouvrir/", {}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['statut'], 'en_cours')
+        self.vehicule.refresh_from_db()
+        self.assertEqual(self.vehicule.kilometrage_actuel, 10000)   # relevé de retour supprimé
+        r = self.client.post(f"/api/v1/carburant/tournees/{te['id']}/annuler/",
+                             {'type_mouvement': 'course', 'motif': 'Ouverte par erreur'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(self.suivi()['count'], 0)
+        p = PleinsCarburant.objects.get(vehicule=self.vehicule)
+        self.assertEqual((p.type_mouvement, p.tournee_id, p.tournee_effectuee_id), ('course', None, None))
+
+    def test_suppression_de_la_derniere_prise(self):
+        r = self.prise(0, '08:00', 10000, 25)
+        self.client.force_authenticate(self.super_admin)
+        self.client.delete(f"/api/v1/carburant/pleins/{r.data['id']}/", {'motif': 'Doublon'}, format='json')
+        self.assertEqual(self.suivi()['count'], 0)
+
+    def test_dotation_figee_a_l_ouverture(self):
+        self.prise(0, '08:00', 10000, 25)
+        self.a01.dotation = 50
+        self.a01.save()
+        self.assertEqual(self.suivi()['resultats'][0]['vol_theorique'], 30)
+
+    def test_alerte_tournee_non_cloturee(self):
+        from apps.alertes.tasks import run_all_checks_sync
+        self.prise(0, '08:00', 10000, 25)
+        run_all_checks_sync()
+        a = Alerte.objects.get(type_alerte='tournee_ouverte')
+        self.assertIn('TE-1', a.titre)
+        te = self.suivi()['resultats'][0]
+        self.client.force_authenticate(self.operateur)
+        self.client.post(f"/api/v1/carburant/tournees/{te['id']}/cloturer/", {}, format='json')
+        run_all_checks_sync()
+        a.refresh_from_db()
+        self.assertEqual(a.statut, 'traitee')

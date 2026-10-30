@@ -191,8 +191,9 @@ class TypesMouvementTests(UtilisateursMixin, APITestCase):
             'date_releve': '2026-03-01', 'type_mouvement': type_mouvement}, format='json')
 
     def test_types_initiaux_et_nouveau_type(self):
-        codes = [t['code'] for t in self.client.get(reverse('type-mouvement-list')).data]
-        self.assertEqual(codes, ['releve', 'sortie', 'entree', 'tournee'])
+        types = self.client.get(reverse('type-mouvement-list')).data
+        self.assertEqual([t['code'] for t in types if t['pour_releves']], ['releve', 'sortie', 'entree', 'tournee'])
+        self.assertEqual([t['code'] for t in types if t['pour_prises']], ['tournee', 'course', 'ramassage', 'mission'])
         resp = self.client.post(reverse('type-mouvement-list'),
                                 {'code': 'atelier', 'libelle': 'Entrée atelier', 'couleur': 'orange'}, format='json')
         self.assertEqual(resp.status_code, 201)
@@ -329,7 +330,7 @@ class FenetreSaisieTests(UtilisateursMixin, APITestCase):
         self.client.force_authenticate(user)
         return self.client.post('/api/v1/carburant/pleins/', {
             'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'heure_plein': '08:00',
-            'tournee': self.tournee.id, 'volume_litres': 30,
+            'type_mouvement': 'tournee', 'tournee': self.tournee.id, 'volume_litres': 30,
             'montant_fcfa': 21000, 'kilometrage_releve': km, 'agence': str(self.agence_a.id),
         }, format='json')
 
@@ -464,7 +465,7 @@ class CorrectionSaisieTests(UtilisateursMixin, APITestCase):
         self.client.force_authenticate(user)
         return self.client.post('/api/v1/carburant/pleins/', {
             'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'heure_plein': heure,
-            'tournee': self.tournee.id, 'volume_litres': litres, 'montant_fcfa': 28000, 'kilometrage_releve': km,
+            'type_mouvement': 'tournee', 'tournee': self.tournee.id, 'volume_litres': litres, 'montant_fcfa': 28000, 'kilometrage_releve': km,
             'agence': str(self.agence_a.id),
         }, format='json')
 
@@ -509,7 +510,7 @@ class CorrectionSaisieTests(UtilisateursMixin, APITestCase):
         self.client.force_authenticate(self.dg)
         resp = self.client.post('/api/v1/carburant/pleins/', {
             'vehicule': str(self.vehicule.id), 'date_plein': self.jour(0), 'heure_plein': '08:00',
-            'tournee': self.tournee.id, 'volume_litres': 30, 'montant_fcfa': 21000,
+            'type_mouvement': 'tournee', 'tournee': self.tournee.id, 'volume_litres': 30, 'montant_fcfa': 21000,
             'kilometrage_releve': 10100}, format='json')
         self.assertEqual(resp.status_code, 201, resp.data)
         self.assertEqual(resp.data['statut_validation'], 'valide')

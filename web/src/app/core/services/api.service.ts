@@ -355,9 +355,30 @@ export class CarburantApiService extends ApiBaseService {
     const p = this.buildParams(params);
     return this.http.get<any>(`${API}/carburant/pleins/evolution_agences/`, { params: p });
   }
+  // ── Tournées effectuées et suivi (tournées / hors tournée) ──
   getSuiviTournees(filters?: Record<string, any>): Observable<any> {
     const p = filters ? this.buildParams(filters) : undefined;
-    return this.http.get<any>(`${API}/carburant/pleins/suivi_tournees/`, { params: p });
+    return this.http.get<any>(`${API}/carburant/tournees/`, { params: p });
+  }
+  getSuiviHorsTournee(filters?: Record<string, any>): Observable<any> {
+    const p = filters ? this.buildParams(filters) : undefined;
+    return this.http.get<any>(`${API}/carburant/tournees/hors_tournee/`, { params: p });
+  }
+  getSyntheseTournees(filters?: Record<string, any>): Observable<any> {
+    const p = filters ? this.buildParams(filters) : undefined;
+    return this.http.get<any>(`${API}/carburant/tournees/synthese/`, { params: p });
+  }
+  getTourneeEnCours(vehicule: string): Observable<any> {
+    return this.http.get<any>(`${API}/carburant/tournees/en_cours/`, { params: this.buildParams({ vehicule }) });
+  }
+  cloturerTournee(id: string, data: Record<string, any>): Observable<any> {
+    return this.http.post<any>(`${API}/carburant/tournees/${id}/cloturer/`, data);
+  }
+  rouvrirTournee(id: string): Observable<any> {
+    return this.http.post<any>(`${API}/carburant/tournees/${id}/rouvrir/`, {});
+  }
+  annulerTournee(id: string, data: { type_mouvement: string; motif: string }): Observable<any> {
+    return this.http.post<any>(`${API}/carburant/tournees/${id}/annuler/`, data);
   }
 
   getComparaisonTotal(params: Record<string, any>): Observable<any> {

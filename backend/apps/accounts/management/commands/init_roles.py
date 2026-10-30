@@ -36,8 +36,10 @@ DEFAULT_PERMISSIONS = [
     ('operateur',         'carburant', 'list',     True),
     ('operateur',         'carburant', 'retrieve', True),
     ('operateur',         'carburant', 'create',   True),
-    ('operateur',         'carburant', 'valider',  True),
     ('operateur',         'carburant', 'anomalies',True),
+    ('operateur',         'carburant', 'cloturer_tournee', True),
+    ('responsable_flotte','carburant', 'rouvrir_tournee',  True),
+    ('responsable_flotte','carburant', 'annuler_tournee',  True),
     ('gestionnaire',      'carburant', 'update',   True),
     ('gestionnaire',      'carburant', 'partial_update', True),
     ('responsable_flotte','carburant', 'destroy',  True),
@@ -165,28 +167,12 @@ class Command(BaseCommand):
             else:        updated_p += 1
 
         # Supprimer les permissions dont l'action n'est pas valide pour le module
+        # (référence : PermissionRole.MODULE_ACTIONS ; module inconnu = conservé)
         from apps.accounts.models import PermissionRole as PR
         deleted = 0
         for perm in PR.objects.all():
-            valid_actions = Role.objects.none()  # placeholder
-            module_actions = {
-                'vehicules':   ['list','retrieve','create','update','partial_update','destroy','kilometrage','changer_immatriculation'],
-                'carburant':   ['list','retrieve','create','update','partial_update','destroy','valider','anomalies'],
-                'entretien':   ['list','retrieve','create','update','partial_update','destroy','demarrer','terminer'],
-                'sinistres':   ['list','retrieve','create','update','partial_update','destroy','changer_statut'],
-                'budget':      ['list','retrieve','create','update','partial_update','destroy','tableau_de_bord'],
-                'chauffeurs':  ['list','retrieve','create','update','partial_update','destroy'],
-                'releves_km':  ['list','retrieve','create','update','partial_update','destroy'],
-                'affectations':['list','retrieve','create','update','partial_update','destroy'],
-                'users':       ['list','retrieve','create','update','partial_update','destroy','toggle_active','reset_password'],
-                'roles':       ['list','retrieve','create','update','partial_update','destroy'],
-                'parametres':  ['list','retrieve','create','update','partial_update','destroy'],
-                'agences':     ['list','retrieve','create','update','partial_update','destroy'],
-                'total_import': ['list','retrieve','upload','stats'],
-                'alertes':     ['list','retrieve'],
-            }
-            allowed = module_actions.get(perm.module, [])
-            if perm.action not in allowed:
+            allowed = PR.MODULE_ACTIONS.get(perm.module)
+            if allowed is not None and perm.action not in allowed:
                 perm.delete()
                 deleted += 1
 

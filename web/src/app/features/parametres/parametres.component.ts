@@ -9,6 +9,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Observable } from 'rxjs';
 import { CarburantApiService, EntretienApiService, ParametrageApiService, SinistreApiService, AgenceApiService, VehiculeApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { TypesMouvementService } from '../../core/services/types-mouvement.service';
 import { Prestataire, Assureur, Agence } from '../../core/models';
 import { SeuilsComponent } from './seuils/seuils.component';
 import { CircuitsValidationComponent } from './circuits-validation/circuits-validation.component';
@@ -38,6 +39,7 @@ export class ParametresComponent implements OnInit {
   private fb             = inject(FormBuilder);
   private entretienApi   = inject(EntretienApiService);
   private parametrageApi = inject(ParametrageApiService);
+  private typesMvtCache  = inject(TypesMouvementService);
   private sinistreApi    = inject(SinistreApiService);
   private vehiculeApi    = inject(VehiculeApiService);
   private agenceApi      = inject(AgenceApiService);
@@ -1213,11 +1215,13 @@ export class ParametresComponent implements OnInit {
     couleur:      ['gray'],
     ordre:        [0],
     actif:        [true],
+    pour_releves: [true],
+    pour_prises:  [false],
   });
 
   loadTypesMouvement(): void {
     this.parametrageApi.getTypesMouvement().subscribe({
-      next: l => this.typesMouvement.set(l),
+      next: l => { this.typesMouvement.set(l); this.typesMvtCache.charger(true); },
       error: () => this.typesMouvement.set([]),
     });
   }
@@ -1225,9 +1229,15 @@ export class ParametresComponent implements OnInit {
   ouvrirTypeMvt(t: any | null): void {
     this.typeMvtErreur.set('');
     this.typeMvtForm.reset(t
-      ? { code: t.code, libelle: t.libelle, couleur: t.couleur, ordre: t.ordre, actif: t.actif }
-      : { code: '', libelle: '', couleur: 'gray', ordre: this.typesMouvement().length + 1, actif: true });
+      ? { code: t.code, libelle: t.libelle, couleur: t.couleur, ordre: t.ordre, actif: t.actif,
+          pour_releves: t.pour_releves, pour_prises: t.pour_prises }
+      : { code: '', libelle: '', couleur: 'gray', ordre: this.typesMouvement().length + 1, actif: true,
+          pour_releves: false, pour_prises: true });
     if (t) this.typeMvtForm.controls.code.disable(); else this.typeMvtForm.controls.code.enable();
+    // Type réservé « Tournée » : toujours proposé dans les deux saisies
+    for (const c of [this.typeMvtForm.controls.pour_releves, this.typeMvtForm.controls.pour_prises]) {
+      if (t?.reserve) c.disable(); else c.enable();
+    }
     this.typeMvtEdite.set(t);
   }
 
@@ -1239,7 +1249,17 @@ export class ParametresComponent implements OnInit {
     req.subscribe({
       next: () => { this.typeMvtEdite.set(undefined); this.notice.set({ type: 'ok', texte: t ? 'Type modifié.' : 'Type créé.' }); this.loadTypesMouvement(); },
       error: (err: any) => this.typeMvtErreur.set(
-        err?.error?.detail ?? err?.error?.code?.[0] ?? "Erreur lors de l'enregistrement."),
+        err?.error?.detail ?? err?.error?.code?.[0] ?? err?.error?.non_field_errors?.[0]
+          ?? "Erreur lors de l'enregistrement."),
+    });
+  }
+
+  /** Saisie (relevés / prises) d'un type cochée ou décochée depuis le tableau. */
+  basculerSaisieTypeMvt(x: any, champ: 'pour_releves' | 'pour_prises'): void {
+    this.parametrageApi.updateTypeMouvement(x.id, { [champ]: !x[champ] }).subscribe({
+      next: () => this.loadTypesMouvement(),
+      error: (err: any) => this.notice.set({ type: 'err', texte: err?.error?.non_field_errors?.[0]
+        ?? err?.error?.detail ?? 'Modification impossible.' }),
     });
   }
 

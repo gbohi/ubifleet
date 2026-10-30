@@ -71,7 +71,7 @@
             <div class="section-icon"><i class="fas fa-car"></i></div>
             <div>
               <div class="section-title">Véhicule & Chauffeur</div>
-              <div class="section-sub">Véhicule, chauffeur et tournée concernés par la prise de carburant</div>
+              <div class="section-sub">Véhicule, chauffeur, type de mouvement et tournée de la prise de carburant</div>
             </div>
           </div>
           <div class="section-body">
@@ -94,16 +94,50 @@
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="pf-tournee">Tournée *</label>
-                <ubi-select-recherche formControlName="tournee" inputId="pf-tournee"
-                                      placeholder="Rechercher une tournée (code ou libellé)…" [options]="tourneesProposees()"
-                                      [invalid]="f['tournee'].invalid && f['tournee'].touched" />
-                @if (f['tournee'].invalid && f['tournee'].touched) {
-                  <div class="form-error"><i class="fas fa-times-circle"></i> La tournée est requise.</div>
+            <div class="form-group">
+              <span class="form-label">Type de mouvement *</span>
+              @if (tourneeEnCours(); as te) {
+                <div class="pf-tournee-info">
+                  <i class="fas fa-route"></i>
+                  <span>Véhicule en tournée <strong>{{ te.tournee_code }} — {{ te.tournee_libelle }}</strong>
+                  (n° {{ te.numero }}) depuis le {{ te.date_debut | date:'dd/MM/yyyy' }}{{ te.heure_debut ? ' à ' + te.heure_debut.substring(0, 5) : '' }}
+                  — {{ te.nb_prises }} prise(s), {{ te.vol_reel | number:'1.0-2' }} L. Cette prise lui est rattachée ;
+                  pour une prise d'un autre type, clôturez d'abord la tournée.</span>
+                </div>
+              }
+              @if (!tourneeEnCours() && tourneeDeLaPrise(); as te) {
+                <div class="pf-tournee-info">
+                  <i class="fas fa-route"></i>
+                  <span>Prise de la tournée n° <strong>{{ te.numero }}</strong>
+                  ({{ te.statut === 'en_cours' ? 'en cours' : te.statut === 'cloturee' ? 'clôturée' : 'annulée' }}) :
+                  son véhicule, son type et sa tournée ne changent plus.</span>
+                </div>
+              }
+              <div class="pf-types" role="radiogroup">
+                @for (t of typesProposes(); track t.code) {
+                  <label class="pf-type" [class.active]="typeCourant() === t.code" [class.verrouille]="rattachee()">
+                    <input type="radio" formControlName="type_mouvement" [value]="t.code" />
+                    <i class="fas" [class]="icone(t.code)"></i>
+                    <span>{{ t.libelle }}</span>
+                  </label>
                 }
               </div>
+            </div>
+
+            <div class="form-row">
+              @if (typeTournee()) {
+                <div class="form-group">
+                  <label class="form-label" for="pf-tournee">Tournée *</label>
+                  <ubi-select-recherche formControlName="tournee" inputId="pf-tournee"
+                                        placeholder="Rechercher une tournée (code ou libellé)…" [options]="tourneesProposees()"
+                                        [invalid]="f['tournee'].invalid && f['tournee'].touched" />
+                  @if (f['tournee'].invalid && f['tournee'].touched) {
+                    <div class="form-error"><i class="fas fa-times-circle"></i> La tournée est obligatoire pour ce type de mouvement.</div>
+                  } @else if (!rattachee()) {
+                    <div class="form-hint"><i class="fas fa-info-circle"></i> Cette prise ouvre la tournée ; les prises suivantes du véhicule s'y rattacheront jusqu'à sa clôture.</div>
+                  }
+                </div>
+              }
               <div class="form-group">
                 <label class="form-label" for="pf-station">Station</label>
                 <ubi-select-recherche formControlName="station" inputId="pf-station"
@@ -115,6 +149,23 @@
                 }
               </div>
             </div>
+
+            @if (clotureProposee()) {
+              <div class="pf-cloture">
+                <label class="pf-cloture-case">
+                  <input type="checkbox" [checked]="cloturer()" (change)="cloturer.set($any($event.target).checked)" />
+                  <span><strong>Dernière prise de cette tournée</strong> — clôturer la tournée à l'enregistrement</span>
+                </label>
+                @if (cloturer()) {
+                  <div class="form-hint">
+                    <i class="fas fa-info-circle"></i> Le KM retour sera le kilométrage de cette prise. Si le véhicule roule
+                    encore avant de rentrer, clôturez plutôt au retour depuis Carburant › Suivi tournées, avec le KM retour.
+                  </div>
+                  <textarea class="form-control" rows="2" placeholder="Commentaire de la tournée (facultatif, ex. explication d'un écart)"
+                            [value]="commentaireTournee()" (input)="commentaireTournee.set($any($event.target).value)"></textarea>
+                }
+              </div>
+            }
           </div>
         </div>
 

@@ -156,9 +156,11 @@ class ModeleVehicule(models.Model):
 
 
 class TypeMouvement(models.Model):
-    """Types de mouvement des relevés kilométriques (sortie, retour, tournée...).
-    Le type `tournee` est réservé : il demande la tournée (référentiel Tournée)
-    et ne peut être ni supprimé ni recodé."""
+    """Types de mouvement des relevés kilométriques et des prises de carburant
+    (sortie, retour, tournée, course...). Chaque type indique à quelles
+    saisies il s'applique. Le type `tournee` est réservé : il demande la
+    tournée (référentiel Tournée), sert aux deux saisies et ne peut être ni
+    supprimé ni recodé."""
     CODE_TOURNEE = 'tournee'
 
     class Couleur(models.TextChoices):
@@ -174,6 +176,8 @@ class TypeMouvement(models.Model):
     couleur      = models.CharField(max_length=10, choices=Couleur.choices, default=Couleur.GRIS)
     ordre        = models.PositiveSmallIntegerField(default=0)
     actif        = models.BooleanField(default=True)
+    pour_releves = models.BooleanField(default=True, verbose_name="Relevés kilométriques")
+    pour_prises  = models.BooleanField(default=False, verbose_name="Prises de carburant")
     created_at   = models.DateTimeField(auto_now_add=True)
     updated_at   = models.DateTimeField(auto_now=True)
 

@@ -114,8 +114,9 @@ class Vehicule(UbiFleetBaseModel):
     )
     conso_theorique_origine = models.DecimalField(
         max_digits=5, decimal_places=2, default=0,
-        verbose_name="Consommation théorique à l'origine (L/100km)",
-        help_text="Consommation constructeur ou de référence en L/100km",
+        verbose_name="Consommation théorique de référence (L/100km)",
+        help_text="Sert à estimer les litres attendus des prises hors tournée ; "
+                  "à défaut, la moyenne observée sur les prises du véhicule est utilisée.",
     )
     kilometrage_revision = models.PositiveIntegerField(
         default=0, verbose_name="Km prochain entretien"

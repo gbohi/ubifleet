@@ -37,6 +37,10 @@ ECHEANCES = {e.code: e for e in [
 CLE_CONSO_ANOMALIE = 'conso_anomalie_pct'
 CONSO_ANOMALIE_DEFAUT = 30
 
+# Tournée effectuée restée ouverte au-delà de N jours : alerte (clôture oubliée)
+CLE_TOURNEE_OUVERTE = 'tournee_ouverte_max_jours'
+TOURNEE_OUVERTE_DEFAUT = 3
+
 NC, DEPASSE, URGENT, ATTENTION, OK = 'nc', 'depasse', 'urgent', 'attention', 'ok'
 
 
@@ -71,6 +75,11 @@ def tous_les_seuils() -> dict:
     """{code: (attention, urgent)} — une requête par paramètre, à appeler
     une fois avant de traiter une liste de véhicules."""
     return {code: seuils(code) for code in ECHEANCES}
+
+
+def tournee_ouverte_max_jours() -> int:
+    from .models import Parametre
+    return int(float(Parametre.get(CLE_TOURNEE_OUVERTE, TOURNEE_OUVERTE_DEFAUT)))
 
 
 def seuil_conso_anomalie() -> float:

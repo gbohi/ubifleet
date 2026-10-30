@@ -59,7 +59,7 @@
         <select class="form-control" [value]="filterType()" (change)="onType($event)">
           <option value="">Tous les types</option>
           @for (t of typesMvt.tous(); track t.code) {
-            <option [value]="t.code">{{ t.libelle }}</option>
+            @if (t.pour_releves) { <option [value]="t.code">{{ t.libelle }}</option> }
           }
         </select>
       </div>

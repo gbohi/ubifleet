@@ -62,6 +62,63 @@ class DotationCarburant(UbiFleetBaseModel):
         return round((float(self.volume_consomme) / float(self.volume_alloue)) * 100, 1)
 
 
+class TourneeEffectuee(UbiFleetBaseModel):
+    """Réalisation d'une tournée par un véhicule : ouverte par la première
+    prise de carburant de type « tournée », elle regroupe les prises jusqu'à
+    sa clôture (KM retour saisi). Dotation et km théorique sont figés à
+    l'ouverture, pour que les tournées passées ne changent pas si la
+    dotation de la tournée est modifiée."""
+
+    class Statut(models.TextChoices):
+        EN_COURS = 'en_cours', 'En cours'
+        CLOTUREE = 'cloturee', 'Clôturée'
+        ANNULEE  = 'annulee',  'Annulée'
+
+    numero    = models.CharField(max_length=40, unique=True)
+    tournee   = models.ForeignKey('parametrage.Tournee', on_delete=models.PROTECT,
+                                  related_name='realisations', verbose_name='Tournée')
+    vehicule  = models.ForeignKey('vehicules.Vehicule', on_delete=models.CASCADE,
+                                  related_name='tournees_effectuees')
+    chauffeur = models.ForeignKey('chauffeurs.Chauffeur', null=True, blank=True,
+                                  on_delete=models.SET_NULL, related_name='tournees_effectuees')
+    agence    = models.ForeignKey('accounts.Agence', on_delete=models.PROTECT,
+                                  related_name='tournees_effectuees')
+    statut    = models.CharField(max_length=10, choices=Statut.choices, default=Statut.EN_COURS)
+    # Début = première prise (recalculé si elle est corrigée ou supprimée)
+    date_debut  = models.DateField()
+    heure_debut = models.TimeField(null=True, blank=True)
+    km_depart   = models.PositiveIntegerField()
+    # Clôture
+    date_fin    = models.DateField(null=True, blank=True)
+    heure_fin   = models.TimeField(null=True, blank=True)
+    km_retour   = models.PositiveIntegerField(null=True, blank=True)
+    cloturee_par = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='+')
+    cloturee_le  = models.DateTimeField(null=True, blank=True)
+    # Relevé kilométrique de retour créé à la clôture (KM retour > dernière prise)
+    releve_retour = models.ForeignKey('vehicules.ReleveKilometrage', null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name='+')
+    # Théorique figé à l'ouverture
+    dotation_theorique = models.PositiveIntegerField(default=0, verbose_name='Dotation théorique (L)')
+    km_theorique       = models.PositiveIntegerField(default=0, verbose_name='Km théorique')
+    commentaire  = models.TextField(blank=True)
+    motif_annulation = models.TextField(blank=True)
+    # Reprise des prises saisies avant les tournées effectuées : à vérifier
+    a_verifier   = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = 'Tournée effectuée'
+        verbose_name_plural = 'Tournées effectuées'
+        ordering = ['-date_debut', '-heure_debut']
+        constraints = [
+            models.UniqueConstraint(fields=['vehicule'], condition=models.Q(statut='en_cours'),
+                                    name='une_tournee_en_cours_par_vehicule'),
+        ]
+
+    def __str__(self):
+        return self.numero
+
+
 class PleinsCarburant(UbiFleetBaseModel):
     """Prise de carburant (le modèle garde son nom historique « plein »)."""
 
@@ -83,6 +140,13 @@ class PleinsCarburant(UbiFleetBaseModel):
         'parametrage.Tournee', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='pleins',
         verbose_name='Tournée'
+    )
+    # Type de mouvement (Paramètres › Types de mouvement, saisie « prises ») ;
+    # le type « tournee » rattache la prise à une tournée effectuée.
+    type_mouvement = models.CharField(max_length=20, default='tournee', verbose_name='Type de mouvement')
+    tournee_effectuee = models.ForeignKey(
+        TourneeEffectuee, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='prises', verbose_name='Tournée effectuée'
     )
     station = models.ForeignKey(
         Station, null=True, blank=True,

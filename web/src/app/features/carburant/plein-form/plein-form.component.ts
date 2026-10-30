@@ -11,6 +11,14 @@ import { CarburantApiService } from '../../../core/services/api.service';
 import { OptionTournee, OptionVehicule, OptionsSaisieService, tourneesDuVehicule } from '../../../core/services/options-saisie.service';
 import { OptionRecherche, SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
 import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
+import { AuthService } from '../../../core/services/auth.service';
+
+/** Code du type de mouvement réservé qui rattache la prise à une tournée. */
+const TYPE_TOURNEE = 'tournee';
+const ICONES: Record<string, string> = {
+  tournee: 'fa-route', course: 'fa-taxi', ramassage: 'fa-people-carry', mission: 'fa-briefcase',
+};
 import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/historique-corrections.component';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 
@@ -30,6 +38,8 @@ export class PleinFormComponent implements OnInit {
   private carburantApi = inject(CarburantApiService);
   private options      = inject(OptionsSaisieService);
   readonly fenetres      = inject(FenetreSaisieService);
+  readonly typesMvt      = inject(TypesMouvementService);
+  private auth           = inject(AuthService);
 
   isEditMode = computed(() => !!this.id());
   vehicules  = signal<OptionVehicule[]>([]);
@@ -53,6 +63,16 @@ export class PleinFormComponent implements OnInit {
   infoHorsDelai = signal<string | null>(null);
   /** Motif de la consommation anormale de la prise (alerte ouverte). */
   anomalie = signal<string | null>(null);
+
+  // ── Tournée effectuée ──
+  /** Tournée en cours du véhicule (création) : la prise lui est rattachée. */
+  tourneeEnCours = signal<any | null>(null);
+  /** Tournée effectuée de la prise modifiée. */
+  tourneeDeLaPrise = signal<{ numero: string; statut: string } | null>(null);
+  /** « Dernière prise de cette tournée » : clôture à l'enregistrement. */
+  cloturer = signal(false);
+  commentaireTournee = signal('');
+  peutCloturer = computed(() => this.auth.peutAcceder('tournee_cloturer'));
   motifCorrection = signal('');
   private dateCourante = signal<string | null>(null);
   motifRequis = computed(() => this.isEditMode()
@@ -70,7 +90,8 @@ export class PleinFormComponent implements OnInit {
   form = this.fb.group({
     vehicule:           ['', Validators.required],
     chauffeur:          [null as string | null],
-    tournee:            [null as number | null, Validators.required],
+    type_mouvement:     [TYPE_TOURNEE, Validators.required],
+    tournee:            [null as number | null],
     station:            [null as string | null],
     date_plein:         [new Date().toISOString().split('T')[0],
                          [Validators.required, (c: AbstractControl) => this.fenetres.erreur('carburant', c.value) ? { fenetre: true } : null]],
@@ -85,6 +106,20 @@ export class PleinFormComponent implements OnInit {
   get f() { return this.form.controls; }
 
   private vehiculeChoisi = toSignal(this.form.controls.vehicule.valueChanges, { initialValue: '' });
+  private typeChoisi = toSignal(this.form.controls.type_mouvement.valueChanges, { initialValue: TYPE_TOURNEE });
+  typeTournee = computed(() => this.typeChoisi() === TYPE_TOURNEE);
+  typeCourant = computed(() => this.typeChoisi());
+  /** Types proposés aux prises (et le type actuel d'une prise modifiée, même désactivé depuis). */
+  typesProposes = computed(() => {
+    const l = this.typesMvt.pourPrises(), courant = this.typeChoisi();
+    const t = this.typesMvt.tous().find(x => x.code === courant);
+    return t && !l.includes(t) ? [...l, t] : l;
+  });
+  /** Type et tournée imposés : tournée en cours, ou prise déjà rattachée à une tournée. */
+  rattachee = computed(() => !!this.tourneeEnCours() || !!this.tourneeDeLaPrise());
+  /** Case « Dernière prise » : tournée (en cours ou à ouvrir) non clôturée, droit de clôturer. */
+  clotureProposee = computed(() => this.typeTournee() && this.peutCloturer() && !this.lectureSeule()
+    && (!this.tourneeDeLaPrise() || this.tourneeDeLaPrise()!.statut === 'en_cours'));
   /** Tournées de l'agence du véhicule (l'agence de la prise est celle du véhicule). */
   tourneesProposees = computed(() => tourneesDuVehicule(
     this.tournees(), this.vehicules().find(v => v.value === this.vehiculeChoisi())?.agence));
@@ -114,6 +149,45 @@ export class PleinFormComponent implements OnInit {
       if (!this.isEditMode() && !heure.dirty) heure.setValue(this.fenetres.heureServeur() ?? heure.value);
       date.updateValueAndValidity();
     });
+    // Tournée obligatoire pour le type « tournée », vidée pour les autres
+    effect(() => {
+      const t = this.form.controls.tournee;
+      if (this.typeTournee()) t.setValidators(Validators.required);
+      else {
+        t.clearValidators();
+        if (t.value !== null) t.setValue(null, { emitEvent: false });
+        this.cloturer.set(false);
+      }
+      t.updateValueAndValidity({ emitEvent: false });
+    }, { allowSignalWrites: true });
+  }
+
+  icone(code: string): string { return ICONES[code] ?? 'fa-gas-pump'; }
+
+  /** Véhicule choisi (création) : sa tournée en cours impose le type et la tournée. */
+  private chargerTourneeEnCours(vehicule: string | null | undefined): void {
+    if (this.isEditMode()) return;
+    const type = this.form.controls.type_mouvement, tournee = this.form.controls.tournee;
+    const liberer = () => {
+      if (this.tourneeEnCours()) tournee.setValue(null);   // tournée imposée par l'autre véhicule
+      this.tourneeEnCours.set(null);
+      type.enable({ emitEvent: false });
+      tournee.enable({ emitEvent: false });
+    };
+    if (!vehicule) { liberer(); return; }
+    this.carburantApi.getTourneeEnCours(vehicule).subscribe({
+      next: (r: any) => {
+        if (this.form.getRawValue().vehicule !== vehicule) return;   // véhicule changé entre-temps
+        const te = r?.tournee;
+        if (!te) { liberer(); return; }
+        this.tourneeEnCours.set(te);
+        type.setValue(TYPE_TOURNEE);
+        tournee.setValue(te.tournee_id);
+        type.disable({ emitEvent: false });
+        tournee.disable({ emitEvent: false });
+      },
+      error: () => liberer(),
+    });
   }
 
   dateErreur(): string | null {
@@ -122,6 +196,7 @@ export class PleinFormComponent implements OnInit {
 
   ngOnInit(): void {
     this.fenetres.charger();
+    this.typesMvt.charger();
     this.dateCourante.set(this.form.controls.date_plein.value);
     this.form.controls.date_plein.valueChanges.subscribe(d => this.dateCourante.set(d));
     this.options.tournees().subscribe({ next: l => this.tournees.set(l), error: () => {} });
@@ -138,7 +213,10 @@ export class PleinFormComponent implements OnInit {
     // Prix au litre : prix en vigueur à la date du plein, recalculé quand le
     // véhicule ou la date change (sauf si l'utilisateur a saisi un autre prix)
     this.form.controls.date_plein.valueChanges.subscribe(() => this.chargerPrix());
-    this.form.controls.vehicule.valueChanges.subscribe(v => this.chargerPrix(v ?? undefined));
+    this.form.controls.vehicule.valueChanges.subscribe(v => {
+      this.chargerPrix(v ?? undefined);
+      this.chargerTourneeEnCours(v);
+    });
 
     if (this.isEditMode() && this.id()) {
       this.loading.set(true);
@@ -148,6 +226,7 @@ export class PleinFormComponent implements OnInit {
             this.form.patchValue({
               vehicule:           p.vehicule,
               chauffeur:          p.chauffeur,
+              type_mouvement:     p.type_mouvement,
               tournee:            p.tournee ?? null,
               station:            p.station ?? null,
               date_plein:         p.date_plein,
@@ -159,6 +238,11 @@ export class PleinFormComponent implements OnInit {
               notes:              p.notes ?? '',
             });
             this.heureManquante.set(!p.heure_plein);
+            if (p.tournee_effectuee) {
+              // Prise d'une tournée : véhicule, type et tournée ne changent plus
+              this.tourneeDeLaPrise.set({ numero: p.tournee_effectuee_numero, statut: p.tournee_effectuee_statut });
+              for (const c of ['vehicule', 'type_mouvement', 'tournee'] as const) this.form.controls[c].disable({ emitEvent: false });
+            }
             this.anomalie.set(p.statut_validation === 'anomalie' ? p.motif_anomalie || null : null);
             if (p.photo_tableau_bord) {
               this.photoExistante.set(p.photo_tableau_bord);
@@ -250,7 +334,7 @@ export class PleinFormComponent implements OnInit {
     this.error.set('');
     this.success.set('');
 
-    const raw = this.form.value;
+    const raw = this.form.getRawValue();
 
     // Toujours utiliser FormData pour supporter les fichiers
     const fd = new FormData();
@@ -266,6 +350,10 @@ export class PleinFormComponent implements OnInit {
 
     if (this.isEditMode() && this.motifCorrection().trim()) {
       fd.append('motif_correction', this.motifCorrection().trim());
+    }
+    if (this.cloturer() && this.clotureProposee()) {
+      fd.append('cloturer_tournee', 'true');
+      if (this.commentaireTournee().trim()) fd.append('commentaire_tournee', this.commentaireTournee().trim());
     }
 
     // Photo tableau de bord
@@ -284,8 +372,11 @@ export class PleinFormComponent implements OnInit {
         this.saving.set(false);
         const anormale = p?.statut_validation === 'anomalie';
         this.anomalie.set(anormale ? p.motif_anomalie || null : null);
+        const te = p?.tournee_effectuee_numero
+          ? ` Tournée n° ${p.tournee_effectuee_numero}${p.tournee_effectuee_statut === 'cloturee' ? ' clôturée.'
+            : this.tourneeEnCours() || this.isEditMode() ? ' (en cours).' : ' ouverte.'}` : '';
         this.success.set((this.isEditMode() ? 'Prise de carburant modifiée.' : 'Prise de carburant enregistrée.')
-          + (anormale ? ' Consommation anormale : une alerte a été ouverte.' : ''));
+          + te + (anormale ? ' Consommation anormale : une alerte a été ouverte.' : ''));
         setTimeout(() => this.router.navigate(['/carburant']), anormale ? 4000 : 1200);
       },
       error: (err) => {

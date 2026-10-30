@@ -1,0 +1,80 @@
+// UbiFleet — Carburant › Suivi tournées
+:host { display: block; }
+.st { display: flex; flex-direction: column; gap: 14px; }
+.st-titre { margin: 0; font-size: 17px; color: var(--navy); i { color: var(--green-dark); margin-right: 6px; } }
+.st-aide { margin: 4px 0 0; font-size: 12.5px; color: var(--gray-500); max-width: 900px; line-height: 1.5; }
+
+.st-filtres {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 14px;
+  background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-lg);
+}
+.st-filtre {
+  display: flex; flex-direction: column; gap: 4px; min-width: 140px; flex: 1 1 140px; max-width: 220px;
+  label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--gray-500); }
+}
+.st-filtre-actions { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+
+.st-notice {
+  display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-radius: var(--radius-md); font-size: 13px;
+  &.ok  { background: var(--green-alpha); color: var(--green-dark); }
+  &.err { background: var(--danger-light); color: var(--danger); }
+}
+
+.st-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  @media (max-width: 900px) { grid-template-columns: 1fr 1fr; } }
+.st-kpi {
+  display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; background: white;
+  border: 1px solid var(--gray-200); border-radius: var(--radius-lg); min-width: 0;
+}
+.st-kpi-lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--gray-500);
+  i { margin-right: 4px; color: var(--green-dark); } }
+.st-kpi-val { font-size: 20px; font-weight: 700; color: var(--navy); }
+.st-kpi-sub { font-size: 11.5px; color: var(--gray-500); }
+.st-jauge { height: 6px; border-radius: 3px; background: var(--gray-100); overflow: hidden; margin-top: 4px;
+  span { display: block; height: 100%; background: var(--warning); } }
+
+.st-vues { display: flex; gap: 4px; border-bottom: 1px solid var(--gray-200);
+  button {
+    display: flex; align-items: center; gap: 6px; padding: 9px 14px; border: none; background: none; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--gray-500); border-bottom: 2px solid transparent; margin-bottom: -1px;
+    &.active { color: var(--navy); border-bottom-color: var(--green-dark); }
+  }
+}
+.st-nb { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--gray-100); color: var(--gray-600); }
+
+.st-vide { padding: 40px 16px; text-align: center; color: var(--gray-400); font-size: 13px; i { margin-right: 6px; } }
+
+.st-table-wrap { overflow-x: auto; background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); }
+.st-table {
+  width: 100%; border-collapse: collapse; font-size: 12.5px;
+  th { position: sticky; top: 0; background: var(--gray-50); text-align: left; font-size: 10.5px; font-weight: 700;
+       text-transform: uppercase; letter-spacing: .3px; color: var(--gray-500); padding: 9px 8px; white-space: nowrap;
+       border-bottom: 1px solid var(--gray-200); }
+  td { padding: 8px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+  .num { text-align: right; white-space: nowrap; }
+  tfoot td { font-weight: 700; background: var(--gray-50); border-top: 2px solid var(--gray-200); }
+  tr.st-en-cours > td:first-child { box-shadow: inset 3px 0 0 var(--info); }
+  tr.st-annulee { opacity: .55; }
+  .badge + .badge { margin-left: 4px; }
+}
+.nowrap { white-space: nowrap; }
+.fort { font-weight: 600; }
+.muted { color: var(--gray-400); }
+.petit { font-size: 11px; }
+.ecart-pos { color: var(--danger); }
+.ecart-neg { color: var(--green-dark); }
+.st-commentaire { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gray-500); }
+.st-deplier { border: none; background: none; cursor: pointer; color: var(--gray-500); padding: 2px 6px; }
+.st-detail > td { background: var(--gray-50); }
+.st-prises {
+  width: auto; min-width: 460px; border-collapse: collapse; font-size: 12px;
+  th { position: static; background: none; border-bottom: 1px solid var(--gray-200); }
+  td { border-bottom: 1px dashed var(--gray-200); padding: 5px 8px; }
+  a { color: var(--navy); }
+}
+.st-note { margin: 0; font-size: 11.5px; color: var(--gray-400); }
+
+.st-modal { width: 560px; max-width: calc(100vw - 32px); }
+.st-modal-info { margin: 0 0 12px; font-size: 12.5px; color: var(--gray-500); }
+.st-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.st-tournee { min-width: 200px; }

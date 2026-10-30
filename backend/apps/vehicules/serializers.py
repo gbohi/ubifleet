@@ -166,8 +166,8 @@ class ReleveKilometrageSerializer(FenetreSaisieSerializerMixin, serializers.Mode
     def validate_type_mouvement(self, value):
         t = self._types().get(value)
         changement = self.instance is None or self.instance.type_mouvement != value
-        if t is None or (changement and not t.actif):
-            raise serializers.ValidationError("Type de mouvement inconnu ou désactivé.")
+        if t is None or (changement and not (t.actif and t.pour_releves)):
+            raise serializers.ValidationError("Type de mouvement inconnu, désactivé ou non prévu pour les relevés.")
         return value
 
     def get_chauffeur_nom(self, obj):

@@ -66,7 +66,7 @@
       }
     </button>
     <button class="tab" [class.active]="activeTab() === 'suivi'"
-            (click)="activeTab.set('suivi'); loadSuiviTournees()">
+            (click)="activeTab.set('suivi')">
       <i class="fas fa-table"></i> Suivi tournées
     </button>
     <button class="tab" [class.active]="activeTab() === 'consommation'"
@@ -158,7 +158,7 @@
                 <th>Conso.</th>
                 <th>Bon</th>
                 <th>Photo TB</th>
-                <th>Tournée</th>
+                <th>Type / tournée</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -218,7 +218,13 @@
                       <span style="color:var(--gray-300);font-size:12px">—</span>
                     }
                   </td>
-                  <td>{{ p.tournee_code || '—' }}</td>
+                  <td>
+                    @if (p.tournee_code) {
+                      <span class="fort-tournee" [title]="p.tournee_effectuee_numero ? 'Tournée n° ' + p.tournee_effectuee_numero : ''">{{ p.tournee_code }}</span>
+                    } @else {
+                      <span class="badge badge-gray">{{ p.type_display || '—' }}</span>
+                    }
+                  </td>
                   <td>
                     <div class="td-actions">
                       @if (p.verrouille) {
@@ -392,147 +398,7 @@
 
   <!-- ── ONGLET SUIVI TOURNÉES ── -->
   @if (activeTab() === 'suivi') {
-    <div class="analyse-tab">
-      <div class="analyse-header">
-        <div class="analyse-title">
-          <i class="fas fa-table" style="color:var(--green-dark)"></i>
-          Suivi des tournées — Réel vs Théorique
-        </div>
-        <p class="analyse-subtitle">
-          Comparaison entre la consommation réelle et les dotations théoriques par tournée.
-          Seules les prises de carburant associées à une tournée sont affichées.
-        </p>
-      </div>
-
-      <!-- Filtres -->
-      <div class="analyse-filters card">
-        <div class="filters-grid">
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date début</label>
-            <input type="date" class="form-control"
-                   [value]="suiviDateDebut()"
-                   (input)="suiviDateDebut.set($any($event.target).value)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin</label>
-            <input type="date" class="form-control"
-                   [value]="suiviDateFin()"
-                   (input)="suiviDateFin.set($any($event.target).value)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-map-marker-alt"></i> Agence</label>
-            <select class="form-control" [value]="suiviAgence()"
-                    (change)="suiviAgence.set($any($event.target).value)">
-              <option value="">Toutes les agences</option>
-              @for (a of agences(); track a.id) {
-                <option [value]="a.id">{{ a.nom }}</option>
-              }
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-            <input type="text" class="form-control"
-                   [value]="suiviImmat()"
-                   (input)="suiviImmat.set($any($event.target).value)"
-                   placeholder="ex: AB-123-CD" />
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="btn btn-green" [disabled]="suiviLoading()" (click)="loadSuiviTournees()">
-            <i class="fas fa-search"></i> Analyser
-          </button>
-          @if (suiviData().length > 0) {
-            <button class="btn btn-outline" (click)="exportSuiviCsv()">
-              <i class="fas fa-file-csv"></i> Exporter CSV
-            </button>
-          }
-        </div>
-      </div>
-
-      @if (suiviLoading()) {
-        <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
-      } @else if (suiviError()) {
-        <div class="alert-error">{{ suiviError() }}</div>
-      } @else if (suiviData().length === 0) {
-        <div class="empty-state">
-          <i class="fas fa-table"></i>
-          <p>Aucune donnée. Sélectionnez une période et cliquez sur Analyser.</p>
-          <p style="font-size:12px;color:var(--gray-400)">
-            Seules les prises de carburant associées à une tournée sont prises en compte.
-          </p>
-        </div>
-      } @else {
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">
-              {{ suiviCount() }} ligne(s) — Suivi tournées
-            </div>
-          </div>
-          <div class="table-container suivi-table-wrap">
-            <table class="ubi-table suivi-table">
-              <thead>
-                <tr>
-                  <th rowspan="2">Date</th>
-                  <th rowspan="2">Véhicule</th>
-                  <th rowspan="2">Tournée</th>
-                  <th rowspan="2">Type</th>
-                  <th colspan="3" class="th-group th-reel">Kilométrage</th>
-                  <th colspan="3" class="th-group th-reel">Réel</th>
-                  <th colspan="3" class="th-group th-theo">Théorique</th>
-                  <th colspan="2" class="th-group th-conso">Conso L/100</th>
-                  <th colspan="2" class="th-group th-ecart">Écarts</th>
-                </tr>
-                <tr>
-                  <th>Départ</th><th>Retour</th><th>Parcouru</th>
-                  <th>Dotation (L)</th><th>Montant (FCFA)</th><th>Km</th>
-                  <th>Dotation (L)</th><th>Montant (FCFA)</th><th>Km</th>
-                  <th>Réelle</th><th>Théo.</th>
-                  <th>Dotation (L)</th><th>Conso</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (r of suiviData(); track $index) {
-                  <tr [class.row-ecart-pos]="r.ecart_conso > 0"
-                      [class.row-ecart-neg]="r.ecart_conso < 0">
-                    <td class="td-date">{{ r.date | date:'dd/MM/yyyy' }}</td>
-                    <td>
-                      <strong>{{ r.immatriculation }}</strong>
-                    </td>
-                    <td style="max-width:180px;white-space:normal;font-size:11px">
-                      <div style="font-weight:600">{{ r.tournee_code }}</div>
-                      <div style="color:var(--gray-500);font-size:10px">{{ r.tournee_libelle }}</div>
-                    </td>
-                    <td style="font-size:10px">{{ r.type_vehicule }}</td>
-                    <!-- KM -->
-                    <td class="num">{{ r.km_depart !== null ? (r.km_depart | number:'1.0-0') : 'N/A' }}</td>
-                    <td class="num">{{ r.km_retour | number:'1.0-0' }}</td>
-                    <td class="num">{{ r.km_parcouru !== null ? (r.km_parcouru | number:'1.0-0') : 'N/A' }}</td>
-                    <!-- Réel -->
-                    <td class="num">{{ r.vol_reel | number:'1.1-1' }}</td>
-                    <td class="num">{{ r.montant_reel | number:'1.0-0' }}</td>
-                    <td class="num">{{ r.km_parcouru !== null ? (r.km_parcouru | number:'1.0-0') : 'N/A' }}</td>
-                    <!-- Théo -->
-                    <td class="num">{{ r.vol_theorique !== null ? (r.vol_theorique | number:'1.1-1') : 'N/A' }}</td>
-                    <td class="num">{{ r.montant_theorique !== null ? (r.montant_theorique | number:'1.0-0') : 'N/A' }}</td>
-                    <td class="num">{{ r.km_theorique !== null ? (r.km_theorique | number:'1.0-0') : 'N/A' }}</td>
-                    <!-- Conso -->
-                    <td class="num">{{ r.conso_reel !== null ? (r.conso_reel | number:'1.2-2') : 'N/A' }}</td>
-                    <td class="num">{{ r.conso_theorique !== null ? (r.conso_theorique | number:'1.2-2') : 'N/A' }}</td>
-                    <!-- Écarts -->
-                    <td class="num" [class]="ecartClass(r.ecart_dotation)">
-                      {{ r.ecart_dotation !== null ? (r.ecart_dotation | number:'1.1-1') : 'N/A' }}
-                    </td>
-                    <td class="num" [class]="ecartClass(r.ecart_conso)">
-                      {{ r.ecart_conso !== null ? (r.ecart_conso | number:'1.1-1') : 'N/A' }}
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
-      }
-    </div>
+    <ubi-suivi-tournees [agences]="agences()" />
   }
 
   <!-- ── ONGLET CONSOMMATION L/100 ── -->

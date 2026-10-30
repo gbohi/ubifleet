@@ -1,0 +1,323 @@
+<div class="st">
+  <div class="st-entete">
+    <div>
+      <h2 class="st-titre"><i class="fas fa-route"></i> Suivi des tournées</h2>
+      <p class="st-aide">
+        Une ligne par tournée effectuée : ses prises de carburant sont additionnées (KM départ = 1re prise,
+        KM retour = clôture) et comparées à la dotation et au km théorique de la tournée, figés à son ouverture.
+        Les prises des autres types de mouvement (course, ramassage…) sont suivies à part, avec les litres
+        attendus d'après la consommation théorique de référence du véhicule.
+      </p>
+    </div>
+  </div>
+
+  <!-- Filtres -->
+  <div class="st-filtres">
+    <div class="st-filtre"><label for="st-debut">Du</label>
+      <input id="st-debut" type="date" class="form-control" [value]="dateDebut()" (change)="dateDebut.set($any($event.target).value)" /></div>
+    <div class="st-filtre"><label for="st-fin">Au</label>
+      <input id="st-fin" type="date" class="form-control" [value]="dateFin()" (change)="dateFin.set($any($event.target).value)" /></div>
+    @if (agences().length > 1) {
+      <div class="st-filtre"><label for="st-agence">Agence</label>
+        <select id="st-agence" class="form-control" [value]="agence()" (change)="agence.set($any($event.target).value)">
+          <option value="">Toutes</option>
+          @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
+        </select></div>
+    }
+    <div class="st-filtre"><label for="st-immat">Véhicule</label>
+      <input id="st-immat" type="text" class="form-control" placeholder="Immatriculation" [value]="immat()"
+             (input)="immat.set($any($event.target).value)" (keyup.enter)="charger()" /></div>
+    @if (vue() === 'tournees') {
+      <div class="st-filtre"><label for="st-tournee">Tournée</label>
+        <select id="st-tournee" class="form-control" [value]="tournee()" (change)="tournee.set($any($event.target).value)">
+          <option value="">Toutes</option>
+          @for (t of tournees(); track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+        </select></div>
+      <div class="st-filtre"><label for="st-statut">Statut</label>
+        <select id="st-statut" class="form-control" [value]="statut()" (change)="statut.set($any($event.target).value)">
+          <option value="">En cours et clôturées</option>
+          <option value="en_cours">En cours</option>
+          <option value="cloturee">Clôturées</option>
+          <option value="annulee">Annulées</option>
+        </select></div>
+    } @else {
+      <div class="st-filtre"><label for="st-type">Type de mouvement</label>
+        <select id="st-type" class="form-control" [value]="typeMvt()" (change)="typeMvt.set($any($event.target).value)">
+          <option value="">Tous</option>
+          @for (t of typesHors(); track t.code) { <option [value]="t.code">{{ t.libelle }}</option> }
+        </select></div>
+    }
+    <div class="st-filtre-actions">
+      <button class="btn btn-green" [disabled]="chargement()" (click)="charger()"><i class="fas fa-search"></i> Afficher</button>
+      <button class="btn btn-outline" (click)="reinitialiser()" title="Réinitialiser les filtres"><i class="fas fa-undo"></i></button>
+      <button class="btn btn-outline" (click)="exporter()"
+              [disabled]="vue() === 'tournees' ? !lignes().length : !horsLignes().length">
+        <i class="fas fa-file-excel"></i> Exporter
+      </button>
+    </div>
+  </div>
+
+  @if (notice()) { <div class="st-notice ok"><i class="fas fa-check-circle"></i> {{ notice() }}</div> }
+  @if (erreur()) { <div class="st-notice err"><i class="fas fa-exclamation-triangle"></i> {{ erreur() }}</div> }
+
+  <!-- Synthèse -->
+  @if (synthese(); as s) {
+    <div class="st-kpis">
+      <div class="st-kpi">
+        <span class="st-kpi-lbl"><i class="fas fa-route"></i> Tournées</span>
+        <span class="st-kpi-val">{{ s.vol_tournees | number:'1.0-0' }} L</span>
+        <span class="st-kpi-sub">{{ s.nb_tournees }} tournée(s){{ s.nb_en_cours ? ' dont ' + s.nb_en_cours + ' en cours' : '' }}
+          · théorique {{ s.vol_theorique_tournees | number:'1.0-0' }} L</span>
+      </div>
+      <div class="st-kpi">
+        <span class="st-kpi-lbl"><i class="fas fa-taxi"></i> Hors tournée</span>
+        <span class="st-kpi-val">{{ s.vol_hors | number:'1.0-0' }} L</span>
+        <span class="st-kpi-sub">{{ s.nb_prises_hors }} prise(s) · estimé {{ s.vol_estime_hors | number:'1.0-0' }} L</span>
+      </div>
+      <div class="st-kpi">
+        <span class="st-kpi-lbl"><i class="fas fa-coins"></i> Montant</span>
+        <span class="st-kpi-val">{{ (s.montant_tournees + s.montant_hors) | number:'1.0-0' }} F</span>
+        <span class="st-kpi-sub">tournées {{ s.montant_tournees | number:'1.0-0' }} · hors {{ s.montant_hors | number:'1.0-0' }}</span>
+      </div>
+      <div class="st-kpi st-kpi-part">
+        <span class="st-kpi-lbl"><i class="fas fa-chart-pie"></i> Part hors tournée</span>
+        <span class="st-kpi-val">{{ s.part_hors_pct === null ? '—' : (s.part_hors_pct | number:'1.0-1') + ' %' }}</span>
+        <div class="st-jauge"><span [style.width.%]="s.part_hors_pct ?? 0"></span></div>
+      </div>
+    </div>
+  }
+
+  <!-- Sous-onglets -->
+  <div class="st-vues" role="tablist">
+    <button role="tab" [class.active]="vue() === 'tournees'" (click)="vue.set('tournees')">
+      <i class="fas fa-route"></i> Tournées <span class="st-nb">{{ lignes().length }}</span>
+    </button>
+    <button role="tab" [class.active]="vue() === 'hors'" (click)="vue.set('hors')">
+      <i class="fas fa-taxi"></i> Hors tournée <span class="st-nb">{{ horsLignes().length }}</span>
+    </button>
+  </div>
+
+  @if (chargement()) {
+    <div class="st-vide"><i class="fas fa-circle-notch fa-spin"></i> Chargement…</div>
+  } @else if (vue() === 'tournees') {
+    @if (!lignes().length) {
+      <div class="st-vide"><i class="fas fa-route"></i> Aucune tournée effectuée sur la période.</div>
+    } @else {
+      <div class="st-table-wrap">
+        <table class="st-table">
+          <thead>
+            <tr>
+              <th></th><th>Date</th><th>Véhicule</th><th>Tournée</th><th>Statut</th>
+              <th class="num">Dotation réelle (L)</th><th class="num">Montant réel</th><th>Type véhicule</th>
+              <th class="num">KM départ</th><th class="num">KM retour</th><th class="num">KM parcouru</th>
+              <th class="num">Km théo.</th><th class="num">Dotation théo. (L)</th><th class="num">Montant théo.</th>
+              <th class="num">Conso /100 réelle</th><th class="num">Conso /100 théo.</th>
+              <th class="num">Écart dotation (L)</th><th class="num">Écart conso</th><th>Commentaire</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (l of lignes(); track l.id) {
+              <tr [class.st-en-cours]="l.statut === 'en_cours'" [class.st-annulee]="l.statut === 'annulee'">
+                <td><button class="st-deplier" [title]="ouvertes().has(l.id) ? 'Masquer les prises' : 'Voir les prises'" (click)="basculer(l.id)">
+                  <i class="fas" [class.fa-chevron-down]="ouvertes().has(l.id)" [class.fa-chevron-right]="!ouvertes().has(l.id)"></i></button></td>
+                <td class="nowrap">{{ l.date_debut | date:'dd/MM/yyyy' }}
+                  @if (l.date_fin && l.date_fin !== l.date_debut) { <span class="muted">→ {{ l.date_fin | date:'dd/MM' }}</span> }</td>
+                <td class="nowrap fort">{{ l.immatriculation }}</td>
+                <td class="st-tournee"><span class="fort">{{ l.tournee_code }}</span>
+                  <div class="muted petit">{{ l.tournee_libelle }}</div>
+                  <div class="muted petit nowrap">n° {{ l.numero }} · {{ l.nb_prises }} prise(s)</div></td>
+                <td class="nowrap">
+                  <span class="badge" [class.badge-info]="l.statut === 'en_cours'" [class.badge-green]="l.statut === 'cloturee'"
+                        [class.badge-gray]="l.statut === 'annulee'">{{ l.statut_display }}</span>
+                  @if (l.a_verifier) { <span class="badge badge-warning" title="Regroupement automatique des prises saisies avant les tournées effectuées : à vérifier">À vérifier</span> }
+                </td>
+                <td class="num fort">{{ l.vol_reel | number:'1.0-2' }}</td>
+                <td class="num">{{ l.montant_reel | number:'1.0-0' }}</td>
+                <td>{{ l.type_vehicule }}</td>
+                <td class="num">{{ l.km_depart | number:'1.0-0' }}</td>
+                <td class="num">{{ l.km_retour | number:'1.0-0' }}@if (l.statut === 'en_cours') { <span class="muted" title="Provisoire : dernière prise">*</span> }</td>
+                <td class="num">{{ l.km_parcouru === null ? '—' : (l.km_parcouru | number:'1.0-0') }}</td>
+                <td class="num">{{ l.km_theorique ?? '—' }}</td>
+                <td class="num">{{ l.vol_theorique ?? '—' }}</td>
+                <td class="num">{{ l.montant_theorique === null ? '—' : (l.montant_theorique | number:'1.0-0') }}</td>
+                <td class="num">{{ l.conso_reel ?? '—' }}</td>
+                <td class="num">{{ l.conso_theorique ?? '—' }}</td>
+                <td class="num fort" [class]="classeEcart(l.ecart_dotation)">{{ l.ecart_dotation ?? '—' }}</td>
+                <td class="num fort" [class]="classeEcart(l.ecart_conso)">{{ l.ecart_conso ?? '—' }}</td>
+                <td class="st-commentaire" [title]="l.commentaire || l.motif_annulation || ''">{{ l.commentaire || l.motif_annulation || '' }}</td>
+                <td class="nowrap">
+                  @if (l.statut === 'en_cours' && droits().cloturer) {
+                    <button class="btn btn-green btn-sm" (click)="ouvrirCloture(l)"><i class="fas fa-flag-checkered"></i> Clôturer</button>
+                  }
+                  @if (l.statut === 'en_cours' && droits().annuler) {
+                    <button class="btn btn-icon" title="Annuler (tournée ouverte par erreur)" (click)="ouvrirAnnulation(l)"><i class="fas fa-ban"></i></button>
+                  }
+                  @if (l.statut === 'cloturee' && droits().rouvrir) {
+                    <button class="btn btn-icon" title="Rouvrir la tournée" (click)="rouvrir(l)"><i class="fas fa-lock-open"></i></button>
+                  }
+                </td>
+              </tr>
+              @if (ouvertes().has(l.id)) {
+                <tr class="st-detail">
+                  <td></td>
+                  <td colspan="19">
+                    <table class="st-prises">
+                      <thead><tr><th>Date</th><th>Heure</th><th class="num">Kilométrage</th><th class="num">Litres</th><th class="num">Montant</th><th>Station</th><th></th></tr></thead>
+                      <tbody>
+                        @for (p of l.prises; track p.id) {
+                          <tr>
+                            <td>{{ p.date | date:'dd/MM/yyyy' }}</td><td>{{ (p.heure ?? '').substring(0, 5) }}</td>
+                            <td class="num">{{ p.kilometrage | number:'1.0-0' }}</td><td class="num">{{ p.volume | number:'1.0-2' }}</td>
+                            <td class="num">{{ p.montant | number:'1.0-0' }}</td><td>{{ p.station ?? '—' }}</td>
+                            <td><a [routerLink]="['/carburant', p.id, 'modifier']" title="Ouvrir la prise"><i class="fas fa-external-link-alt"></i></a></td>
+                          </tr>
+                        }
+                        @if (l.statut === 'cloturee' && l.km_retour > (l.prises[l.prises.length - 1]?.kilometrage ?? 0)) {
+                          <tr class="muted"><td>{{ l.date_fin | date:'dd/MM/yyyy' }}</td><td>{{ (l.heure_fin ?? '').substring(0, 5) }}</td>
+                            <td class="num">{{ l.km_retour | number:'1.0-0' }}</td><td colspan="4">Retour (clôture)</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td></td><td colspan="4">Total</td>
+              <td class="num">{{ totaux().vol_reel | number:'1.0-2' }}</td><td class="num">{{ totaux().montant_reel | number:'1.0-0' }}</td>
+              <td></td><td></td><td></td><td class="num">{{ totaux().km_parcouru | number:'1.0-0' }}</td><td></td>
+              <td class="num">{{ totaux().vol_theorique | number:'1.0-0' }}</td><td class="num">{{ totaux().montant_theorique | number:'1.0-0' }}</td>
+              <td></td><td></td>
+              <td class="num" [class]="classeEcart(totaux().ecart_dotation)">{{ totaux().ecart_dotation | number:'1.0-2' }}</td>
+              <td></td><td></td><td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="st-note">* Tournée en cours : KM retour et écarts provisoires (dernière prise). Écart positif = consommation au-dessus du théorique.</p>
+    }
+  } @else {
+    @if (!horsLignes().length) {
+      <div class="st-vide"><i class="fas fa-taxi"></i> Aucune prise hors tournée sur la période.</div>
+    } @else {
+      <div class="st-table-wrap">
+        <table class="st-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>Véhicule</th><th>Type</th><th>Chauffeur</th>
+              <th class="num">KM départ</th><th class="num">KM retour</th><th class="num">KM parcouru</th>
+              <th class="num">Litres réels</th><th class="num">Montant</th><th class="num">Conso /100 réelle</th>
+              <th class="num">Conso de référence</th><th class="num">Litres estimés</th><th class="num">Écart (L)</th><th>Notes</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (l of horsLignes(); track l.id) {
+              <tr>
+                <td class="nowrap">{{ l.date | date:'dd/MM/yyyy' }} <span class="muted">{{ (l.heure ?? '').substring(0, 5) }}</span></td>
+                <td class="nowrap fort">{{ l.immatriculation }}</td>
+                <td><span class="badge" [class]="classeType(l.type_couleur)">{{ l.type_display }}</span></td>
+                <td>{{ l.chauffeur_nom ?? '—' }}</td>
+                <td class="num">{{ l.km_depart === null ? '—' : (l.km_depart | number:'1.0-0') }}</td>
+                <td class="num">{{ l.km_retour | number:'1.0-0' }}</td>
+                <td class="num">{{ l.km_parcouru === null ? '—' : (l.km_parcouru | number:'1.0-0') }}</td>
+                <td class="num fort">{{ l.vol_reel | number:'1.0-2' }}</td>
+                <td class="num">{{ l.montant_reel | number:'1.0-0' }}</td>
+                <td class="num">{{ l.conso_reel ?? '—' }}</td>
+                <td class="num">{{ l.conso_reference ?? '—' }}
+                  @if (l.source_reference === 'moyenne') { <span class="muted" title="Consommation théorique de référence non renseignée sur la fiche véhicule : moyenne observée">(moy.)</span> }</td>
+                <td class="num">{{ l.vol_estime ?? '—' }}</td>
+                <td class="num fort" [class]="classeEcart(l.ecart)">{{ l.ecart ?? '—' }}</td>
+                <td class="st-commentaire" [title]="l.notes">{{ l.notes }}</td>
+                <td><a [routerLink]="['/carburant', l.id, 'modifier']" title="Ouvrir la prise"><i class="fas fa-external-link-alt"></i></a></td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="6">Total</td><td class="num">{{ totauxHors().km_parcouru | number:'1.0-0' }}</td>
+              <td class="num">{{ totauxHors().vol_reel | number:'1.0-2' }}</td><td class="num">{{ totauxHors().montant_reel | number:'1.0-0' }}</td>
+              <td></td><td></td><td class="num">{{ totauxHors().vol_estime | number:'1.0-2' }}</td>
+              <td class="num" [class]="classeEcart(totauxHors().ecart)">{{ totauxHors().ecart | number:'1.0-2' }}</td><td></td><td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="st-note">Litres estimés = km parcourus depuis la prise précédente × consommation théorique de référence du véhicule (fiche véhicule ; à défaut, moyenne observée) ÷ 100.</p>
+    }
+  }
+</div>
+
+<!-- Clôture -->
+@if (aCloturer(); as l) {
+  <div class="modal-backdrop" (click)="aCloturer.set(null)">
+    <div class="modal-container st-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-flag-checkered"></i> Clôturer la tournée {{ l.tournee_code }}</div>
+        <button class="modal-close" title="Fermer" (click)="aCloturer.set(null)"><i class="fas fa-times"></i></button>
+      </div>
+      <p class="st-modal-info">{{ l.immatriculation }} · n° {{ l.numero }} · depuis le {{ l.date_debut | date:'dd/MM/yyyy' }}
+        · {{ l.nb_prises }} prise(s), {{ l.vol_reel | number:'1.0-2' }} L · KM départ {{ l.km_depart | number:'1.0-0' }}</p>
+      @if (actionErreur()) { <div class="st-notice err"><i class="fas fa-exclamation-triangle"></i> {{ actionErreur() }}</div> }
+      <div class="form-row-3">
+        <div class="form-group">
+          <label class="form-label" for="st-km">KM retour *</label>
+          <input id="st-km" type="number" class="form-control" [value]="kmRetour()" [min]="l.km_retour"
+                 (input)="kmRetour.set($any($event.target).valueAsNumber)" />
+          <div class="form-hint">Au moins {{ l.km_retour | number:'1.0-0' }} km (dernière prise).</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="st-date-fin">Date de retour</label>
+          <input id="st-date-fin" type="date" class="form-control" [value]="dateFinClo()" (change)="dateFinClo.set($any($event.target).value)" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="st-heure-fin">Heure de retour</label>
+          <input id="st-heure-fin" type="time" class="form-control" [value]="heureFinClo()" (change)="heureFinClo.set($any($event.target).value)" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="st-comm">Commentaire</label>
+        <textarea id="st-comm" class="form-control" rows="2" placeholder="ex. explication d'un écart de dotation"
+                  [value]="commentaire()" (input)="commentaire.set($any($event.target).value)"></textarea>
+      </div>
+      <p class="form-hint">Un KM retour supérieur à la dernière prise enregistre un relevé kilométrique de retour (type « Tournée »).</p>
+      <div class="st-modal-actions">
+        <button class="btn btn-outline" (click)="aCloturer.set(null)">Annuler</button>
+        <button class="btn btn-green" [disabled]="actionEnCours() || !kmRetour()" (click)="confirmerCloture()">
+          <i class="fas" [class.fa-flag-checkered]="!actionEnCours()" [class.fa-circle-notch]="actionEnCours()" [class.fa-spin]="actionEnCours()"></i> Clôturer
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Annulation -->
+@if (aAnnuler(); as l) {
+  <div class="modal-backdrop" (click)="aAnnuler.set(null)">
+    <div class="modal-container st-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-ban"></i> Annuler la tournée {{ l.tournee_code }}</div>
+        <button class="modal-close" title="Fermer" (click)="aAnnuler.set(null)"><i class="fas fa-times"></i></button>
+      </div>
+      <p class="st-modal-info">Pour une tournée ouverte par erreur. Ses {{ l.nb_prises }} prise(s) deviennent des prises hors tournée du type choisi.</p>
+      @if (actionErreur()) { <div class="st-notice err"><i class="fas fa-exclamation-triangle"></i> {{ actionErreur() }}</div> }
+      <div class="form-group">
+        <label class="form-label" for="st-type-annul">Type de mouvement des prises *</label>
+        <select id="st-type-annul" class="form-control" [value]="typeAnnul()" (change)="typeAnnul.set($any($event.target).value)">
+          @for (t of typesHors(); track t.code) { @if (t.actif) { <option [value]="t.code">{{ t.libelle }}</option> } }
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="st-motif">Motif *</label>
+        <textarea id="st-motif" class="form-control" rows="2" [value]="motifAnnul()" (input)="motifAnnul.set($any($event.target).value)"></textarea>
+      </div>
+      <div class="st-modal-actions">
+        <button class="btn btn-outline" (click)="aAnnuler.set(null)">Retour</button>
+        <button class="btn btn-danger" [disabled]="actionEnCours() || !motifAnnul().trim() || !typeAnnul()" (click)="confirmerAnnulation()">
+          <i class="fas fa-ban"></i> Annuler la tournée
+        </button>
+      </div>
+    </div>
+  </div>
+}

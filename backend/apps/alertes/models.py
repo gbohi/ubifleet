@@ -19,6 +19,7 @@ class Alerte(UbiFleetBaseModel):
         PLEIN_ANOMALIE = 'plein_anomalie', 'Anomalie prise de carburant'
         SINISTRE_OUVERT = 'sinistre_ouvert', 'Sinistre en attente de traitement'
         DEMANDE_A_VALIDER = 'demande_a_valider', 'Demande à valider'
+        TOURNEE_OUVERTE = 'tournee_ouverte', 'Tournée non clôturée'
 
     class Priorite(models.TextChoices):
         CRITIQUE = 'critique', 'Critique'
@@ -56,6 +57,12 @@ class Alerte(UbiFleetBaseModel):
         'carburant.PleinsCarburant', null=True, blank=True,
         on_delete=models.CASCADE, related_name='alertes',
         verbose_name='Prise de carburant'
+    )
+    # Tournée effectuée restée ouverte trop longtemps
+    tournee_effectuee = models.ForeignKey(
+        'carburant.TourneeEffectuee', null=True, blank=True,
+        on_delete=models.CASCADE, related_name='alertes',
+        verbose_name='Tournée effectuée'
     )
 
     date_echeance = models.DateField(null=True, blank=True)

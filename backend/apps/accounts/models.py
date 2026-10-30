@@ -189,6 +189,9 @@ class PermissionRole(models.Model):
         ('rejeter',                 'Rejeter une demande'),
         ('annuler',                 'Annuler une demande'),
         ('saisie_hors_delai',       'Saisie hors délai (hors fenêtre de saisie)'),
+        ('cloturer_tournee',        'Clôturer une tournée'),
+        ('rouvrir_tournee',         'Rouvrir une tournée clôturée'),
+        ('annuler_tournee',         'Annuler une tournée'),
     ]
 
     # Actions par module — utilisé dans l'UI pour n'afficher que les actions pertinentes
@@ -196,7 +199,8 @@ class PermissionRole(models.Model):
         'vehicules':    ['list','retrieve','create','update','partial_update','destroy',
                          'kilometrage','changer_immatriculation'],
         'carburant':    ['list','retrieve','create','update','partial_update','destroy',
-                         'valider','anomalies','saisie_hors_delai'],
+                         'anomalies','saisie_hors_delai',
+                         'cloturer_tournee','rouvrir_tournee','annuler_tournee'],
         'entretien':    ['list','retrieve','create','update','partial_update','destroy',
                          'demarrer','terminer'],
         'sinistres':    ['list','retrieve','create','update','partial_update','destroy',

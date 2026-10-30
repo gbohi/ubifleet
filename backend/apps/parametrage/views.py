@@ -65,14 +65,14 @@ class ParametreViewSet(viewsets.ModelViewSet):
         Clés acceptées : paramètres existants et seuils connus (échéances,
         consommation). Pour chaque échéance, le seuil
         « attention » doit rester strictement supérieur au seuil « urgent »."""
-        from .echeances import ECHEANCES, CLE_CONSO_ANOMALIE, cle, seuils
+        from .echeances import ECHEANCES, CLE_CONSO_ANOMALIE, CLE_TOURNEE_OUVERTE, cle, seuils
         from . import fenetre_saisie
 
         if not isinstance(request.data, list):
             return Response({'detail': 'Format invalide. Attendu: liste.'}, status=400)
 
         # Le prix du carburant a son propre historique daté (/carburant/prix/)
-        CONNUES = {CLE_CONSO_ANOMALIE: 'alertes'}
+        CONNUES = {CLE_CONSO_ANOMALIE: 'alertes', CLE_TOURNEE_OUVERTE: 'alertes'}
         for code in ECHEANCES:
             CONNUES[cle(code, 'attention')] = 'alertes'
             CONNUES[cle(code, 'urgent')] = 'alertes'
@@ -513,7 +513,8 @@ class TypeMouvementSerializer(drf_s2.ModelSerializer):
 
     class Meta:
         model  = TypeMouvement
-        fields = ['id', 'code', 'libelle', 'couleur', 'ordre', 'actif', 'nb_utilisations', 'reserve']
+        fields = ['id', 'code', 'libelle', 'couleur', 'ordre', 'actif', 'pour_releves', 'pour_prises',
+                  'nb_utilisations', 'reserve']
 
     reserve = drf_s2.SerializerMethodField()
 
@@ -524,13 +525,23 @@ class TypeMouvementSerializer(drf_s2.ModelSerializer):
     def validate_code(self, value):
         if self.instance and self.instance.code != value:
             raise drf_s2.ValidationError(
-                "Le code ne peut pas être modifié : il est enregistré sur les relevés existants.")
+                "Le code ne peut pas être modifié : il est enregistré sur les saisies existantes.")
         return value
 
+    def validate(self, attrs):
+        code = attrs.get('code', self.instance and self.instance.code)
+        if code == TypeMouvement.CODE_TOURNEE:
+            # Le type réservé sert toujours aux deux saisies
+            attrs['pour_releves'] = attrs['pour_prises'] = True
+        elif not attrs.get('pour_releves', self.instance.pour_releves if self.instance else True) \
+                and not attrs.get('pour_prises', self.instance.pour_prises if self.instance else False):
+            raise drf_s2.ValidationError(
+                "Cochez au moins une saisie : relevés kilométriques ou prises de carburant.")
+        return attrs
 
-def _releves_par_type():
-    from apps.vehicules.models import ReleveKilometrage
-    return (ReleveKilometrage.objects.filter(type_mouvement=OuterRef('code'))
+
+def _saisies_par_type(modele):
+    return (modele.objects.filter(type_mouvement=OuterRef('code'))
             .order_by().values('type_mouvement').annotate(n=_Count('id')).values('n'))
 
 
@@ -539,21 +550,27 @@ class TypeMouvementViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin,
     pagination_class   = None
 
     def get_queryset(self):
-        qs = TypeMouvement.objects.annotate(
-            nb_utilisations=Subquery(_releves_par_type(), output_field=IntegerField()))
+        from django.db.models.functions import Coalesce
+        from apps.carburant.models import PleinsCarburant
+        from apps.vehicules.models import ReleveKilometrage
+        qs = TypeMouvement.objects.annotate(nb_utilisations=(
+            Coalesce(Subquery(_saisies_par_type(ReleveKilometrage), output_field=IntegerField()), 0)
+            + Coalesce(Subquery(_saisies_par_type(PleinsCarburant), output_field=IntegerField()), 0)))
         actif = self.request.query_params.get('actif')
         if actif is not None:
             qs = qs.filter(actif=(actif.lower() == 'true'))
         return qs
 
     def utilisations(self, obj):
+        from apps.carburant.models import PleinsCarburant
         from apps.vehicules.models import ReleveKilometrage
-        return [(ReleveKilometrage.objects.filter(type_mouvement=obj.code).count(), 'relevé(s) kilométrique(s)')]
+        return [(ReleveKilometrage.objects.filter(type_mouvement=obj.code).count(), 'relevé(s) kilométrique(s)'),
+                (PleinsCarburant.objects.filter(type_mouvement=obj.code).count(), 'prise(s) de carburant')]
 
     def destroy(self, request, *args, **kwargs):
         if self.get_object().code == TypeMouvement.CODE_TOURNEE:
             return Response({'detail': "Le type « Tournée » est réservé : il ne peut pas être supprimé "
-                                       "(il sert à rattacher les relevés aux tournées)."}, status=400)
+                                       "(il sert à rattacher les relevés et les prises de carburant aux tournées)."}, status=400)
         return super().destroy(request, *args, **kwargs)
 
 

@@ -167,8 +167,46 @@ def _check_permis():
         })
 
 
+def _check_tournees_ouvertes():
+    """Tournée effectuée ouverte depuis plus de N jours (Paramètres › Seuils) :
+    alerte « Tournée non clôturée » ; clôturée d'office quand la tournée ne
+    l'est plus (clôturée, annulée ou supprimée)."""
+    from apps.alertes.models import Alerte
+    from apps.carburant.models import TourneeEffectuee
+    from apps.parametrage.echeances import tournee_ouverte_max_jours
+
+    today = timezone.localdate()
+    limite = today - datetime.timedelta(days=tournee_ouverte_max_jours())
+    ouvertes = (TourneeEffectuee.objects
+                .filter(statut=TourneeEffectuee.Statut.EN_COURS, date_debut__lt=limite)
+                .select_related('tournee', 'vehicule', 'agence'))
+    signalees = set()
+    for te in ouvertes:
+        jours = (today - te.date_debut).days
+        signalees.add(te.pk)
+        Alerte.objects.update_or_create(
+            tournee_effectuee=te, type_alerte=Alerte.TypeAlerte.TOURNEE_OUVERTE,
+            statut__in=[Alerte.Statut.ACTIVE, Alerte.Statut.LUE],
+            defaults={
+                'titre': f'Tournée non clôturée — {te.vehicule.immatriculation} ({te.tournee.code})',
+                'message': (f"La tournée {te.tournee.code} — {te.tournee.libelle} (n° {te.numero}) du véhicule "
+                            f"{te.vehicule.immatriculation} est ouverte depuis le {te.date_debut:%d/%m/%Y} "
+                            f"({jours} jours). Clôturez-la avec le KM retour, ou annulez-la si elle a été "
+                            "ouverte par erreur."),
+                'priorite': Alerte.Priorite.NORMALE, 'statut': Alerte.Statut.ACTIVE,
+                'vehicule': te.vehicule, 'chauffeur': te.chauffeur, 'agence': te.agence,
+            },
+        )
+    (Alerte.objects.filter(type_alerte=Alerte.TypeAlerte.TOURNEE_OUVERTE,
+                           statut__in=[Alerte.Statut.ACTIVE, Alerte.Statut.LUE])
+     .exclude(tournee_effectuee__in=signalees)
+     .update(statut=Alerte.Statut.TRAITEE, date_traitement=timezone.now(),
+             notes_traitement="Clôturée automatiquement : la tournée n'est plus en cours."))
+
+
 def run_all_checks_sync():
     """Exécution synchrone — appelée depuis la view sans Celery."""
+    _check_tournees_ouvertes()
     _check_documents()
     _check_vehicule_km()
     _check_pneus()
@@ -194,6 +232,10 @@ try:
     @shared_task
     def check_pneus_alerts():
         _check_pneus()
+
+    @shared_task
+    def check_tournees_ouvertes():
+        _check_tournees_ouvertes()
 
     @shared_task
     def run_all_checks():

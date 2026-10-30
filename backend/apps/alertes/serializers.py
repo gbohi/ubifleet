@@ -22,12 +22,12 @@ class AlerteSerializer(serializers.ModelSerializer):
             'vehicule', 'vehicule_immat',
             'chauffeur', 'chauffeur_nom',
             'agence', 'agence_nom',
-            'plein',
+            'plein', 'tournee_effectuee',
             'date_echeance',
             'traitee_par', 'date_traitement', 'notes_traitement',
             'created_at'
         ]
-        read_only_fields = ['created_at', 'plein']
+        read_only_fields = ['created_at', 'plein', 'tournee_effectuee']
 
     def get_vehicule_immat(self, obj):
         return obj.vehicule.immatriculation if obj.vehicule else None

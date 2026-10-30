@@ -134,6 +134,11 @@ export interface PleinCarburant {
   station_nom: string | null;
   tournee?: number | null;
   tournee_code?: string | null;
+  type_mouvement?: string;
+  type_display?: string;
+  tournee_effectuee?: string | null;
+  tournee_effectuee_numero?: string | null;
+  tournee_effectuee_statut?: string | null;
   tournee_libelle?: string | null;
   date_plein: string;
   heure_plein: string | null;

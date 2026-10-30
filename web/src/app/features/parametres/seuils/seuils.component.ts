@@ -23,7 +23,9 @@ const ECHEANCES: Echeance[] = [
 ];
 
 // Le prix du carburant a son propre historique daté (rubrique Prix du carburant)
-const AUTRES_CLES = ['conso_anomalie_pct'];
+const AUTRES_CLES = ['conso_anomalie_pct', 'tournee_ouverte_max_jours'];
+/** Valeurs par défaut des clés pas encore enregistrées (mêmes que le serveur). */
+const DEFAUTS: Record<string, number> = { conso_anomalie_pct: 30, tournee_ouverte_max_jours: 3 };
 
 @Component({
   selector: 'ubi-param-seuils',
@@ -89,7 +91,7 @@ export class SeuilsComponent implements OnInit {
     this.api.getAll('alertes').subscribe({
       next: list => {
         const vals: Record<string, number | null> = {};
-        Object.keys(this.form.controls).forEach(k => vals[k] = null);
+        Object.keys(this.form.controls).forEach(k => vals[k] = DEFAUTS[k] ?? null);
         list.forEach((p: any) => { if (p.cle in vals) vals[p.cle] = Number(p.valeur); });
         this.initiales.set(vals);
         this.form.reset(vals);

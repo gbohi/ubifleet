@@ -10,9 +10,14 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from django_filters import rest_framework as df
 from django.utils import timezone
-from django.db.models import Sum, Avg, Count, Q
+from django.db import transaction
+from django.db.models import Sum, Avg, Count, Q, Prefetch
 
-from .models import PleinsCarburant, DotationCarburant, Station, RapprochementCarburant, PrixCarburant
+from .models import (
+    PleinsCarburant, DotationCarburant, Station, RapprochementCarburant, PrixCarburant, TourneeEffectuee,
+)
+from . import suivi, tournees
+from apps.parametrage.models import TypeMouvement
 from .serializers import (
     PleinSerializer,
     DotationSerializer, StationSerializer, RapprochementSerializer, PrixCarburantSerializer,
@@ -40,7 +45,7 @@ class PleinFilter(FilterSet):
 
     class Meta:
         model = PleinsCarburant
-        fields = ['vehicule', 'agence', 'chauffeur', 'station']
+        fields = ['vehicule', 'agence', 'chauffeur', 'station', 'type_mouvement', 'tournee_effectuee']
 
 
 class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
@@ -55,7 +60,7 @@ class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
     # Fenêtre de saisie et journal des corrections (cf. parametrage.corrections)
     domaine_saisie = CARBURANT
     champ_date     = 'date_plein'
-    champs_journal = ('vehicule', 'chauffeur', 'tournee', 'station', 'date_plein', 'heure_plein',
+    champs_journal = ('vehicule', 'chauffeur', 'type_mouvement', 'tournee', 'station', 'date_plein', 'heure_plein',
                       'volume_litres', 'prix_litre', 'montant_fcfa', 'kilometrage_releve',
                       'bon_carburant', 'agence', 'notes', 'photo_tableau_bord')
     module   = 'carburant'
@@ -82,7 +87,7 @@ class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = PleinsCarburant.objects.select_related(
-            'vehicule', 'chauffeur', 'station', 'agence', 'valide_par'
+            'vehicule', 'chauffeur', 'station', 'agence', 'valide_par', 'tournee', 'tournee_effectuee'
         )
         return filtrer_par_agence(qs, self.request.user)
 
@@ -102,9 +107,40 @@ class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
                 extra['prix_litre'] = prix.prix
                 if not data.get('montant_fcfa'):
                     extra['montant_fcfa'] = round(prix.prix * data['volume_litres'], 2)
+        cloturer_te = serializer.validated_data.pop('cloturer_tournee', False)
+        commentaire = serializer.validated_data.pop('commentaire_tournee', '')
+        if cloturer_te:
+            tournees.exiger_droit(user, tournees.ACTION_CLOTURER, 'clôturer')
         plein = serializer.save(created_by=user, agence=agence, **extra)
-        # Un plein antérieur à d'autres change la consommation des suivants
+        # Tournée : rattachement à la tournée en cours ou ouverture d'une nouvelle
+        if plein.type_mouvement == TypeMouvement.CODE_TOURNEE:
+            te = plein.tournee_effectuee or tournees.ouvrir(plein, user)
+            tournees.actualiser(te)
+            if cloturer_te:
+                te.refresh_from_db()
+                tournees.cloturer(te, user, commentaire=commentaire)
+        # Une prise antérieure à d'autres change la consommation des suivantes
         self.apres_correction([plein.vehicule], [plein.date_plein])
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        cloturer_te = serializer.validated_data.pop('cloturer_tournee', False)
+        commentaire = serializer.validated_data.pop('commentaire_tournee', '')
+        te = serializer.instance.tournee_effectuee
+        if cloturer_te and te and te.statut == te.Statut.EN_COURS:
+            tournees.exiger_droit(self.request.user, tournees.ACTION_CLOTURER, 'clôturer')
+        super().perform_update(serializer)
+        if te:
+            tournees.actualiser_par_id(te.pk)
+            te.refresh_from_db()
+            if cloturer_te and te.statut == te.Statut.EN_COURS:
+                tournees.cloturer(te, self.request.user, commentaire=commentaire)
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        te_id = instance.tournee_effectuee_id
+        super().perform_destroy(instance)
+        tournees.actualiser_par_id(te_id)
 
     @action(detail=False, methods=['get'])
     def anomalies(self, request):
@@ -565,101 +601,6 @@ class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
             'resultats': resultats,
         })
 
-    @action(detail=False, methods=['get'])
-    def suivi_tournees(self, request):
-        """
-        Tableau de suivi par tournée :
-        pour chaque plein ayant une tournée associée, calcule les colonnes
-        réelles vs théoriques et les écarts.
-        Paramètres : date_debut, date_fin, agence, vehicule (optionnels)
-        """
-        from decimal import Decimal, ROUND_HALF_UP
-
-        # Plein sans prix : prix en vigueur à sa date pour le carburant du véhicule
-        def prix_defaut(plein):
-            prix = PrixCarburant.en_vigueur(plein.vehicule.type_carburant, plein.date_plein)
-            return prix.prix if prix else Decimal('0')
-
-        qs = self.get_queryset().filter(
-            tournee__isnull=False
-        ).select_related(
-            'vehicule', 'tournee', 'chauffeur'
-        ).order_by('date_plein', 'vehicule', 'heure_plein')
-
-        # Filtres optionnels
-        date_debut = request.query_params.get('date_debut')
-        date_fin   = request.query_params.get('date_fin')
-        agence     = request.query_params.get('agence')
-        vehicule   = request.query_params.get('vehicule')
-        if date_debut:     qs = qs.filter(date_plein__gte=date_debut)
-        if date_fin:       qs = qs.filter(date_plein__lte=date_fin)
-        if agence:         qs = qs.filter(vehicule__agence=agence)
-        if vehicule:       qs = qs.filter(vehicule__id=vehicule)
-        immat = request.query_params.get('immatriculation')
-        if immat:          qs = qs.filter(vehicule__immatriculation__icontains=immat)
-
-        NA = None  # Valeur manquante
-
-        resultats = []
-        for p in qs:
-            t = p.tournee
-
-            # ── Réels ──────────────────────────────────────────────
-            km_retour  = p.kilometrage_releve
-            km_depart  = p.kilometrage_depart
-            km_parcouru = (km_retour - km_depart) if km_depart else NA
-
-            vol_reel    = float(p.volume_litres)
-            prix_litre  = float(p.prix_litre) if p.prix_litre else float(prix_defaut(p))
-            montant_reel = float(p.montant_fcfa)
-
-            conso_reel = round((vol_reel / km_parcouru) * 100, 2) \
-                if km_parcouru and km_parcouru > 0 else NA
-
-            # ── Théoriques (depuis la tournée) ──────────────────────
-            km_theo      = t.km_theorique if t.km_theorique else NA
-            vol_theo     = float(t.dotation) if t.dotation else NA
-            montant_theo = round(vol_theo * prix_litre, 2) \
-                if vol_theo is not NA else NA
-
-            conso_theo = round((vol_theo / km_theo) * 100, 2) \
-                if (vol_theo and km_theo and km_theo > 0) else NA
-
-            # ── Écarts ─────────────────────────────────────────────
-            ecart_dotation = round(vol_reel - vol_theo, 2) \
-                if vol_theo is not NA else NA
-            ecart_conso    = round(conso_reel - conso_theo, 1) \
-                if (conso_reel is not NA and conso_theo is not NA) else NA
-
-            resultats.append({
-                'date':             str(p.date_plein),
-                'vehicule_id':      str(p.vehicule.id),
-                'immatriculation':  p.vehicule.immatriculation,
-                'type_vehicule':    p.vehicule.get_type_vehicule_display(),
-                'tournee_libelle':  t.libelle,
-                'tournee_code':     t.code,
-                # Réels
-                'km_depart':        km_depart,
-                'km_retour':        km_retour,
-                'km_parcouru':      km_parcouru,
-                'vol_reel':         vol_reel,
-                'montant_reel':     montant_reel,
-                'conso_reel':       conso_reel,
-                # Théoriques
-                'km_theorique':     km_theo,
-                'vol_theorique':    vol_theo,
-                'montant_theorique': montant_theo,
-                'conso_theorique':  conso_theo,
-                # Écarts
-                'ecart_dotation':   ecart_dotation,
-                'ecart_conso':      ecart_conso,
-            })
-
-        return Response({
-            'count': len(resultats),
-            'resultats': resultats,
-        })
-
 
 class DotationViewSet(AgenceMixin, viewsets.ModelViewSet):
     serializer_class = DotationSerializer
@@ -820,3 +761,119 @@ class PrixCarburantViewSet(viewsets.ModelViewSet):
             'prix': prix.prix if prix else None,
             'date_effet': prix.date_effet if prix else None,
         })
+
+
+class TourneeEffectueeViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Tournées effectuées et suivi carburant.
+    GET  /carburant/tournees/                — suivi : une ligne par tournée effectuée
+    GET  /carburant/tournees/hors_tournee/   — suivi des prises hors tournée
+    GET  /carburant/tournees/synthese/       — tournées vs hors tournée
+    GET  /carburant/tournees/en_cours/?vehicule=  — tournée en cours d'un véhicule
+    POST /carburant/tournees/{id}/cloturer/  — {km_retour, date_fin, heure_fin, commentaire}
+    POST /carburant/tournees/{id}/rouvrir/
+    POST /carburant/tournees/{id}/annuler/   — {type_mouvement, motif}
+    Filtres : date_debut, date_fin, agence, vehicule, immatriculation, tournee, statut, type_mouvement.
+    """
+    module = 'carburant'
+    role_map = {'list': 'operateur', 'retrieve': 'operateur', 'hors_tournee': 'operateur',
+                'synthese': 'operateur', 'en_cours': 'operateur', **tournees.DROITS_PAR_DEFAUT,
+                'cloturer': 'operateur', 'rouvrir': 'responsable_flotte', 'annuler': 'responsable_flotte'}
+    permission_actions = {'cloturer': tournees.ACTION_CLOTURER, 'rouvrir': tournees.ACTION_ROUVRIR,
+                          'annuler': tournees.ACTION_ANNULER}
+    pagination_class = None
+
+    def get_permissions(self):
+        return [RoleBasedPermission()]
+
+    def get_queryset(self):
+        qs = TourneeEffectuee.objects.select_related('vehicule', 'tournee', 'chauffeur', 'agence') \
+            .prefetch_related(Prefetch('prises', queryset=PleinsCarburant.objects.select_related('station')))
+        return filtrer_par_agence(qs, self.request.user)
+
+    def _filtrer(self, qs, champ_date, champ_vehicule='vehicule'):
+        q = self.request.query_params
+        if q.get('date_debut'):      qs = qs.filter(**{f'{champ_date}__gte': q['date_debut']})
+        if q.get('date_fin'):        qs = qs.filter(**{f'{champ_date}__lte': q['date_fin']})
+        if q.get('agence'):          qs = qs.filter(agence=q['agence'])
+        if q.get('vehicule'):        qs = qs.filter(**{champ_vehicule: q['vehicule']})
+        if q.get('immatriculation'): qs = qs.filter(vehicule__immatriculation__icontains=q['immatriculation'])
+        return qs
+
+    def _tournees(self):
+        q = self.request.query_params
+        qs = self._filtrer(self.get_queryset(), 'date_debut')
+        if q.get('tournee'): qs = qs.filter(tournee=q['tournee'])
+        if q.get('statut'):  qs = qs.filter(statut=q['statut'])
+        else:                qs = qs.exclude(statut=TourneeEffectuee.Statut.ANNULEE)
+        cache = {}
+        return [suivi.ligne_tournee(te, cache) for te in qs.order_by('date_debut', 'heure_debut')]
+
+    def _hors_tournee(self):
+        q = self.request.query_params
+        qs = filtrer_par_agence(
+            PleinsCarburant.objects.exclude(type_mouvement=TypeMouvement.CODE_TOURNEE)
+            .select_related('vehicule', 'chauffeur', 'agence'), self.request.user)
+        qs = self._filtrer(qs, 'date_plein')
+        if q.get('type_mouvement'): qs = qs.filter(type_mouvement=q['type_mouvement'])
+        types = {t.code: t for t in TypeMouvement.objects.all()}
+        cache = {}
+        return [suivi.ligne_hors_tournee(p, types, cache)
+                for p in qs.order_by('date_plein', 'heure_plein', 'created_at')]
+
+    def list(self, request, *args, **kwargs):
+        lignes = self._tournees()
+        return Response({'count': len(lignes), 'resultats': lignes, 'droits': tournees.droits(request.user)})
+
+    def retrieve(self, request, *args, **kwargs):
+        return Response({**suivi.ligne_tournee(self.get_object(), {}), 'droits': tournees.droits(request.user)})
+
+    @action(detail=False, methods=['get'])
+    def hors_tournee(self, request):
+        lignes = self._hors_tournee()
+        return Response({'count': len(lignes), 'resultats': lignes})
+
+    @action(detail=False, methods=['get'])
+    def synthese(self, request):
+        return Response(suivi.synthese(self._tournees(), self._hors_tournee()))
+
+    @action(detail=False, methods=['get'])
+    def en_cours(self, request):
+        from apps.vehicules.models import Vehicule
+        vehicule = filtrer_par_agence(Vehicule.objects.all(), request.user) \
+            .filter(pk=request.query_params.get('vehicule')).first() if request.query_params.get('vehicule') else None
+        te = tournees.en_cours(vehicule)
+        if te:
+            te = self.get_queryset().get(pk=te.pk)
+        return Response({'tournee': suivi.ligne_tournee(te, {}) if te else None,
+                         'droits': tournees.droits(request.user)})
+
+    def _date(self, champ):
+        from rest_framework import serializers as s
+        v = self.request.data.get(champ)
+        if not v:
+            return None
+        f = s.DateField() if champ == 'date_fin' else s.TimeField()
+        try:
+            return f.to_internal_value(v)
+        except s.ValidationError as e:
+            raise s.ValidationError({champ: e.detail})
+
+    @action(detail=True, methods=['post'])
+    def cloturer(self, request, pk=None):
+        te = self.get_object()
+        tournees.cloturer(te, request.user, km_retour=request.data.get('km_retour'),
+                          date_fin=self._date('date_fin'), heure_fin=self._date('heure_fin'),
+                          commentaire=(request.data.get('commentaire') or '').strip())
+        return Response(suivi.ligne_tournee(self.get_queryset().get(pk=te.pk), {}))
+
+    @action(detail=True, methods=['post'])
+    def rouvrir(self, request, pk=None):
+        te = tournees.rouvrir(self.get_object(), request.user)
+        return Response(suivi.ligne_tournee(self.get_queryset().get(pk=te.pk), {}))
+
+    @action(detail=True, methods=['post'])
+    def annuler(self, request, pk=None):
+        te = self.get_object()
+        tournees.annuler(te, request.user, request.data.get('type_mouvement'), request.data.get('motif'))
+        return Response({'detail': f"Tournée n° {te.numero} annulée."})

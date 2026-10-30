@@ -10,6 +10,7 @@ import { CarburantStore } from '../../../store/carburant/carburant.store';
 import { AgenceApiService, VehiculeApiService, CarburantApiService } from '../../../core/services/api.service';
 import { Agence, PleinCarburant } from '../../../core/models';
 import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { SuiviTourneesComponent } from '../suivi-tournees/suivi-tournees.component';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 
 interface ConsoVehicule {
@@ -52,7 +53,7 @@ type CarburantTab = 'pleins' | 'dotations' | 'anomalies' | 'suivi' | 'consommati
 @Component({
   selector: 'ubi-carburant-list',
   standalone: true,
-  imports: [RouterLink, DecimalPipe, DatePipe, SuppressionMotifComponent],
+  imports: [RouterLink, DecimalPipe, DatePipe, SuppressionMotifComponent, SuiviTourneesComponent],
   templateUrl: './carburant-list.component.html',
   styleUrls: ['./carburant-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -578,66 +579,4 @@ export class CarburantListComponent implements OnInit, OnDestroy {
   closePhoto(): void { this.photoLightbox.set(null); }
 
   trackById(_: number, p: PleinCarburant): string { return p.id; }
-
-  // ── Onglet Suivi tournées ────────────────────────────────────────
-  suiviDateDebut   = signal('');
-  suiviDateFin     = signal('');
-  suiviAgence      = signal('');
-  suiviImmat       = signal('');
-  suiviLoading     = signal(false);
-  suiviData        = signal<any[]>([]);
-  suiviError       = signal('');
-  suiviCount       = signal(0);
-
-  loadSuiviTournees(): void {
-    this.suiviLoading.set(true);
-    this.suiviError.set('');
-    const filters: Record<string, any> = {};
-    if (this.suiviDateDebut()) filters['date_debut']    = this.suiviDateDebut();
-    if (this.suiviDateFin())   filters['date_fin']      = this.suiviDateFin();
-    if (this.suiviAgence())    filters['agence']        = this.suiviAgence();
-    if (this.suiviImmat())     filters['immatriculation'] = this.suiviImmat();
-    this.carburantApi.getSuiviTournees(filters).subscribe({
-      next: (r: any) => {
-        this.suiviData.set(r.resultats ?? []);
-        this.suiviCount.set(r.count ?? 0);
-        this.suiviLoading.set(false);
-      },
-      error: () => {
-        this.suiviError.set('Erreur lors du chargement.');
-        this.suiviLoading.set(false);
-      },
-    });
-  }
-
-  // Couleur écart
-  ecartClass(val: number | null): string {
-    if (val === null || val === undefined) return '';
-    if (val > 0) return 'ecart-pos';
-    if (val < 0) return 'ecart-neg';
-    return 'ecart-zero';
-  }
-
-  // Exporter suivi CSV
-  exportSuiviCsv(): void {
-    const rows = this.suiviData();
-    if (!rows.length) return;
-    const sep = ';'; const eol = '\r\n';
-    const hdrs = [
-      'Date','Véhicule','Tournée','Type véhicule',
-      'KM Départ','KM Retour','KM Parcouru','KM Théorique',
-      'Dotation réelle (L)','Dotation théorique (L)','Écart dotation (L)',
-      'Montant réel (FCFA)','Montant théorique (FCFA)',
-      'Conso réelle L/100','Conso théo L/100','Écart conso'
-    ].join(sep);
-    const data = rows.map(r => [
-      r.date, r.immatriculation, r.tournee_libelle, r.type_vehicule,
-      r.km_depart ?? 'N/A', r.km_retour ?? 'N/A', r.km_parcouru ?? 'N/A', r.km_theorique ?? 'N/A',
-      r.vol_reel, r.vol_theorique ?? 'N/A', r.ecart_dotation ?? 'N/A',
-      r.montant_reel, r.montant_theorique ?? 'N/A',
-      r.conso_reel ?? 'N/A', r.conso_theorique ?? 'N/A', r.ecart_conso ?? 'N/A',
-    ].join(sep)).join(eol);
-    this.downloadCsv('\uFEFF' + hdrs + eol + data,
-      `suivi_tournees_${this.suiviDateDebut() || 'all'}.csv`);
-  }
 }

@@ -19,9 +19,9 @@
   } @else {
     <div class="p-head">
       <div>
-        <h2>Consommation anormale</h2>
-        <p>Seuil de détection des consommations anormales lors de l'enregistrement d'une prise de carburant.</p>
-        <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant</span></div>
+        <h2>Consommation et tournées</h2>
+        <p>Seuil de détection des consommations anormales et délai d'alerte des tournées non clôturées.</p>
+        <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant</span><span class="p-chip">Suivi tournées</span><span class="p-chip">Alertes</span></div>
       </div>
     </div>
   }
@@ -94,6 +94,14 @@
             <span class="carte-saisie">
               <input type="number" min="1" formControlName="conso_anomalie_pct" />
               <span class="unite">%</span>
+            </span>
+          </label>
+          <label class="carte" [class.modifie]="modifie('tournee_ouverte_max_jours')">
+            <span class="carte-titre"><i class="fas fa-route"></i> Tournée non clôturée</span>
+            <span class="carte-aide">Une alerte est ouverte quand une tournée effectuée reste en cours (clôture oubliée) depuis plus de :</span>
+            <span class="carte-saisie">
+              <input type="number" min="1" formControlName="tournee_ouverte_max_jours" />
+              <span class="unite">jours</span>
             </span>
           </label>
         </div>
