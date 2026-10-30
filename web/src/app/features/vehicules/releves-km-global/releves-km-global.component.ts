@@ -9,6 +9,8 @@ import { forkJoin } from 'rxjs';
 import { VehiculeApiService, AgenceApiService, ChauffeurApiService, TotalImportApiService } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/historique-corrections.component';
+import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
 
 type Tab = 'releves' | 'consommation';
@@ -29,7 +31,7 @@ interface ConsoKmRow {
 @Component({
   selector: 'ubi-releves-km-global',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe],
+  imports: [RouterLink, DatePipe, DecimalPipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent],
   templateUrl: './releves-km-global.component.html',
   styleUrls: ['./releves-km-global.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -332,6 +334,26 @@ export class RelevesKmGlobalComponent implements OnInit {
   nrSaving         = signal(false);
   nrError          = signal('');
   readonly fenetres = inject(FenetreSaisieService);
+
+  // ── Corrections : suppression (motif obligatoire hors délai) et historique ──
+  releveASupprimer = signal<ReleveKilometrage | null>(null);
+  deleteEnCours    = signal(false);
+  deleteErreur     = signal('');
+  historiqueDe     = signal<ReleveKilometrage | null>(null);
+
+  supprimerReleve(motif: string): void {
+    const r = this.releveASupprimer();
+    if (!r || this.deleteEnCours()) return;
+    this.deleteEnCours.set(true);
+    this.deleteErreur.set('');
+    this.vehiculeApi.deleteReleveKm(r.id, motif || undefined).subscribe({
+      next: () => { this.deleteEnCours.set(false); this.releveASupprimer.set(null); this.loadReleves(); },
+      error: (err) => {
+        this.deleteEnCours.set(false);
+        this.deleteErreur.set(messageErreurApi(err, 'Suppression impossible.'));
+      },
+    });
+  }
   nrDateErreur     = computed(() => this.fenetres.erreur('releves', this.nrDate()));
 
   // Combobox véhicule (recherche par immatriculation)

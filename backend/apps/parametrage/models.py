@@ -228,3 +228,35 @@ class ChangementDotation(models.Model):
 
     def __str__(self):
         return f"{self.tournee.code} : {self.ancienne_dotation} → {self.nouvelle_dotation} L ({self.statut})"
+
+
+class CorrectionSaisie(models.Model):
+    """Journal des modifications et suppressions de pleins et de relevés
+    kilométriques : qui, quand, valeurs avant / après, motif."""
+
+    class Action(models.TextChoices):
+        MODIFICATION = 'modification', 'Modification'
+        SUPPRESSION  = 'suppression',  'Suppression'
+
+    domaine  = models.CharField(max_length=20, verbose_name="Domaine")   # carburant | releves
+    objet_id = models.UUIDField(verbose_name="Saisie concernée")
+    libelle  = models.CharField(max_length=200, verbose_name="Saisie")
+    vehicule = models.ForeignKey('vehicules.Vehicule', null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name='corrections_saisie')
+    action   = models.CharField(max_length=15, choices=Action.choices)
+    auteur   = models.ForeignKey('accounts.User', null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name='+')
+    date     = models.DateTimeField(auto_now_add=True)
+    hors_delai = models.BooleanField(default=False)
+    motif    = models.TextField(blank=True)
+    # [{champ, libelle, avant, apres}] — valeurs lisibles
+    changements = models.JSONField(default=list)
+
+    class Meta:
+        verbose_name        = "Correction de saisie"
+        verbose_name_plural = "Corrections de saisie"
+        ordering            = ['-date']
+        indexes             = [models.Index(fields=['domaine', 'objet_id'])]
+
+    def __str__(self):
+        return f"{self.get_action_display()} — {self.libelle}"

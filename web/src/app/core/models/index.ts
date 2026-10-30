@@ -119,6 +119,9 @@ export interface PleinCarburant {
   id: string;
   // Fenêtre de saisie : figé pour l'utilisateur courant, trace hors délai
   verrouille?: boolean;
+  hors_fenetre?: boolean;   // date sortie de la fenêtre : motif obligatoire pour corriger
+  modifiable?: boolean;     // l'utilisateur courant peut modifier / supprimer
+  supprimable?: boolean;
   saisie_hors_delai?: boolean;
   hors_delai_par_nom?: string | null;
   hors_delai_le?: string | null;
@@ -400,6 +403,9 @@ export interface ReleveKilometrage {
   id: string;
   // Fenêtre de saisie : figé pour l'utilisateur courant, trace hors délai
   verrouille?: boolean;
+  hors_fenetre?: boolean;   // date sortie de la fenêtre : motif obligatoire pour corriger
+  modifiable?: boolean;     // l'utilisateur courant peut modifier / supprimer
+  supprimable?: boolean;
   saisie_hors_delai?: boolean;
   hors_delai_par_nom?: string | null;
   hors_delai_le?: string | null;

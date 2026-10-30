@@ -1,5 +1,7 @@
 """UbiFleet — Permissions dynamiques (basées sur Role.niveau + DB)"""
 
+from types import SimpleNamespace
+
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 # Niveaux de référence (fixes dans le code, correspondent aux rôles système)
@@ -172,3 +174,14 @@ class RoleBasedPermission(BasePermission):
             required_niveau = DEFAULT_ACTION_NIVEAU.get(action, NIVEAU_GESTIONNAIRE)
 
         return has_min_niveau(user, required_niveau)
+
+
+def action_autorisee(user, vue, action) -> bool:
+    """Évalue RoleBasedPermission pour une action de la vue (classe ou
+    instance) en dehors de la requête en cours — ex. droits affichés par ligne."""
+    cible = SimpleNamespace(
+        module=getattr(vue, 'module', None), action=action,
+        role_map=getattr(vue, 'role_map', {}),
+        permission_actions=getattr(vue, 'permission_actions', {}),
+    )
+    return RoleBasedPermission().has_permission(SimpleNamespace(user=user), cible)

@@ -271,8 +271,20 @@ export class VehiculeApiService extends ApiBaseService {
     });
     return this.http.post<ReleveKilometrage>(`${API}/vehicules/releves-km/`, fd);
   }
-  deleteReleveKm(id: string): Observable<any> {
-    return this.http.delete(`${API}/vehicules/releves-km/${id}/`);
+  updateReleveKm(id: string, data: Record<string, any>): Observable<ReleveKilometrage> {
+    const fd = new FormData();
+    Object.entries(data).forEach(([k, val]) => {
+      if (val === undefined) return;
+      const v: any = val;
+      if (v instanceof File) fd.append(k, v);
+      else fd.append(k, v === null ? '' : String(v));
+    });
+    return this.http.patch<ReleveKilometrage>(`${API}/vehicules/releves-km/${id}/`, fd);
+  }
+  /** `motif` : obligatoire pour une suppression hors délai. */
+  deleteReleveKm(id: string, motif?: string): Observable<any> {
+    const params = motif ? this.buildParams({ motif }) : undefined;
+    return this.http.delete(`${API}/vehicules/releves-km/${id}/`, { params });
   }
   getHistorique(id: string): Observable<any> {
     return this.http.get(`${API}/vehicules/${id}/historique/`);
@@ -308,11 +320,19 @@ export class CarburantApiService extends ApiBaseService {
     const params = filters ? this.buildParams(filters) : undefined;
     return this.http.get<PaginatedResponse<PleinCarburant>>(`${API}/carburant/pleins/`, { params });
   }
+  getPlein(id: string): Observable<PleinCarburant> {
+    return this.http.get<PleinCarburant>(`${API}/carburant/pleins/${id}/`);
+  }
   createPlein(data: Partial<PleinCarburant> | FormData): Observable<PleinCarburant> {
     return this.http.post<PleinCarburant>(`${API}/carburant/pleins/`, data);
   }
   updatePlein(id: string, data: Partial<PleinCarburant> | FormData): Observable<PleinCarburant> {
     return this.http.patch<PleinCarburant>(`${API}/carburant/pleins/${id}/`, data);
+  }
+  /** `motif` : obligatoire pour une suppression hors délai. */
+  deletePlein(id: string, motif?: string): Observable<any> {
+    const params = motif ? this.buildParams({ motif }) : undefined;
+    return this.http.delete(`${API}/carburant/pleins/${id}/`, { params });
   }
   validerPlein(id: string, data: { statut: string; motif?: string } = { statut: 'valide' }): Observable<any> {
     return this.http.post(`${API}/carburant/pleins/${id}/valider/`, data);
@@ -789,6 +809,11 @@ export class RapportApiService extends ApiBaseService {
 // ── Paramétrage API ──
 @Injectable({ providedIn: 'root' })
 export class ParametrageApiService extends ApiBaseService {
+  /** Journal des corrections de pleins / relevés (filtres : domaine, objet, vehicule). */
+  getCorrections(filters: Record<string, any>): Observable<any[]> {
+    return this.http.get<any[] | PaginatedResponse<any>>(`${API}/parametrage/corrections/`, { params: this.buildParams(filters) })
+      .pipe(map(res => Array.isArray(res) ? res : res.results ?? []));
+  }
   getAll(categorie?: string): Observable<any[]> {
     const params = categorie ? this.buildParams({ categorie }) : undefined;
     return this.http.get<any[] | PaginatedResponse<any>>(`${API}/parametrage/`, { params }).pipe(

@@ -19,6 +19,7 @@ from .serializers import (
 )
 from apps.accounts.permissions import IsFleetManager, RoleBasedPermission
 from apps.core.referentiels import SuppressionProtegeeMixin, annoter_utilisations
+from apps.parametrage.corrections import SaisieCorrigeableMixin
 from apps.parametrage.fenetre_saisie import (
     ACTION_HORS_DELAI, CARBURANT, fenetre, tracer_hors_delai,
 )
@@ -42,7 +43,7 @@ class PleinFilter(FilterSet):
         fields = ['vehicule', 'agence', 'chauffeur', 'station']
 
 
-class PleinViewSet(viewsets.ModelViewSet):
+class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
     """
     CRUD pleins de carburant.
     POST /carburant/pleins/{id}/valider/   — valider ou rejeter un plein
@@ -52,6 +53,12 @@ class PleinViewSet(viewsets.ModelViewSet):
     """
     serializer_class = PleinSerializer
     parser_classes   = [MultiPartParser, FormParser, JSONParser]
+    # Fenêtre de saisie et journal des corrections (cf. parametrage.corrections)
+    domaine_saisie = CARBURANT
+    champ_date     = 'date_plein'
+    champs_journal = ('vehicule', 'chauffeur', 'tournee', 'station', 'date_plein', 'heure_plein',
+                      'volume_litres', 'prix_litre', 'montant_fcfa', 'kilometrage_releve',
+                      'bon_carburant', 'agence', 'notes', 'photo_tableau_bord')
     module   = 'carburant'
     role_map = {
             'list': 'operateur',
@@ -96,21 +103,9 @@ class PleinViewSet(viewsets.ModelViewSet):
                 extra['prix_litre'] = prix.prix
                 if not data.get('montant_fcfa'):
                     extra['montant_fcfa'] = round(prix.prix * data['volume_litres'], 2)
-        serializer.save(created_by=user, agence=agence, **extra)
-
-    def perform_update(self, serializer):
-        user = self.request.user
-        data = serializer.validated_data
-        controler_agence(user, data)
-        f = fenetre(user, CARBURANT)
-        hors_delai = f.controler_modification(serializer.instance.date_plein)
-        if 'date_plein' in data:
-            hors_delai = f.controler_date(data['date_plein'], 'date_plein') or hors_delai
-        serializer.save(**(tracer_hors_delai(user) if hors_delai else {}))
-
-    def perform_destroy(self, instance):
-        fenetre(self.request.user, CARBURANT).controler_modification(instance.date_plein)
-        instance.delete()
+        plein = serializer.save(created_by=user, agence=agence, **extra)
+        # Un plein antérieur à d'autres change la consommation des suivants
+        self.apres_correction([plein.vehicule], [plein.date_plein])
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def valider(self, request, pk=None):

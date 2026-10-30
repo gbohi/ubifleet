@@ -136,14 +136,24 @@
                   </td>
                   <td>{{ r.created_by_nom || '—' }}</td>
                   <td>
-                    @if (r.verrouille) {
-                      <span class="icone-verrou" title="Relevé figé : sorti de la fenêtre de saisie"><i class="fas fa-lock"></i></span>
-                    } @else {
-                      <button class="btn btn-icon btn-icon-danger" title="Supprimer"
-                              (click)="confirmDelete(r.id)">
-                        <i class="fas fa-trash"></i>
+                    <div class="td-actions">
+                      @if (r.verrouille) {
+                        <span class="icone-verrou" title="Relevé figé : sorti de la fenêtre de saisie"><i class="fas fa-lock"></i></span>
+                      }
+                      @if (r.modifiable) {
+                        <button class="btn btn-icon" title="Modifier" (click)="openForm(r)">
+                          <i class="fas fa-edit"></i>
+                        </button>
+                      }
+                      @if (r.supprimable) {
+                        <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="confirmDelete(r)">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      }
+                      <button class="btn btn-icon" title="Historique des corrections" (click)="historiqueDe.set(r)">
+                        <i class="fas fa-history"></i>
                       </button>
-                    }
+                    </div>
                   </td>
                 </tr>
               }
@@ -182,7 +192,7 @@
       <div class="modal-header">
         <div class="modal-title">
           <i class="fas fa-tachometer-alt"></i>
-          Nouveau relevé kilométrique
+          {{ editId() ? 'Corriger le relevé' : 'Nouveau relevé kilométrique' }}
         </div>
         <button class="modal-close" (click)="closeForm()">
           <i class="fas fa-times"></i>
@@ -288,11 +298,23 @@
           </div>
         </div>
 
+        @if (editId()) {
+          <div class="form-group">
+            <label class="form-label" for="motif-releve">Motif de la correction {{ motifRequis() ? '*' : '(facultatif)' }}</label>
+            @if (motifRequis()) {
+              <div class="form-hint hint-warning" style="margin:0 0 6px"><i class="fas fa-history"></i> Correction hors délai : le motif est obligatoire.</div>
+            }
+            <textarea id="motif-releve" class="form-control" rows="2" [value]="motifCorrection()"
+                      (input)="motifCorrection.set($any($event.target).value)"
+                      placeholder="ex. Erreur de frappe sur le kilométrage"></textarea>
+          </div>
+        }
+
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
           <button type="button" class="btn btn-outline" (click)="closeForm()">
             Annuler
           </button>
-          <button type="submit" class="btn btn-green" [disabled]="form.invalid || saving()">
+          <button type="submit" class="btn btn-green" [disabled]="form.invalid || saving() || (motifRequis() && !motifCorrection().trim())">
             @if (saving()) {
               <i class="fas fa-circle-notch fa-spin"></i>
             } @else {
@@ -307,22 +329,23 @@
   </div>
 }
 
-<!-- MODAL Confirmation suppression -->
-@if (deleteId()) {
-  <div class="modal-backdrop">
-    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+<!-- MODAL Confirmation suppression (motif obligatoire hors délai) -->
+@if (releveASupprimer(); as r) {
+  <ubi-suppression-motif titre="Supprimer le relevé"
+                         [message]="'Relevé du ' + (r.date_releve | date:'dd/MM/yyyy') + ' — ' + (r.kilometrage | number:'1.0-0') + ' km. Le kilométrage du véhicule sera recalculé.'"
+                         [motifRequis]="!!r.hors_fenetre" [enCours]="deleteEnCours()" [erreur]="deleteErreur()"
+                         (confirmer)="doDelete($event)" (annuler)="releveASupprimer.set(null)" />
+}
+
+<!-- MODAL Historique des corrections -->
+@if (historiqueDe(); as r) {
+  <div class="modal-backdrop" (click)="historiqueDe.set(null)">
+    <div class="modal-container" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <div class="modal-title">Supprimer le relevé</div>
+        <div class="modal-title"><i class="fas fa-history"></i> Historique — relevé du {{ r.date_releve | date:'dd/MM/yyyy' }}</div>
+        <button class="modal-close" (click)="historiqueDe.set(null)" aria-label="Fermer"><i class="fas fa-times"></i></button>
       </div>
-      <p style="font-size:14px;color:var(--gray-600);margin-bottom:24px">
-        La suppression n'affecte pas le kilométrage actuel du véhicule.
-      </p>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-outline" (click)="cancelDelete()">Annuler</button>
-        <button class="btn btn-danger" (click)="doDelete(deleteId()!)">
-          <i class="fas fa-trash"></i> Supprimer
-        </button>
-      </div>
+      <ubi-historique-corrections domaine="releves" [objet]="r.id" />
     </div>
   </div>
 }

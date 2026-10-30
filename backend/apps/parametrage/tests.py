@@ -373,7 +373,8 @@ class FenetreSaisieTests(UtilisateursMixin, APITestCase):
         self.assertEqual(self.client.patch(url, {'date_plein': self.jour(0)}, format='json').status_code, 403)
         self.client.force_authenticate(self.responsable_flotte)
         self.assertFalse(self.client.get(url).data['verrouille'])
-        resp = self.client.patch(url, {'notes': 'corrigé'}, format='json')
+        self.assertEqual(self.client.patch(url, {'notes': 'corrigé'}, format='json').status_code, 400)  # motif
+        resp = self.client.patch(url, {'notes': 'corrigé', 'motif_correction': 'Bon retrouvé'}, format='json')
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertTrue(resp.data['saisie_hors_delai'])
 
@@ -409,7 +410,8 @@ class FenetreSaisieTests(UtilisateursMixin, APITestCase):
         vieux = ReleveKilometrage.objects.create(vehicule=self.vehicule, kilometrage=100,
                                                  date_releve=self.auj - datetime.timedelta(days=8))
         self.client.force_authenticate(self.responsable_flotte)
-        self.assertEqual(self.client.delete(f'/api/v1/vehicules/releves-km/{vieux.id}/').status_code, 204)
+        self.assertEqual(self.client.delete(f'/api/v1/vehicules/releves-km/{vieux.id}/').status_code, 400)
+        self.assertEqual(self.client.delete(f'/api/v1/vehicules/releves-km/{vieux.id}/?motif=Doublon').status_code, 204)
         vieux = ReleveKilometrage.objects.create(vehicule=self.vehicule, kilometrage=100,
                                                  date_releve=self.auj - datetime.timedelta(days=8))
         # Le droit hors délai du responsable flotte retiré : relevé figé
@@ -428,3 +430,132 @@ class FenetreSaisieTests(UtilisateursMixin, APITestCase):
         self.assertEqual(self.client.post('/api/v1/parametrage/bulk_update/',
                                           [{'cle': 'fenetre_saisie_releves_jours', 'valeur': -1}],
                                           format='json').status_code, 400)
+
+
+
+class CorrectionSaisieTests(UtilisateursMixin, APITestCase):
+    """Corrections de pleins et relevés : droits de l'auteur, kilométrage
+    contrôlé par rapport aux saisies voisines, recalcul du compteur, journal."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from apps.vehicules.models import Vehicule
+        cls.vehicule = Vehicule.objects.create(immatriculation='CS-1', agence=cls.agence_a, annee=2020,
+                                               type_carburant='diesel', kilometrage_actuel=10000,
+                                               kilometrage_initial=10000)
+        cls.auj = timezone.localdate()
+
+    def setUp(self):
+        from apps.accounts.permission_cache import invalidate
+        invalidate()
+        Parametre.objects.update_or_create(cle='fenetre_saisie_carburant_jours',
+                                           defaults={'valeur': '3', 'type_valeur': 'int'})
+        Parametre.objects.update_or_create(cle='fenetre_saisie_releves_jours',
+                                           defaults={'valeur': '3', 'type_valeur': 'int'})
+
+    def jour(self, n):
+        return (self.auj - datetime.timedelta(days=n)).isoformat()
+
+    def plein(self, user, n, km, litres=40):
+        self.client.force_authenticate(user)
+        return self.client.post('/api/v1/carburant/pleins/', {
+            'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'volume_litres': litres,
+            'montant_fcfa': 28000, 'kilometrage_releve': km, 'agence': str(self.agence_a.id),
+        }, format='json')
+
+    def releve(self, user, n, km):
+        self.client.force_authenticate(user)
+        return self.client.post('/api/v1/vehicules/releves-km/', {
+            'vehicule': str(self.vehicule.id), 'kilometrage': km, 'date_releve': self.jour(n)}, format='json')
+
+    def km(self):
+        self.vehicule.refresh_from_db()
+        return self.vehicule.kilometrage_actuel
+
+    def test_erreur_de_kilometrage_corrigee_par_l_auteur(self):
+        resp = self.plein(self.operateur, 1, 125000)          # 125 000 au lieu de 12 500
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(self.km(), 125000)
+        self.assertTrue(resp.data['modifiable'])
+        self.assertTrue(resp.data['supprimable'])
+        url = f"/api/v1/carburant/pleins/{resp.data['id']}/"
+        resp = self.client.patch(url, {'kilometrage_releve': 12500}, format='json')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(self.km(), 12500)
+        from .models import CorrectionSaisie
+        c = CorrectionSaisie.objects.get(objet_id=resp.data['id'])
+        self.assertEqual(c.auteur, self.operateur)
+        self.assertEqual([(x['champ'], x['avant'], x['apres']) for x in c.changements],
+                         [('kilometrage_releve', '125000', '12500')])
+
+    def test_suppression_recalcule_le_compteur(self):
+        resp = self.releve(self.operateur, 0, 99999)
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(self.km(), 99999)
+        self.assertEqual(self.client.delete(f"/api/v1/vehicules/releves-km/{resp.data['id']}/").status_code, 204)
+        self.assertEqual(self.km(), 10000)                      # kilométrage d'entrée dans le parc
+
+    def test_droits_de_l_auteur_limites(self):
+        resp = self.plein(self.operateur, 0, 11000)
+        url = f"/api/v1/carburant/pleins/{resp.data['id']}/"
+        self.client.force_authenticate(self.operateur_b)        # autre agence : invisible
+        self.assertEqual(self.client.patch(url, {'notes': 'x'}, format='json').status_code, 404)
+        autre = self.creer_utilisateur('operateur_a2', 'operateur', self.agence_a)
+        self.client.force_authenticate(autre)
+        self.assertFalse(self.client.get(url).data['modifiable'])
+        self.assertEqual(self.client.patch(url, {'notes': 'x'}, format='json').status_code, 403)
+        self.assertEqual(self.client.delete(url).status_code, 403)
+        # Sa propre saisie sortie de la fenêtre : figée
+        from apps.carburant.models import PleinsCarburant
+        vieux = PleinsCarburant.objects.create(vehicule=self.vehicule, agence=self.agence_a, volume_litres=30,
+                                               montant_fcfa=1, kilometrage_releve=10500, created_by=self.operateur,
+                                               date_plein=self.auj - datetime.timedelta(days=6))
+        self.client.force_authenticate(self.operateur)
+        self.assertEqual(self.client.delete(f'/api/v1/carburant/pleins/{vieux.id}/').status_code, 403)
+
+    def test_kilometrage_controle_par_les_saisies_voisines(self):
+        self.assertEqual(self.releve(self.gestionnaire, 1, 12000).status_code, 201)
+        resp = self.releve(self.gestionnaire, 0, 11000)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('relevé du', resp.data['kilometrage'][0])
+        # Relevé antérieur plus faible accepté, sans faire baisser le compteur
+        self.assertEqual(self.releve(self.gestionnaire, 2, 11500).status_code, 201)
+        self.assertEqual(self.km(), 12000)
+        self.assertEqual(self.releve(self.gestionnaire, 2, 12500).status_code, 400)   # > relevé suivant
+
+    def test_consommation_du_plein_suivant_recalculee(self):
+        p1 = self.plein(self.gestionnaire, 2, 10400).data
+        p2 = self.plein(self.gestionnaire, 1, 10800, litres=40).data
+        self.assertEqual(float(p2['consommation_calculee']), 10.0)
+        self.client.patch(f"/api/v1/carburant/pleins/{p1['id']}/", {'kilometrage_releve': 10000}, format='json')
+        from apps.carburant.models import PleinsCarburant
+        p2 = PleinsCarburant.objects.get(pk=p2['id'])
+        self.assertEqual(p2.kilometrage_depart, 10000)
+        self.assertEqual(float(p2.consommation_calculee), 5.0)
+
+    def test_journal_consultable(self):
+        resp = self.releve(self.operateur, 0, 10100)
+        rid = resp.data['id']
+        self.client.patch(f'/api/v1/vehicules/releves-km/{rid}/',
+                          {'kilometrage': 10200, 'motif_correction': 'Faute de frappe'}, format='json')
+        self.client.delete(f'/api/v1/vehicules/releves-km/{rid}/')
+        journal = self.client.get('/api/v1/parametrage/corrections/', {'objet': rid}).data
+        journal = journal.get('results', journal)
+        self.assertEqual([j['action'] for j in journal], ['suppression', 'modification'])
+        self.assertEqual(journal[1]['motif'], 'Faute de frappe')
+        self.client.force_authenticate(self.operateur_b)
+        res = self.client.get('/api/v1/parametrage/corrections/', {'objet': rid}).data
+        self.assertEqual(len(res.get('results', res)), 0)
+        self.client.force_authenticate(self.chauffeur)          # pas d'accès aux pleins ni relevés
+        res = self.client.get('/api/v1/parametrage/corrections/').data
+        self.assertEqual(len(res.get('results', res)), 0)
+
+    def test_fiche_vehicule_historise_le_compteur(self):
+        self.client.force_authenticate(self.responsable_flotte)
+        resp = self.client.patch(f'/api/v1/vehicules/{self.vehicule.id}/', {'kilometrage_actuel': 15000}, format='json')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        r = self.releve(self.operateur, 0, 15100)
+        self.client.force_authenticate(self.operateur)
+        self.client.delete(f"/api/v1/vehicules/releves-km/{r.data['id']}/")
+        self.assertEqual(self.km(), 15000)                      # pas de retour à 10 000

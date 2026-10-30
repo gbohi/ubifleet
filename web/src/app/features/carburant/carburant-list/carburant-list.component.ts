@@ -9,6 +9,8 @@ import { DecimalPipe, DatePipe } from '@angular/common';
 import { CarburantStore } from '../../../store/carburant/carburant.store';
 import { AgenceApiService, VehiculeApiService, CarburantApiService } from '../../../core/services/api.service';
 import { Agence, PleinCarburant, StatutValidation } from '../../../core/models';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 
 interface ConsoVehicule {
   immatriculation: string; marque?: string; modele?: string;
@@ -50,7 +52,7 @@ type CarburantTab = 'pleins' | 'dotations' | 'anomalies' | 'suivi' | 'consommati
 @Component({
   selector: 'ubi-carburant-list',
   standalone: true,
-  imports: [RouterLink, DecimalPipe, DatePipe],
+  imports: [RouterLink, DecimalPipe, DatePipe, SuppressionMotifComponent],
   templateUrl: './carburant-list.component.html',
   styleUrls: ['./carburant-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -66,7 +68,10 @@ export class CarburantListComponent implements OnInit, OnDestroy {
 
   agences      = signal<Agence[]>([]);
   activeTab    = signal<CarburantTab>('pleins');
-  deleteConfirm = signal<string | null>(null);
+  /** Plein à supprimer (fenêtre de confirmation avec motif). */
+  deleteConfirm = signal<PleinCarburant | null>(null);
+  deleteEnCours = signal(false);
+  deleteErreur  = signal('');
 
   readonly statutChips = [
     { label: 'Tous',       value: '' },
@@ -242,16 +247,30 @@ export class CarburantListComponent implements OnInit, OnDestroy {
     });
   }
 
-  confirmDelete(event: Event, id: string): void {
+  confirmDelete(event: Event, plein: PleinCarburant): void {
     event.stopPropagation();
-    this.deleteConfirm.set(id);
+    this.deleteErreur.set('');
+    this.deleteConfirm.set(plein);
   }
 
   cancelDelete(): void { this.deleteConfirm.set(null); }
 
-  doDelete(id: string): void {
-    // La suppression n'est pas dans l'API actuelle — on masque localement
-    this.deleteConfirm.set(null);
+  doDelete(motif: string): void {
+    const plein = this.deleteConfirm();
+    if (!plein || this.deleteEnCours()) return;
+    this.deleteEnCours.set(true);
+    this.carburantApi.deletePlein(plein.id, motif || undefined).subscribe({
+      next: () => {
+        this.deleteEnCours.set(false);
+        this.deleteConfirm.set(null);
+        this.store.loadPleins();
+        this.store.loadStats({});
+      },
+      error: (err) => {
+        this.deleteEnCours.set(false);
+        this.deleteErreur.set(messageErreurApi(err, 'Suppression impossible.'));
+      },
+    });
   }
 
   onPageChange(page: number): void {

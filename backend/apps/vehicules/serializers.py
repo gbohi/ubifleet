@@ -90,7 +90,7 @@ class VehiculeDetailSerializer(VehiculeListSerializer):
 class VehiculeWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicule
-        exclude = ['created_at', 'updated_at', 'created_by']
+        exclude = ['created_at', 'updated_at', 'created_by', 'kilometrage_initial']
 
     def validate_immatriculation(self, value):
         return value.upper().strip()
@@ -109,11 +109,8 @@ class VehiculeKilometrageSerializer(serializers.Serializer):
     date_releve = serializers.DateField()
 
     def validate(self, attrs):
-        vehicule = self.context['vehicule']
-        if attrs['kilometrage'] < vehicule.kilometrage_actuel:
-            raise serializers.ValidationError(
-                "Le kilométrage saisi est inférieur au kilométrage actuel."
-            )
+        from .kilometrage import controler_km
+        controler_km(self.context['vehicule'], attrs['kilometrage'], attrs['date_releve'], 'kilometrage')
         return attrs
 
 
@@ -153,6 +150,15 @@ class ReleveKilometrageSerializer(FenetreSaisieSerializerMixin, serializers.Mode
     def get_type_couleur(self, obj):
         t = self._types().get(obj.type_mouvement)
         return t.couleur if t else 'gray'
+
+    def validate(self, attrs):
+        from .kilometrage import controler_km
+        inst = self.instance
+        controler_km(attrs.get('vehicule', inst and inst.vehicule),
+                     attrs.get('kilometrage', inst and inst.kilometrage),
+                     attrs.get('date_releve', inst and inst.date_releve),
+                     'kilometrage', exclure=inst)
+        return attrs
 
     def validate_type_mouvement(self, value):
         t = self._types().get(value)

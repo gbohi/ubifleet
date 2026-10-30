@@ -539,3 +539,49 @@ class TypeMouvementViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin,
     def utilisations(self, obj):
         from apps.vehicules.models import ReleveKilometrage
         return [(ReleveKilometrage.objects.filter(type_mouvement=obj.code).count(), 'relevé(s) kilométrique(s)')]
+
+
+from .models import CorrectionSaisie
+
+
+class CorrectionSaisieSerializer(drf_serializers.ModelSerializer):
+    action_display = drf_serializers.CharField(source='get_action_display', read_only=True)
+    auteur_nom     = drf_serializers.CharField(source='auteur.full_name', read_only=True, allow_null=True)
+    vehicule_immat = drf_serializers.CharField(source='vehicule.immatriculation', read_only=True, allow_null=True)
+
+    class Meta:
+        model  = CorrectionSaisie
+        fields = ['id', 'domaine', 'objet_id', 'libelle', 'vehicule', 'vehicule_immat', 'action',
+                  'action_display', 'auteur', 'auteur_nom', 'date', 'hors_delai', 'motif', 'changements']
+
+
+class CorrectionSaisieViewSet(viewsets.ReadOnlyModelViewSet):
+    """Journal des corrections de pleins et de relevés (lecture seule).
+    Filtres : domaine, objet (id de la saisie), vehicule.
+    Chaque domaine n'est visible qu'avec le droit de consulter la saisie
+    correspondante ; données cloisonnées par agence du véhicule."""
+    serializer_class   = CorrectionSaisieSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        from apps.accounts.permissions import action_autorisee
+        from apps.carburant.views import PleinViewSet
+        from apps.vehicules.views import ReleveKilometrageViewSet
+        from .fenetre_saisie import CARBURANT, RELEVES
+        user = self.request.user
+        domaines = [d for d, vue in ((CARBURANT, PleinViewSet), (RELEVES, ReleveKilometrageViewSet))
+                    if action_autorisee(user, vue, 'list')]
+        qs = CorrectionSaisie.objects.filter(domaine__in=domaines).select_related('auteur', 'vehicule')
+        qs = filtrer_par_agence(qs, user, 'vehicule__agence')
+        p = self.request.query_params
+        if p.get('domaine'):
+            qs = qs.filter(domaine=p['domaine'])
+        if p.get('objet'):
+            import uuid
+            try:
+                qs = qs.filter(objet_id=uuid.UUID(p['objet']))
+            except ValueError:
+                return qs.none()
+        if p.get('vehicule'):
+            qs = qs.filter(vehicule_id=p['vehicule'])
+        return qs

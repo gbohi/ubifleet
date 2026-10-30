@@ -46,12 +46,9 @@ def nb_jours(domaine: str) -> int:
 def peut_saisir_hors_delai(user, domaine: str) -> bool:
     """Évalue la permission « Saisie hors délai » comme une action de vue
     (règle en base, sinon niveau par défaut : responsable flotte)."""
-    from apps.accounts.permissions import RoleBasedPermission
-    vue = SimpleNamespace(
-        module=DOMAINES[domaine][0], action=ACTION_HORS_DELAI,
-        role_map={ACTION_HORS_DELAI: 'responsable_flotte'},
-    )
-    return RoleBasedPermission().has_permission(SimpleNamespace(user=user), vue)
+    from apps.accounts.permissions import action_autorisee
+    vue = SimpleNamespace(module=DOMAINES[domaine][0], role_map={ACTION_HORS_DELAI: 'responsable_flotte'})
+    return action_autorisee(user, vue, ACTION_HORS_DELAI)
 
 
 @dataclass
@@ -125,9 +122,13 @@ class FenetreSaisieSerializerMixin(serializers.Serializer):
     champ_date = None
 
     verrouille         = serializers.SerializerMethodField()
+    hors_fenetre       = serializers.SerializerMethodField()
+    modifiable         = serializers.SerializerMethodField()
+    supprimable        = serializers.SerializerMethodField()
     hors_delai_par_nom = serializers.SerializerMethodField()
 
-    CHAMPS_FENETRE = ['verrouille', 'saisie_hors_delai', 'hors_delai_par', 'hors_delai_par_nom', 'hors_delai_le']
+    CHAMPS_FENETRE = ['verrouille', 'hors_fenetre', 'modifiable', 'supprimable',
+                      'saisie_hors_delai', 'hors_delai_par', 'hors_delai_par_nom', 'hors_delai_le']
     LECTURE_SEULE_FENETRE = ['saisie_hors_delai', 'hors_delai_par', 'hors_delai_le']
 
     def _fenetre(self):
@@ -140,6 +141,33 @@ class FenetreSaisieSerializerMixin(serializers.Serializer):
     def get_verrouille(self, obj):
         f = self._fenetre()
         return bool(f and f.verrouille(getattr(obj, self.champ_date)))
+
+    def get_hors_fenetre(self, obj):
+        """Date sortie de la fenêtre : une correction exigera un motif."""
+        f = self._fenetre()
+        return bool(f and not f.dans_fenetre(getattr(obj, self.champ_date)))
+
+    def _droit_role(self, action):
+        """Droit du rôle sur l'action (indépendamment de l'auteur), mis en cache."""
+        cle_cache = f'_droit_{action}'
+        if cle_cache not in self.context:
+            from apps.accounts.permissions import action_autorisee
+            request, vue = self.context.get('request'), self.context.get('view')
+            self.context[cle_cache] = bool(request and vue and action_autorisee(request.user, vue, action))
+        return self.context[cle_cache]
+
+    def _corrigeable(self, obj, action):
+        f, request = self._fenetre(), self.context.get('request')
+        if not f or not request or f.verrouille(getattr(obj, self.champ_date)):
+            return False
+        auteur = obj.created_by_id is not None and obj.created_by_id == request.user.id
+        return self._droit_role(action) or (auteur and f.dans_fenetre(getattr(obj, self.champ_date)))
+
+    def get_modifiable(self, obj):
+        return self._corrigeable(obj, 'partial_update')
+
+    def get_supprimable(self, obj):
+        return self._corrigeable(obj, 'destroy')
 
     def get_hors_delai_par_nom(self, obj):
         u = obj.hors_delai_par

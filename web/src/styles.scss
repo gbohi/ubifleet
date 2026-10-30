@@ -217,6 +217,7 @@ input, select, textarea { font-family: var(--font-body); }
     color: var(--gray-500);
     border-radius: var(--radius-md);
     &:hover { background: var(--gray-50); color: var(--navy); }
+    &.btn-icon-danger:hover { background: var(--danger-light); color: var(--danger); border-color: var(--danger-light); }
   }
 }
 
@@ -323,17 +324,17 @@ input, select, textarea { font-family: var(--font-body); }
     align-items: center;
     gap: 4px;
   }
+}
 
-  // Aide sous un champ (ex. fenêtre de saisie des dates)
-  .form-hint {
-    font-size: 12px;
-    color: var(--gray-500);
-    margin-top: 4px;
-    display: flex;
-    align-items: baseline;
-    gap: 5px;
-    &.hint-warning { color: #b45309; }
-  }
+// Aide sous un champ (ex. fenêtre de saisie des dates)
+.form-hint {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  &.hint-warning { color: #b45309; }
 }
 
 .form-row {

@@ -44,6 +44,13 @@
         sauf par un utilisateur disposant du droit « Saisie hors délai ».
       </div>
     }
+    @else if (lectureSeule()) {
+      <div class="alert alert-warning">
+        <i class="fas fa-lock"></i>
+        Consultation seule : seul l'auteur du plein (tant qu'il est dans la fenêtre de saisie) ou un rôle
+        autorisé peut le modifier.
+      </div>
+    }
     @if (infoHorsDelai()) {
       <div class="alert alert-info"><i class="fas fa-history"></i> {{ infoHorsDelai() }}</div>
     }
@@ -261,13 +268,58 @@
           </div>
         </div>
 
+        @if (isEditMode() && !lectureSeule()) {
+          <!-- Motif de la correction (journal) -->
+          <div class="form-section">
+            <div class="section-header">
+              <div class="section-icon"><i class="fas fa-comment-alt"></i></div>
+              <div>
+                <div class="section-title">Motif de la correction {{ motifRequis() ? '*' : '(facultatif)' }}</div>
+                <div class="section-sub">Conservé dans l'historique des corrections de ce plein</div>
+              </div>
+            </div>
+            <div class="section-body">
+              @if (motifRequis()) {
+                <div class="form-hint hint-warning" style="margin:0 0 8px"><i class="fas fa-history"></i>
+                  Correction hors délai : le motif est obligatoire.</div>
+              }
+              <div class="form-group" style="margin:0">
+                <textarea class="form-control" rows="2" [value]="motifCorrection()"
+                          (input)="motifCorrection.set($any($event.target).value)"
+                          placeholder="ex. Erreur de frappe sur le kilométrage"></textarea>
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (isEditMode() && id()) {
+          <div class="form-section">
+            <div class="section-header">
+              <div class="section-icon"><i class="fas fa-history"></i></div>
+              <div>
+                <div class="section-title">Historique des corrections</div>
+                <div class="section-sub">Qui a modifié ce plein, quand, et quoi</div>
+              </div>
+            </div>
+            <div class="section-body">
+              <ubi-historique-corrections domaine="carburant" [objet]="id()!" />
+            </div>
+          </div>
+        }
+
       </div>
 
       <div class="form-actions">
+        @if (isEditMode() && supprimable()) {
+          <button type="button" class="btn btn-outline btn-supprimer" (click)="suppression.set(true)">
+            <i class="fas fa-trash"></i> Supprimer
+          </button>
+        }
         <button type="button" class="btn btn-outline" (click)="cancel()">
           <i class="fas fa-times"></i> Annuler
         </button>
-        <button type="submit" class="btn btn-green" [disabled]="form.invalid || saving() || verrouille()">
+        <button type="submit" class="btn btn-green"
+                [disabled]="form.invalid || saving() || lectureSeule() || (motifRequis() && !motifCorrection().trim())">
           @if (saving()) {
             <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
           } @else if (isEditMode()) {
@@ -281,3 +333,10 @@
     </form>
   }
 </div>
+
+@if (suppression()) {
+  <ubi-suppression-motif titre="Supprimer le plein"
+                         message="Le plein sera supprimé ; le compteur du véhicule et les consommations seront recalculés."
+                         [motifRequis]="horsFenetre()" [enCours]="suppressionEnCours()" [erreur]="suppressionErreur()"
+                         (confirmer)="supprimer($event)" (annuler)="suppression.set(false)" />
+}

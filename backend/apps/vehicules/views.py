@@ -24,7 +24,9 @@ from .serializers import (
     TypeDocumentVehiculeSerializer,
 )
 from apps.accounts.permissions import IsFleetManager, IsAgenceUser, RoleBasedPermission
+from apps.parametrage.corrections import SaisieCorrigeableMixin
 from apps.parametrage.fenetre_saisie import ACTION_HORS_DELAI, RELEVES, fenetre, tracer_hors_delai
+from apps.vehicules.kilometrage import recalculer_kilometrage
 from apps.core.agences import (
     agence_effective, agence_pour_creation, controler_agence,
     filtrer_par_agence, filtrer_transactions_total,
@@ -97,12 +99,22 @@ class VehiculeViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         controler_agence(user, serializer.validated_data)
-        serializer.save(created_by=user,
+        km = serializer.validated_data.get('kilometrage_actuel', 0)
+        serializer.save(created_by=user, kilometrage_initial=km,
                         agence=agence_pour_creation(user, serializer.validated_data.get('agence')))
 
     def perform_update(self, serializer):
-        controler_agence(self.request.user, serializer.validated_data)
-        serializer.save()
+        user = self.request.user
+        controler_agence(user, serializer.validated_data)
+        km_avant = serializer.instance.kilometrage_actuel
+        vehicule = serializer.save()
+        # Compteur relevé depuis la fiche : historisé, sinon perdu au prochain recalcul
+        if vehicule.kilometrage_actuel > km_avant:
+            ReleveKilometrage.objects.create(
+                vehicule=vehicule, kilometrage=vehicule.kilometrage_actuel,
+                date_releve=timezone.localdate(), type_mouvement='releve',
+                notes='Kilométrage mis à jour depuis la fiche véhicule.', created_by=user,
+            )
 
     def destroy(self, request, *args, **kwargs):
         """Soft delete."""
@@ -145,9 +157,6 @@ class VehiculeViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Type de mouvement inconnu ou désactivé.'}, status=400)
         controler_agence(request.user, {'chauffeur': chauffeur_obj})
 
-        # Kilométrage du véhicule mis à jour une fois toutes les vérifications passées
-        vehicule.kilometrage_actuel = new_km
-        vehicule.save()
         ReleveKilometrage.objects.create(
             vehicule=vehicule,
             kilometrage=new_km,
@@ -160,6 +169,8 @@ class VehiculeViewSet(viewsets.ModelViewSet):
             created_by=request.user if request.user.is_authenticated else None,
             **(tracer_hors_delai(request.user) if hors_delai else {}),
         )
+        # Compteur recalculé à partir des saisies (un relevé antérieur ne le fait pas baisser)
+        recalculer_kilometrage(vehicule)
 
         # Déclencher vérification alertes
         from apps.alertes.tasks import check_vehicule_alerts
@@ -491,10 +502,15 @@ class DocumentVehiculeViewSet(viewsets.ModelViewSet):
         serializer.save(vehicule=vehicule, created_by=self.request.user)
 
 
-class ReleveKilometrageViewSet(viewsets.ModelViewSet):
+class ReleveKilometrageViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
     """CRUD complet sur les relevés kilométrage."""
     from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
     serializer_class = ReleveKilometrageSerializer
+    # Fenêtre de saisie et journal des corrections (cf. parametrage.corrections)
+    domaine_saisie = RELEVES
+    champ_date     = 'date_releve'
+    champs_journal = ('vehicule', 'kilometrage', 'date_releve', 'type_mouvement', 'chauffeur',
+                      'tournee', 'notes', 'photo_tableau_bord')
     parser_classes   = [MultiPartParser, FormParser, JSONParser]
     module   = 'releves_km'
     role_map = {
@@ -520,32 +536,13 @@ class ReleveKilometrageViewSet(viewsets.ModelViewSet):
             'vehicule', 'created_by'
         ), self.request.user, 'vehicule__agence')
 
-    def perform_update(self, serializer):
-        user = self.request.user
-        data = serializer.validated_data
-        controler_agence(user, data)
-        f = fenetre(user, RELEVES)
-        hors_delai = f.controler_modification(serializer.instance.date_releve)
-        if 'date_releve' in data:
-            hors_delai = f.controler_date(data['date_releve'], 'date_releve') or hors_delai
-        serializer.save(**(tracer_hors_delai(user) if hors_delai else {}))
-
-    def perform_destroy(self, instance):
-        fenetre(self.request.user, RELEVES).controler_modification(instance.date_releve)
-        instance.delete()
-
     def perform_create(self, serializer):
         user = self.request.user
         controler_agence(user, serializer.validated_data)
         hors_delai = fenetre(user, RELEVES).controler_date(
             serializer.validated_data['date_releve'], 'date_releve')
-        serializer.save(created_by=user, **(tracer_hors_delai(user) if hors_delai else {}))
-        # Mettre à jour le kilométrage du véhicule si le relevé est plus récent
-        instance = serializer.instance
-        vehicule = instance.vehicule
-        if instance.kilometrage > vehicule.kilometrage_actuel:
-            vehicule.kilometrage_actuel = instance.kilometrage
-            vehicule.save()
+        releve = serializer.save(created_by=user, **(tracer_hors_delai(user) if hors_delai else {}))
+        recalculer_kilometrage(releve.vehicule)
 
 
 class HistoriqueImmatriculationViewSet(viewsets.ReadOnlyModelViewSet):

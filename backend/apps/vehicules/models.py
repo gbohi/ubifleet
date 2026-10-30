@@ -107,6 +107,10 @@ class Vehicule(UbiFleetBaseModel):
     kilometrage_actuel = models.PositiveIntegerField(
         default=0, verbose_name="Kilométrage actuel"
     )
+    # Plancher du compteur : kilométrage à l'entrée dans le parc (cf. vehicules.kilometrage)
+    kilometrage_initial = models.PositiveIntegerField(
+        default=0, verbose_name="Kilométrage à l'entrée dans le parc"
+    )
     conso_theorique_origine = models.DecimalField(
         max_digits=5, decimal_places=2, default=0,
         verbose_name="Consommation théorique à l'origine (L/100km)",

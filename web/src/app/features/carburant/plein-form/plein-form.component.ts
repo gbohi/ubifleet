@@ -8,12 +8,14 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { AbstractControl, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CarburantApiService, AgenceApiService, VehiculeApiService, ChauffeurApiService, ParametrageApiService } from '../../../core/services/api.service';
 import { Agence } from '../../../core/models';
-import { FenetreSaisieService } from '../../../core/services/fenetre-saisie.service';
+import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/historique-corrections.component';
+import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 
 @Component({
   selector: 'ubi-plein-form',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, DecimalPipe, DatePipe],
+  imports: [ReactiveFormsModule, RouterLink, DecimalPipe, DatePipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent],
   templateUrl: './plein-form.component.html',
   styleUrls: ['./plein-form.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,7 +47,19 @@ export class PleinFormComponent implements OnInit {
   success    = signal('');
   /** Plein sorti de la fenêtre de saisie : consultation seule. */
   verrouille = signal(false);
+  /** Pas de droit de modification (ni rôle autorisé, ni auteur dans la fenêtre). */
+  lectureSeule = signal(false);
+  supprimable  = signal(false);
+  /** Date d'origine hors de la fenêtre : toute correction exige un motif. */
+  horsFenetre  = signal(false);
   infoHorsDelai = signal<string | null>(null);
+  motifCorrection = signal('');
+  private dateCourante = signal<string | null>(null);
+  motifRequis = computed(() => this.isEditMode()
+    && (this.horsFenetre() || this.fenetres.horsDelai('carburant', this.dateCourante())));
+  suppression        = signal(false);
+  suppressionEnCours = signal(false);
+  suppressionErreur  = signal('');
 
   // ── Photo tableau de bord ──
   photoFile        = signal<File | null>(null);
@@ -99,6 +113,8 @@ export class PleinFormComponent implements OnInit {
 
   ngOnInit(): void {
     this.fenetres.charger();
+    this.dateCourante.set(this.form.controls.date_plein.value);
+    this.form.controls.date_plein.valueChanges.subscribe(d => this.dateCourante.set(d));
     this.parametrageApi.getTournees().subscribe({
       next: (l) => this.tournees.set(l.filter((t: any) => t.actif)),
       error: () => {},
@@ -136,9 +152,8 @@ export class PleinFormComponent implements OnInit {
 
     if (this.isEditMode() && this.id()) {
       this.loading.set(true);
-      this.carburantApi.getPleins({ id: this.id() }).subscribe({
-        next: (res) => {
-          const p = res.results?.[0];
+      this.carburantApi.getPlein(this.id()!).subscribe({
+        next: (p: any) => {
           if (p) {
             this.form.patchValue({
               vehicule:           p.vehicule,
@@ -157,10 +172,11 @@ export class PleinFormComponent implements OnInit {
             if (p.photo_tableau_bord) {
               this.photoExistante.set(p.photo_tableau_bord);
             }
-            if (p.verrouille) {
-              this.verrouille.set(true);
-              this.form.disable();
-            }
+            this.verrouille.set(!!p.verrouille);
+            this.lectureSeule.set(!!p.verrouille || p.modifiable === false);
+            this.supprimable.set(!!p.supprimable);
+            this.horsFenetre.set(!!p.hors_fenetre);
+            if (this.lectureSeule()) this.form.disable();
             if (p.saisie_hors_delai) {
               this.infoHorsDelai.set(`Saisi ou corrigé hors délai${p.hors_delai_par_nom ? ' par ' + p.hors_delai_par_nom : ''}`
                 + (p.hors_delai_le ? ` le ${new Date(p.hors_delai_le).toLocaleDateString('fr-FR')}` : '') + '.');
@@ -239,7 +255,8 @@ export class PleinFormComponent implements OnInit {
 
   // ── Submit ──
   onSubmit(): void {
-    if (this.form.invalid || this.saving() || this.verrouille()) return;
+    if (this.form.invalid || this.saving() || this.lectureSeule()) return;
+    if (this.motifRequis() && !this.motifCorrection().trim()) return;
     this.saving.set(true);
     this.error.set('');
     this.success.set('');
@@ -257,6 +274,10 @@ export class PleinFormComponent implements OnInit {
     const vol  = Number(raw.volume_litres ?? 0);
     const prix = Number(raw.prix_litre    ?? 0);
     fd.append('montant_fcfa', prix > 0 ? (vol * prix).toFixed(2) : '0.00');
+
+    if (this.isEditMode() && this.motifCorrection().trim()) {
+      fd.append('motif_correction', this.motifCorrection().trim());
+    }
 
     // Photo tableau de bord
     if (this.photoFile()) {
@@ -277,17 +298,24 @@ export class PleinFormComponent implements OnInit {
       },
       error: (err) => {
         this.saving.set(false);
-        if (err?.error && typeof err.error === 'object') {
-          const msgs = Object.entries(err.error)
-            .map(([k, v]) => {
-              const texte = Array.isArray(v) ? v.join(', ') : v;
-              return k === 'detail' || k === 'date_plein' ? texte : `${k}: ${texte}`;
-            })
-            .join(' | ');
-          this.error.set(msgs);
-        } else {
-          this.error.set('Une erreur est survenue.');
-        }
+        this.error.set(messageErreurApi(err, 'Une erreur est survenue.'));
+      },
+    });
+  }
+
+  supprimer(motif: string): void {
+    if (!this.id() || this.suppressionEnCours()) return;
+    this.suppressionEnCours.set(true);
+    this.suppressionErreur.set('');
+    this.carburantApi.deletePlein(this.id()!, motif || undefined).subscribe({
+      next: () => {
+        this.suppressionEnCours.set(false);
+        this.suppression.set(false);
+        this.router.navigate(['/carburant']);
+      },
+      error: (err) => {
+        this.suppressionEnCours.set(false);
+        this.suppressionErreur.set(messageErreurApi(err, 'Suppression impossible.'));
       },
     });
   }

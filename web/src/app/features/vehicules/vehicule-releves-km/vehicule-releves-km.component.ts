@@ -1,20 +1,22 @@
 // UbiFleet — Historique Kilométrage (Angular 18)
 import {
   Component, inject, OnInit, input,
-  ChangeDetectionStrategy, signal, effect
+  ChangeDetectionStrategy, signal, effect, computed
 } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { AbstractControl, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { VehiculeApiService, ChauffeurApiService } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/historique-corrections.component';
+import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
 
 @Component({
   selector: 'ubi-vehicule-releves-km',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, ReactiveFormsModule],
+  imports: [RouterLink, DatePipe, DecimalPipe, ReactiveFormsModule, HistoriqueCorrectionsComponent, SuppressionMotifComponent],
   templateUrl: './vehicule-releves-km.component.html',
   styleUrls: ['./vehicule-releves-km.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,6 +25,7 @@ export class VehiculeRelevesKmComponent implements OnInit {
   id = input.required<string>();
 
   private router     = inject(Router);
+  private route      = inject(ActivatedRoute);
   private fb         = inject(FormBuilder);
   private vehiculeApi  = inject(VehiculeApiService);
   private chauffeurApi = inject(ChauffeurApiService);
@@ -36,7 +39,17 @@ export class VehiculeRelevesKmComponent implements OnInit {
   saving      = signal(false);
   error       = signal('');
   success     = signal('');
-  deleteId    = signal<string | null>(null);
+  /** Relevé en cours de modification (null = création). */
+  releveEdite = signal<ReleveKilometrage | null>(null);
+  motifCorrection = signal('');
+  private dateCourante = signal<string | null>(null);
+  /** Motif obligatoire : relevé sorti de la fenêtre, ou nouvelle date hors fenêtre. */
+  motifRequis = computed(() => !!this.releveEdite()
+    && (!!this.releveEdite()!.hors_fenetre || this.fenetres.horsDelai('releves', this.dateCourante())));
+  releveASupprimer = signal<ReleveKilometrage | null>(null);
+  deleteEnCours    = signal(false);
+  deleteErreur     = signal('');
+  historiqueDe     = signal<ReleveKilometrage | null>(null);
   vehiculeInfo = signal<{ immatriculation: string; designation: string; km: number } | null>(null);
 
   chauffeurs  = signal<{ id: string; nom_complet: string }[]>([]);
@@ -80,7 +93,8 @@ export class VehiculeRelevesKmComponent implements OnInit {
 
   ngOnInit(): void {
     this.typesMvt.charger();
-    this.loadReleves();
+    this.f['date_releve'].valueChanges.subscribe(d => this.dateCourante.set(d));
+    this.loadReleves(this.route.snapshot.queryParamMap.get('modifier'));
     // Charger les infos du véhicule
     this.chauffeurApi.getAll({ page_size: 200, statut: 'actif' }).subscribe({
       next: (res) => this.chauffeurs.set(
@@ -98,13 +112,19 @@ export class VehiculeRelevesKmComponent implements OnInit {
     });
   }
 
-  loadReleves(): void {
+  /** `aModifier` : relevé à ouvrir en modification (lien « Corriger » de la liste globale). */
+  loadReleves(aModifier?: string | null): void {
     this.loading.set(true);
     this.vehiculeApi.getRelevesKm({ vehicule: this.id(), page: this.page() }).subscribe({
       next: (res) => {
         this.releves.set(res.results ?? []);
         this.total.set(res.count ?? 0);
         this.loading.set(false);
+        if (aModifier) {
+          const r = this.releves().find(x => x.id === aModifier);
+          if (r?.modifiable) this.openForm(r);
+          else if (r) this.historiqueDe.set(r);
+        }
       },
       error: () => this.loading.set(false),
     });
@@ -113,6 +133,8 @@ export class VehiculeRelevesKmComponent implements OnInit {
   openForm(releve?: ReleveKilometrage): void {
     this.error.set('');
     this.success.set('');
+    this.motifCorrection.set('');
+    this.releveEdite.set(releve ?? null);
     if (releve) {
       this.editId.set(releve.id);
       this.form.patchValue({
@@ -157,6 +179,7 @@ export class VehiculeRelevesKmComponent implements OnInit {
 
   saveReleve(): void {
     if (this.form.invalid || this.saving()) return;
+    if (this.motifRequis() && !this.motifCorrection().trim()) return;
     this.saving.set(true);
     this.error.set('');
 
@@ -167,33 +190,30 @@ export class VehiculeRelevesKmComponent implements OnInit {
       date_releve:    raw.date_releve,
       type_mouvement: raw.type_mouvement,
     };
-    if (raw.chauffeur) payload['chauffeur'] = raw.chauffeur;
-    if (raw.tournee)   payload['tournee']   = raw.tournee;
-    if (raw.notes)     payload['notes']     = raw.notes;
+    const edition = this.editId();
+    if (edition) {
+      // Modification : champs vidés transmis, motif conservé dans le journal
+      payload['chauffeur'] = raw.chauffeur || null;
+      payload['tournee']   = raw.tournee || '';
+      payload['notes']     = raw.notes || '';
+      if (this.motifCorrection().trim()) payload['motif_correction'] = this.motifCorrection().trim();
+    } else {
+      if (raw.chauffeur) payload['chauffeur'] = raw.chauffeur;
+      if (raw.tournee)   payload['tournee']   = raw.tournee;
+      if (raw.notes)     payload['notes']     = raw.notes;
+    }
     if (this.photoFile()) payload['photo_tableau_bord'] = this.photoFile()!
 
-    // Toujours createReleveKm (on ne modifie pas l'historique, on corrige en ajoutant)
-    this.vehiculeApi.createReleveKm(payload as any).subscribe({
+    const req = edition
+      ? this.vehiculeApi.updateReleveKm(edition, payload)
+      : this.vehiculeApi.createReleveKm(payload as any);
+    req.subscribe({
       next: () => {
         this.saving.set(false);
-        this.success.set('Relevé enregistré.');
+        this.success.set(edition ? 'Relevé corrigé.' : 'Relevé enregistré.');
         this.closeForm();
         this.loadReleves();
-        // Recharger les infos véhicule (km actuel peut avoir changé)
-        this.chauffeurApi.getAll({ page_size: 200, statut: 'actif' }).subscribe({
-      next: (res) => this.chauffeurs.set(
-        (res.results ?? []).map((c: any) => ({ id: c.id, nom_complet: c.nom_complet }))
-      ),
-      error: () => {},
-    });
-    this.vehiculeApi.getById(this.id()).subscribe({
-          next: (v: any) => this.vehiculeInfo.set({
-            immatriculation: v.immatriculation,
-            designation: v.designation,
-            km: v.kilometrage_actuel,
-          }),
-          error: () => {},
-        });
+        this.rafraichirVehicule();   // km actuel recalculé par le serveur
       },
       error: (err) => {
         this.saving.set(false);
@@ -202,13 +222,37 @@ export class VehiculeRelevesKmComponent implements OnInit {
     });
   }
 
-  confirmDelete(id: string): void { this.deleteId.set(id); }
-  cancelDelete(): void            { this.deleteId.set(null); }
+  confirmDelete(r: ReleveKilometrage): void {
+    this.deleteErreur.set('');
+    this.releveASupprimer.set(r);
+  }
 
-  doDelete(id: string): void {
-    this.vehiculeApi.deleteReleveKm(id).subscribe({
-      next: () => { this.deleteId.set(null); this.loadReleves(); },
-      error: (err) => { this.deleteId.set(null); this.error.set(messageErreurApi(err, 'Suppression impossible.')); },
+  doDelete(motif: string): void {
+    const r = this.releveASupprimer();
+    if (!r || this.deleteEnCours()) return;
+    this.deleteEnCours.set(true);
+    this.vehiculeApi.deleteReleveKm(r.id, motif || undefined).subscribe({
+      next: () => {
+        this.deleteEnCours.set(false);
+        this.releveASupprimer.set(null);
+        this.success.set('Relevé supprimé.');
+        this.loadReleves();
+        this.rafraichirVehicule();
+      },
+      error: (err) => {
+        this.deleteEnCours.set(false);
+        this.deleteErreur.set(messageErreurApi(err, 'Suppression impossible.'));
+      },
+    });
+  }
+
+  /** Kilométrage actuel du véhicule (recalculé par le serveur après une correction). */
+  rafraichirVehicule(): void {
+    this.vehiculeApi.getById(this.id()).subscribe({
+      next: (v: any) => this.vehiculeInfo.set({
+        immatriculation: v.immatriculation, designation: v.designation, km: v.kilometrage_actuel,
+      }),
+      error: () => {},
     });
   }
 

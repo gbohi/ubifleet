@@ -140,7 +140,7 @@
                 <th>Notes</th>
                 <th>Saisi par</th>
                 <th style="text-align:center;width:70px">Photo</th>
-                <th style="width:60px"></th>
+                <th style="width:150px"></th>
               </tr>
             </thead>
             <tbody>
@@ -188,9 +188,27 @@
                     }
                   </td>
                   <td>
-                    <button class="btn btn-icon" (click)="ouvrirDetail(r)" title="Voir le détail">
-                      <i class="fas fa-eye"></i>
-                    </button>
+                    <div class="td-actions">
+                      <button class="btn btn-icon" (click)="ouvrirDetail(r)" title="Voir le détail">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                      @if (r.modifiable) {
+                        <a class="btn btn-icon" title="Corriger"
+                           [routerLink]="['/vehicules', r.vehicule, 'releves-km']" [queryParams]="{ modifier: r.id }">
+                          <i class="fas fa-edit"></i>
+                        </a>
+                      } @else if (r.verrouille) {
+                        <span class="icone-verrou" title="Relevé figé : sorti de la fenêtre de saisie"><i class="fas fa-lock"></i></span>
+                      }
+                      @if (r.supprimable) {
+                        <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="releveASupprimer.set(r)">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      }
+                      <button class="btn btn-icon" title="Historique des corrections" (click)="historiqueDe.set(r)">
+                        <i class="fas fa-history"></i>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               }
@@ -678,6 +696,25 @@
           <i class="fas fa-external-link-alt"></i> Ouvrir en plein écran
         </a>
       </div>
+    </div>
+  </div>
+}
+
+@if (releveASupprimer(); as r) {
+  <ubi-suppression-motif titre="Supprimer le relevé"
+                         [message]="'Relevé du ' + (r.date_releve | date:'dd/MM/yyyy') + ' — ' + r.vehicule_immat + ', ' + (r.kilometrage | number:'1.0-0') + ' km. Le kilométrage du véhicule sera recalculé.'"
+                         [motifRequis]="!!r.hors_fenetre" [enCours]="deleteEnCours()" [erreur]="deleteErreur()"
+                         (confirmer)="supprimerReleve($event)" (annuler)="releveASupprimer.set(null)" />
+}
+
+@if (historiqueDe(); as r) {
+  <div class="modal-backdrop" (click)="historiqueDe.set(null)">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-history"></i> Historique — {{ r.vehicule_immat }}, relevé du {{ r.date_releve | date:'dd/MM/yyyy' }}</div>
+        <button class="btn-close-modal" (click)="historiqueDe.set(null)" aria-label="Fermer"><i class="fas fa-times"></i></button>
+      </div>
+      <ubi-historique-corrections domaine="releves" [objet]="r.id" />
     </div>
   </div>
 }

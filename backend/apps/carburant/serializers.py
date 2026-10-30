@@ -63,12 +63,14 @@ class PleinSerializer(FenetreSaisieSerializerMixin, serializers.ModelSerializer)
         return obj.chauffeur.nom_complet if obj.chauffeur else None
 
     def validate(self, attrs):
-        vehicule = attrs.get('vehicule') or self.instance.vehicule
-        km = attrs.get('kilometrage_releve')
-        if km and km < vehicule.kilometrage_actuel:
-            raise serializers.ValidationError({
-                'kilometrage_releve': "Le kilométrage est inférieur au kilométrage actuel du véhicule."
-            })
+        # Contrôle par rapport aux saisies voisines, pas au compteur actuel :
+        # une valeur trop élevée doit pouvoir être corrigée.
+        from apps.vehicules.kilometrage import controler_km
+        inst = self.instance
+        controler_km(attrs.get('vehicule', inst and inst.vehicule),
+                     attrs.get('kilometrage_releve', inst and inst.kilometrage_releve),
+                     attrs.get('date_plein', inst and inst.date_plein),
+                     'kilometrage_releve', exclure=inst)
         return attrs
 
 
