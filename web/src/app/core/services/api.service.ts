@@ -989,11 +989,6 @@ export class TotalImportApiService extends ApiBaseService {
     return this.http.get<any>(`${API}/total-import/transactions/stats/`, { params });
   }
 
-  getConsommation(filters: Record<string, string>): Observable<any> {
-    const params = this.buildParams(filters);
-    return this.http.get<any>(`${API}/total-import/transactions/consommation/`, { params });
-  }
-
   /** Plaques et chauffeurs présents dans les transactions (listes des filtres). */
   getValeursFiltres(): Observable<{ immatriculations: string[]; chauffeurs: { numero: string; nom: string }[] }> {
     return this.http.get<any>(`${API}/total-import/transactions/valeurs/`);

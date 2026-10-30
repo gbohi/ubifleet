@@ -74,6 +74,8 @@ export class FiltresAnalyseComponent implements OnInit {
   avecType = input(true);
   avecChauffeur = input(true);
   chargement = input(false);
+  /** Période proposée : depuis le début du mois, il y a N mois (0 = mois en cours). */
+  moisPrecedents = input(2);
   appliquer = output<FiltresAnalyse>();
 
   private options = inject(OptionsSaisieService);
@@ -89,6 +91,9 @@ export class FiltresAnalyseComponent implements OnInit {
   chauffeurs = signal<OptionRecherche[]>([]);
 
   ngOnInit(): void {
+    const p = periodeParDefaut(this.moisPrecedents());
+    this.debut.set(p.debut);
+    this.fin.set(p.fin);
     this.typesMvt.charger();
     this.options.vehicules().subscribe({ next: l => this.vehicules.set(l), error: () => {} });
     if (this.avecChauffeur()) this.options.chauffeurs(true).subscribe({ next: l => this.chauffeurs.set(l), error: () => {} });

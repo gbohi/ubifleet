@@ -465,3 +465,35 @@ class AnalysesCarburantTests(UtilisateursMixin, APITestCase):
         self.assertEqual(normaliser_immat('56317WW-CI'), normaliser_immat('56317 WW 01'))
         self.assertEqual(normaliser_immat('36929 WW'), normaliser_immat('36929 WW 01'))
         self.assertEqual(normaliser_immat('AA-623-YG-01'), 'AA623YG')
+
+    def test_consommation_facturee(self):
+        from apps.vehicules.models import ReleveKilometrage
+        self.prise(0, (8, 0), 10000, 50)
+        self.prise(2, (8, 0), 11000, 50)
+        # Relevé intermédiaire : le compteur d'une transaction sans prise est interpolé
+        ReleveKilometrage.objects.create(vehicule=self.v, kilometrage=10400, date_releve=self.d + datetime.timedelta(days=1),
+                                         heure_releve=datetime.time(8, 0))
+        self.transaction(0, (8, 0), 50, 0, 1)            # kilométrage pompe nul : ignoré, compteur UbiFleet utilisé
+        self.transaction(1, (20, 0), 60, 0, 2)           # 20 h : entre 10 400 (8 h) et 11 000 (le lendemain 8 h)
+        self.transaction(2, (8, 0), 55, 0, 3)
+        self.transaction(2, (8, 5), -55, 0, -3)          # annulée
+        self.transaction(2, (9, 0), 55, 0, 4)
+        self.client.force_authenticate(self.responsable_flotte)
+        r = self.client.get('/api/v1/vehicules/consommation-km/', {'date_debut': '2026-05-01', 'date_fin': '2026-05-31'})
+        self.assertEqual(r.status_code, 200, r.data)
+        l = r.data['resultats'][0]
+        self.assertEqual((l['nb_transactions'], l['litres_factures']), (3, 165.0))
+        # km : 10 000 (1re transaction) → 11 000 (dernière, 9 h : après la dernière saisie) ; litres hors 1re : 115
+        self.assertEqual((l['km_debut'], l['km_fin'], l['km_parcourus']), (10000, 11000, 1000))
+        self.assertEqual(l['conso_facturee'], 11.5)
+        self.assertEqual((l['conso_declaree'], l['conso_reference'], l['ecart_reference_pct']), (5.0, 10.0, 15.0))
+        self.assertEqual(l['ecart_declaree_pct'], 130.0)
+
+    def test_compteur_interpole(self):
+        from .analyses import compteur_a
+        t = lambda h: datetime.datetime(2026, 5, 1, h)
+        saisies = [(t(8), 1000), (t(18), 1100)]
+        self.assertEqual(compteur_a(saisies, t(13)), 1050)
+        self.assertEqual(compteur_a(saisies, t(20)), 1100)
+        self.assertEqual(compteur_a(saisies, t(6)), 1000)
+        self.assertIsNone(compteur_a([], t(6)))

@@ -546,130 +546,71 @@ class HistoriqueImmatriculationViewSet(viewsets.ReadOnlyModelViewSet):
 
 class ConsommationKmView(viewsets.ViewSet):
     """
-    Calcul de la consommation L/100km en croisant :
-    - Distance parcourue : Min/Max de kilometrage_releve entre date_debut et date_fin
-    - Volume carburant   : Sum(volume) depuis TransactionCarburant Total sur la même période
-    Paramètres : date_debut, date_fin, vehicule (optionnel), agence (optionnel)
+    Consommation facturée par véhicule (onglet Consommation des relevés km et
+    page Restitution mensuelle) : litres facturés par TotalEnergies (ventes non
+    annulées, rattachées par la carte carburant ou la plaque normalisée) ÷ km
+    du compteur UbiFleet (relevés et prises) entre la 1re et la dernière
+    transaction de la période, hors litres de la 1re (plein à plein).
+    Comparée à la consommation déclarée (prises) et à la référence du véhicule.
+    Paramètres : date_debut, date_fin (requis), agence, vehicule, chauffeur.
     """
     module             = 'vehicules'
     permission_classes = [RoleBasedPermission]
     role_map           = {'list': 'operateur'}
 
     def list(self, request):
-        from django.db.models import Min, Max, Sum
+        from datetime import datetime, time as dtime, timedelta
+        from rest_framework import serializers as drf_s
+        from apps.carburant.analyses import consommation_facturee
+        from apps.carburant.models import PleinsCarburant
         from apps.total_import.models import TransactionCarburant
 
-        date_debut = request.query_params.get('date_debut')
-        date_fin   = request.query_params.get('date_fin')
-        vehicule_id= request.query_params.get('vehicule', '').strip()
-        agence_id  = agence_effective(request.user, request.query_params.get('agence', '').strip())
-
-        if not date_debut or not date_fin:
+        q = request.query_params
+        try:
+            debut = drf_s.DateField().to_internal_value(q.get('date_debut') or '')
+            fin = drf_s.DateField().to_internal_value(q.get('date_fin') or '')
+        except drf_s.ValidationError:
             return Response({'detail': 'date_debut et date_fin sont requis.'}, status=400)
+        if debut > fin:
+            return Response({'detail': 'La date de début doit précéder la date de fin.'}, status=400)
 
-        # ── Distance parcourue depuis relevés km ─────────────────────
-        qs_releves = filtrer_par_agence(ReleveKilometrage.objects.filter(
-            date_releve__gte=date_debut,
-            date_releve__lte=date_fin,
-        ).select_related('vehicule'), request.user, 'vehicule__agence')
-        if vehicule_id:
-            # Filtrer par immatriculation (courante ou ancienne)
-            from apps.vehicules.models import HistoriqueImmatriculation
-            immat = vehicule_id.upper().strip()
-            vehicule_ids_via_hist = HistoriqueImmatriculation.objects.filter(
-                Q(ancienne_immatriculation__iexact=immat) |
-                Q(nouvelle_immatriculation__iexact=immat)
-            ).values_list('vehicule_id', flat=True)
-            qs_releves = qs_releves.filter(
-                Q(vehicule__immatriculation__iexact=immat) |
-                Q(vehicule__id__in=vehicule_ids_via_hist)
-            )
+        vehicules = filtrer_par_agence(Vehicule.objects.select_related('agence', 'marque', 'modele'), request.user)
+        agence_id = agence_effective(request.user, (q.get('agence') or '').strip())
         if agence_id:
-            qs_releves = qs_releves.filter(vehicule__agence__id=agence_id)
+            vehicules = vehicules.filter(agence_id=agence_id)
+        if q.get('vehicule'):
+            vehicules = vehicules.filter(pk=q['vehicule'])
+        vehicules = list(vehicules)
+        ids = [v.pk for v in vehicules]
 
-        km_par_vehicule = {}
-        for row in (
-            qs_releves
-            .values('vehicule__id', 'vehicule__immatriculation',
-                    'vehicule__marque__libelle', 'vehicule__modele__libelle')
-            .annotate(km_min=Min('kilometrage'), km_max=Max('kilometrage'))
-            .filter(km_min__isnull=False)
-        ):
-            cle  = str(row['vehicule__id'])
-            dist = (row['km_max'] or 0) - (row['km_min'] or 0)
-            km_par_vehicule[cle] = {
-                'vehicule_id':     cle,
-                'immatriculation': row['vehicule__immatriculation'],
-                'marque':          row['vehicule__marque__libelle'],
-                'modele':          row['vehicule__modele__libelle'],
-                'km_debut':        row['km_min'],
-                'km_fin':          row['km_max'],
-                'distance':        dist if dist > 0 else 0,
-            }
+        # Compteur UbiFleet : relevés et prises, avec une marge autour de la période
+        marge_debut, marge_fin = debut - timedelta(days=60), fin + timedelta(days=60)
+        saisies = {}
+        for vid, d, h, km in ReleveKilometrage.objects.filter(
+                vehicule_id__in=ids, date_releve__range=(marge_debut, marge_fin)) \
+                .values_list('vehicule_id', 'date_releve', 'heure_releve', 'kilometrage'):
+            saisies.setdefault(vid, []).append((datetime.combine(d, h or dtime(12, 0)), km))
+        for vid, d, h, km in PleinsCarburant.objects.filter(
+                vehicule_id__in=ids, date_plein__range=(marge_debut, marge_fin)) \
+                .values_list('vehicule_id', 'date_plein', 'heure_plein', 'kilometrage_releve'):
+            saisies.setdefault(vid, []).append((datetime.combine(d, h or dtime(12, 0)), km))
+        for liste in saisies.values():
+            liste.sort()
 
-        # ── Volume carburant depuis TransactionCarburant Total ────────
-        qs_total = filtrer_transactions_total(TransactionCarburant.objects.filter(
-            date_transaction__gte=date_debut,
-            date_transaction__lte=date_fin,
-        ).exclude(immatriculation='').exclude(immatriculation__isnull=True), request.user)
-        if vehicule_id:
-            # Chercher par immatriculation courante ou ancienne
-            immat = vehicule_id.upper().strip()
-            try:
-                v = Vehicule.objects.get(immatriculation__iexact=immat)
-                qs_total = qs_total.filter(immatriculation__iexact=v.immatriculation)
-            except Vehicule.DoesNotExist:
-                # Essayer via historique
-                from apps.vehicules.models import HistoriqueImmatriculation
-                hist = HistoriqueImmatriculation.objects.filter(
-                    Q(ancienne_immatriculation__iexact=immat) |
-                    Q(nouvelle_immatriculation__iexact=immat)
-                ).select_related('vehicule').first()
-                if hist:
-                    qs_total = qs_total.filter(
-                        immatriculation__iexact=hist.vehicule.immatriculation)
-                else:
-                    qs_total = qs_total.filter(immatriculation__iexact=immat)
+        prises = PleinsCarburant.objects.filter(vehicule_id__in=ids, date_plein__range=(debut, fin)) \
+            .select_related('vehicule__agence', 'vehicule__marque', 'vehicule__modele')
+        tx = filtrer_transactions_total(TransactionCarburant.objects.filter(
+            date_transaction__range=(debut, fin)), request.user)
+        if q.get('chauffeur'):
+            from apps.chauffeurs.models import Chauffeur
+            c = Chauffeur.objects.filter(pk=q['chauffeur']).first()
+            prises = prises.filter(chauffeur=c)
+            tx = tx.filter(numero_chauffeur=c.numero_chauffeur_total) if c and c.numero_chauffeur_total else tx.none()
 
-        vol_par_immat = {}
-        for row in (
-            qs_total.values('immatriculation')
-                    .annotate(volume_total=Sum('volume'), nb_transactions=Count('id'))
-        ):
-            immat = (row['immatriculation'] or '').upper().strip()
-            vol_par_immat[immat] = {
-                'volume_total':    float(row['volume_total'] or 0),
-                'nb_transactions': row['nb_transactions'],
-            }
-
-        # ── Rapprochement par immatriculation ─────────────────────────
-        resultats = []
-        for cle, km_data in km_par_vehicule.items():
-            immat  = km_data['immatriculation'].upper().strip()
-            vol    = vol_par_immat.get(immat, {})
-            volume = vol.get('volume_total', 0)
-            dist   = km_data['distance']
-            conso  = round((volume / dist) * 100, 2) if dist > 0 and volume > 0 else None
-
-            resultats.append({
-                'immatriculation':  km_data['immatriculation'],
-                'marque':           km_data['marque'],
-                'modele':           km_data['modele'],
-                'km_debut':         km_data['km_debut'],
-                'km_fin':           km_data['km_fin'],
-                'distance':         dist,
-                'volume_total':     round(volume, 3),
-                'nb_transactions':  vol.get('nb_transactions', 0),
-                'conso_100':        conso,
-                'source_volume':    'total' if vol else 'absent',
-            })
-
-        resultats.sort(key=lambda r: r['conso_100'] or 0, reverse=True)
-        return Response({
-            'periode':    {'debut': date_debut, 'fin': date_fin},
-            'nb_vehicules': len(resultats),
-            'resultats':  resultats,
-        })
+        data = consommation_facturee(vehicules, saisies, list(prises), list(tx), (debut, fin))
+        if q.get('vehicule') or agence_id:
+            data['immatriculations_inconnues'] = []
+        return Response({'periode': {'debut': debut, 'fin': fin}, 'nb_vehicules': len(data['resultats']), **data})
 
 
 class TypeDocumentVehiculeViewSet(viewsets.ModelViewSet):

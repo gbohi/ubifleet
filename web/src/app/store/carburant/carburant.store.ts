@@ -15,7 +15,6 @@ interface CarburantState {
   pleins:        PleinCarburant[];
   anomalies:     PleinCarburant[];
   stats:         any | null;
-  consommation:  any[];
   loadingState:  LoadingState;
   error:         string | null;
   pagination:    PaginationState;
@@ -35,7 +34,6 @@ const initialState: CarburantState = {
   pleins:       [],
   anomalies:    [],
   stats:        null,
-  consommation: [],
   loadingState: 'idle',
   error:        null,
   pagination:   initialPagination,
@@ -130,19 +128,6 @@ export const CarburantStore = signalStore(
           api.getAnomalies().pipe(
             tapResponse({
               next: (res: any) => patchState(store, { anomalies: res.results ?? res }),
-              error: () => {},
-            })
-          )
-        )
-      )
-    ),
-
-    loadConsommation: rxMethod<Record<string, any>>(
-      pipe(
-        switchMap((params) =>
-          api.getConsommation(params).pipe(
-            tapResponse({
-              next: (data) => patchState(store, { consommation: data }),
               error: () => {},
             })
           )

@@ -92,6 +92,7 @@ export class ConsommationVehiculesComponent {
   chargement = signal(false);
   erreur = signal('');
   private filtres: FiltresAnalyse | null = null;
+  private requete = 0;
   tri = signal<{ cle: string; asc: boolean }>({ cle: 'ecart_pct', asc: false });
 
   triees = computed(() => {
@@ -121,9 +122,12 @@ export class ConsommationVehiculesComponent {
     this.filtres = f;
     this.chargement.set(true);
     this.erreur.set('');
+    const n = ++this.requete;   // seule la dernière demande s'affiche
     this.api.getConsommation(f).subscribe({
-      next: (r: any) => { this.lignes.set(r.resultats ?? []); this.chargement.set(false); },
-      error: (err) => { this.erreur.set(messageErreurApi(err, 'Erreur lors du calcul.')); this.chargement.set(false); },
+      next: (r: any) => {
+        if (n !== this.requete) return; this.lignes.set(r.resultats ?? []); this.chargement.set(false); },
+      error: (err) => {
+        if (n !== this.requete) return; this.erreur.set(messageErreurApi(err, 'Erreur lors du calcul.')); this.chargement.set(false); },
     });
   }
 

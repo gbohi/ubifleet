@@ -178,24 +178,33 @@ def _conso_total(transactions):
     return _r(sum(v for v, _ in suite[1:]) / km * 100), int(km)
 
 
+def associer_transactions(transactions, vehicules, dans_periode=lambda d: True):
+    """Transactions effectives par véhicule (carte carburant, sinon plaque
+    normalisée, y compris ses anciennes plaques) et plaques inconnues."""
+    from apps.vehicules.models import HistoriqueImmatriculation
+    par_carte = {normaliser_carte(v.numero_carte_carburant): v for v in vehicules if v.numero_carte_carburant}
+    par_plaque = {normaliser_immat(v.immatriculation): v for v in vehicules}
+    ids = {v.pk: v for v in vehicules}
+    for h in HistoriqueImmatriculation.objects.filter(vehicule_id__in=ids):
+        par_plaque.setdefault(normaliser_immat(h.ancienne_immatriculation), ids[h.vehicule_id])
+    tx_par_vehicule, inconnues = defaultdict(list), defaultdict(lambda: {'nb': 0, 'volume': 0.0, 'montant': 0.0})
+    for t in transactions_effectives(transactions):
+        v = par_carte.get(normaliser_carte(t.numero_moyen_paiement)) or par_plaque.get(normaliser_immat(t.immatriculation))
+        if v is None:
+            if dans_periode(t.date_transaction):
+                i = inconnues[t.immatriculation or '(vide)']
+                i['nb'] += 1; i['volume'] += float(t.volume); i['montant'] += float(t.montant or 0)
+            continue
+        tx_par_vehicule[v.pk].append(t)
+    return tx_par_vehicule, inconnues
+
+
 def rapprocher(prises, transactions, vehicules, tolerance_heures, ecart_pct, periode=None):
     """Synthèse par véhicule, lignes appariées / isolées, plaques Total inconnues.
     `periode` (début, fin) : les transactions hors période (marge chargée pour
     les prises proches de minuit) ne comptent que si elles sont rapprochées."""
     dans_periode = (lambda d: periode[0] <= d <= periode[1]) if periode else (lambda d: True)
-    par_carte = {normaliser_carte(v.numero_carte_carburant): v for v in vehicules if v.numero_carte_carburant}
-    par_plaque = {normaliser_immat(v.immatriculation): v for v in vehicules}
-
-    tx_par_vehicule, inconnues = defaultdict(list), defaultdict(lambda: {'nb': 0, 'volume': 0.0, 'montant': 0.0})
-    for t in transactions_effectives(transactions):
-        v = par_carte.get(normaliser_carte(t.numero_moyen_paiement)) or par_plaque.get(normaliser_immat(t.immatriculation))
-        if v is None:
-            if not dans_periode(t.date_transaction):
-                continue
-            i = inconnues[t.immatriculation or '(vide)']
-            i['nb'] += 1; i['volume'] += float(t.volume); i['montant'] += float(t.montant or 0)
-            continue
-        tx_par_vehicule[v.pk].append(t)
+    tx_par_vehicule, inconnues = associer_transactions(transactions, vehicules, dans_periode)
     prises_par_vehicule = defaultdict(list)
     for p in prises:
         prises_par_vehicule[p.vehicule_id].append(p)
@@ -300,4 +309,81 @@ def _ligne(v, statut, p, t, e_vol=None, e_mt=None):
         'chauffeur_different': bool(p and t and p.chauffeur and p.chauffeur.numero_chauffeur_total
                                     and t.numero_chauffeur
                                     and p.chauffeur.numero_chauffeur_total.lstrip('0') != t.numero_chauffeur.lstrip('0')),
+    }
+
+
+# ── Consommation facturée (litres Total ÷ km du compteur UbiFleet) ────
+
+def compteur_a(saisies, quand):
+    """Kilométrage estimé à un instant : interpolation linéaire entre la
+    dernière saisie (relevé ou prise) d'avant et la première d'après."""
+    avant = apres = None
+    for q, km in saisies:
+        if q <= quand:
+            avant = (q, km)
+        elif apres is None:
+            apres = (q, km)
+            break
+    if avant and apres:
+        duree = (apres[0] - avant[0]).total_seconds()
+        if duree <= 0:
+            return float(avant[1])
+        return avant[1] + (apres[1] - avant[1]) * (quand - avant[0]).total_seconds() / duree
+    if avant:
+        return float(avant[1])
+    return float(apres[1]) if apres else None
+
+
+def consommation_facturee(vehicules, saisies_par_vehicule, prises_periode, transactions, periode):
+    """Par véhicule : litres facturés par Total (ventes non annulées) entre la
+    1re et la dernière transaction de la période, hors 1re (plein à plein),
+    rapportés aux km du compteur UbiFleet entre ces deux transactions.
+    Comparée à la consommation déclarée (prises) et à la référence."""
+    debut, fin = periode
+    tx_par_vehicule, inconnues = associer_transactions(transactions, vehicules, lambda d: debut <= d <= fin)
+    declarees = {l['vehicule_id']: l for l in consommation_vehicules(prises_periode)}
+    lignes = []
+    for v in vehicules:
+        ts = sorted((t for t in tx_par_vehicule.get(v.pk, []) if debut <= t.date_transaction <= fin),
+                    key=_quand_transaction)
+        d = declarees.get(str(v.pk))
+        if not ts and not d:
+            continue
+        saisies = saisies_par_vehicule.get(v.pk, [])
+        litres_factures = sum(float(t.volume) for t in ts)
+        km = km_debut = km_fin = conso = None
+        if len(ts) >= 2:
+            km_debut = compteur_a(saisies, _quand_transaction(ts[0]))
+            km_fin = compteur_a(saisies, _quand_transaction(ts[-1]))
+            if km_debut is not None and km_fin is not None and km_fin > km_debut:
+                km = km_fin - km_debut
+                conso = sum(float(t.volume) for t in ts[1:]) / km * 100
+        ref = float(v.conso_theorique_origine or 0) or None
+        conso_declaree = d['conso_moyenne'] if d else None
+        lignes.append({
+            'vehicule_id': str(v.pk), 'immatriculation': v.immatriculation,
+            'marque': v.marque_str, 'modele': v.modele_str, 'type_vehicule': v.get_type_vehicule_display(),
+            'agence_nom': v.agence.nom if v.agence else None, 'carte': bool(v.numero_carte_carburant),
+            'nb_transactions': len(ts), 'litres_factures': _r(litres_factures),
+            'montant_facture': _r(sum(float(t.montant or 0) for t in ts)),
+            'premiere_transaction': _quand_transaction(ts[0]).isoformat() if ts else None,
+            'derniere_transaction': _quand_transaction(ts[-1]).isoformat() if ts else None,
+            'km_debut': _r(km_debut, 0), 'km_fin': _r(km_fin, 0), 'km_parcourus': _r(km, 0),
+            'conso_facturee': _r(conso),
+            'nb_prises': d['nb_prises'] if d else 0, 'litres_declares': d['litres'] if d else 0,
+            'conso_declaree': conso_declaree, 'conso_reference': _r(ref),
+            'ecart_reference_pct': _r((conso / ref - 1) * 100, 1) if conso is not None and ref else None,
+            'ecart_declaree_pct': _r((conso / conso_declaree - 1) * 100, 1)
+                                  if conso is not None and conso_declaree else None,
+            'motif': None if conso is not None else (
+                'aucune transaction Total' if not ts else
+                'une seule transaction Total' if len(ts) < 2 else
+                'compteur UbiFleet insuffisant (relevés ou prises) entre les transactions'),
+        })
+    lignes.sort(key=lambda l: (l['ecart_reference_pct'] is None, -(l['ecart_reference_pct'] or 0), l['immatriculation']))
+    return {
+        'resultats': lignes,
+        'immatriculations_inconnues': sorted(
+            [{'immatriculation': k, 'nb': i['nb'], 'volume': _r(i['volume']), 'montant': _r(i['montant'])}
+             for k, i in inconnues.items()], key=lambda x: -x['volume']),
     }

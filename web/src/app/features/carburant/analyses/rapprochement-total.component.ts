@@ -161,6 +161,7 @@ export class RapprochementTotalComponent {
   chargement = signal(false);
   erreur = signal('');
   private filtres: FiltresAnalyse | null = null;
+  private requete = 0;
 
   param = computed(() => this.donnees()?.parametres);
   lignesVue = computed(() => (this.donnees()?.lignes ?? []).filter((l: any) => l.statut === this.vue()));
@@ -173,9 +174,12 @@ export class RapprochementTotalComponent {
     this.filtres = f;
     this.chargement.set(true);
     this.erreur.set('');
+    const n = ++this.requete;   // seule la dernière demande s'affiche
     this.api.getRapprochementTotal(f).subscribe({
-      next: (r: any) => { this.donnees.set(r); this.chargement.set(false); },
-      error: (err) => { this.erreur.set(messageErreurApi(err, 'Erreur lors du rapprochement.')); this.chargement.set(false); },
+      next: (r: any) => {
+        if (n !== this.requete) return; this.donnees.set(r); this.chargement.set(false); },
+      error: (err) => {
+        if (n !== this.requete) return; this.erreur.set(messageErreurApi(err, 'Erreur lors du rapprochement.')); this.chargement.set(false); },
     });
   }
 

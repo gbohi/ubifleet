@@ -103,6 +103,7 @@ export class EvolutionAgencesComponent implements OnDestroy {
   chargement = signal(false);
   erreur = signal('');
   private filtres: FiltresAnalyse | null = null;
+  private requete = 0;
 
   private unite = computed(() => MESURES.find(m => m.code === this.mesure())!.unite);
 
@@ -112,9 +113,12 @@ export class EvolutionAgencesComponent implements OnDestroy {
     this.filtres = f;
     this.chargement.set(true);
     this.erreur.set('');
+    const n = ++this.requete;   // seule la dernière demande s'affiche
     this.api.getEvolutionAgences(f).subscribe({
-      next: (r: any) => { this.donnees.set({ mois: r.mois ?? [], agences: r.agences ?? [] }); this.chargement.set(false); this.dessiner(); },
-      error: (err) => { this.erreur.set(messageErreurApi(err, 'Erreur lors du chargement.')); this.chargement.set(false); },
+      next: (r: any) => {
+        if (n !== this.requete) return; this.donnees.set({ mois: r.mois ?? [], agences: r.agences ?? [] }); this.chargement.set(false); this.dessiner(); },
+      error: (err) => {
+        if (n !== this.requete) return; this.erreur.set(messageErreurApi(err, 'Erreur lors du chargement.')); this.chargement.set(false); },
     });
   }
 
