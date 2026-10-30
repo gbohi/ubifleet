@@ -1,6 +1,6 @@
 """UbiFleet — Carburant Views"""
 
-from datetime import time as datetime_time
+from datetime import timedelta
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -16,7 +16,7 @@ from django.db.models import Sum, Avg, Count, Q, Prefetch
 from .models import (
     PleinsCarburant, DotationCarburant, Station, RapprochementCarburant, PrixCarburant, TourneeEffectuee,
 )
-from . import suivi, tournees
+from . import analyses, suivi, tournees
 from apps.parametrage.models import TypeMouvement
 from .serializers import (
     PleinSerializer,
@@ -185,422 +185,97 @@ class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
 
         return Response({'agregats': agg, 'top_vehicules': par_vehicule})
 
+    # ── Analyses (onglets Consommation, Évolution, Rapprochement Total) ──
+    def _periode(self, requis=True):
+        from rest_framework import serializers as s
+        q = self.request.query_params
+        try:
+            debut = s.DateField().to_internal_value(q['date_debut']) if q.get('date_debut') else None
+            fin = s.DateField().to_internal_value(q['date_fin']) if q.get('date_fin') else None
+        except s.ValidationError:
+            raise s.ValidationError({'detail': 'Dates invalides.'})
+        if requis and not (debut and fin):
+            raise s.ValidationError({'detail': 'date_debut et date_fin sont requis.'})
+        if debut and fin and debut > fin:
+            raise s.ValidationError({'detail': 'La date de début doit précéder la date de fin.'})
+        return debut, fin
+
+    def _prises_analyse(self, debut, fin):
+        """Prises de la période, filtrées par agence, véhicule, chauffeur, type."""
+        q = self.request.query_params
+        qs = self.get_queryset().select_related('vehicule__agence', 'vehicule__marque', 'vehicule__modele')
+        if debut: qs = qs.filter(date_plein__gte=debut)
+        if fin:   qs = qs.filter(date_plein__lte=fin)
+        if q.get('agence'):         qs = qs.filter(agence=q['agence'])
+        if q.get('vehicule'):       qs = qs.filter(vehicule=q['vehicule'])
+        if q.get('chauffeur'):      qs = qs.filter(chauffeur=q['chauffeur'])
+        if q.get('type_mouvement'): qs = qs.filter(type_mouvement=q['type_mouvement'])
+        return qs
+
     @action(detail=False, methods=['get'])
     def consommation(self, request):
         """
-        Rapport consommation L/100km par véhicule entre deux dates.
-        Paramètres : date_debut, date_fin, immatriculation (optionnel), chauffeur (optionnel)
-        Si date_debut/date_fin absents, retourne la moyenne globale (comportement historique).
+        Consommation par véhicule sur la période (méthode plein à plein) :
+        km, litres, montant, conso moyenne vs consommation théorique de
+        référence du véhicule, dernière conso, anomalies, part hors tournée.
+        Paramètres : date_debut, date_fin (requis), agence, vehicule, chauffeur, type_mouvement.
         """
-        date_debut = request.query_params.get('date_debut')
-        date_fin   = request.query_params.get('date_fin')
-        immat      = request.query_params.get('immatriculation', '').strip()
-        chauffeur  = request.query_params.get('chauffeur', '').strip()
-
-        qs = self.get_queryset()
-        if date_debut: qs = qs.filter(date_plein__gte=date_debut)
-        if date_fin:   qs = qs.filter(date_plein__lte=date_fin)
-        if immat:      qs = qs.filter(vehicule__immatriculation__icontains=immat)
-        if chauffeur:  qs = qs.filter(chauffeur__nom__icontains=chauffeur)
-
-        if not date_debut and not date_fin:
-            # Comportement historique : moyenne de consommation_calculee
-            qs2 = qs.filter(consommation_calculee__isnull=False).values(
-                'vehicule__id', 'vehicule__immatriculation',
-                'vehicule__marque', 'vehicule__modele', 'agence__nom'
-            ).annotate(
-                conso_moy=Avg('consommation_calculee'),
-                total_litres=Sum('volume_litres'),
-                total_montant=Sum('montant_fcfa'),
-                nb_pleins=Count('id')
-            ).order_by('-conso_moy')
-            return Response({'resultats': list(qs2)})
-
-        # Calcul : dernier plein de la période vs son prédécesseur immédiat
-        # (même logique que la détection d'anomalie sur un plein individuel)
-        resultats = []
-        # IMPORTANT : Meta.ordering du modèle (-date_plein, -created_at) casse
-        # le distinct() s'il n'est pas neutralisé — Django inclut ces colonnes
-        # dans le DISTINCT SQL, ce qui produit une ligne par (véhicule, date, created_at)
-        # au lieu d'une ligne par véhicule. On force order_by() vide ici.
-        vehicule_ids = qs.order_by().values_list('vehicule__id', flat=True).distinct()
-
-        for veh_id in vehicule_ids:
-            dernier = (
-                qs.filter(vehicule__id=veh_id)
-                  .order_by('date_plein', 'heure_plein')
-                  .last()
-            )
-            if not dernier:
-                continue
-
-            # Prédécesseur immédiat du dernier plein, sur TOUT l'historique
-            # du véhicule (pas seulement dans la période filtrée), pour avoir
-            # un point de comparaison même si la période ne contient qu'un plein.
-            from django.db.models import Q
-            heure_dernier = dernier.heure_plein or datetime_time.min
-            predecesseur = (
-                self.get_queryset()
-                    .filter(vehicule__id=veh_id)
-                    .filter(
-                        Q(date_plein__lt=dernier.date_plein) |
-                        Q(date_plein=dernier.date_plein, heure_plein__lt=heure_dernier)
-                    )
-                    .exclude(pk=dernier.pk)
-                    .order_by('-date_plein', '-heure_plein')
-                    .first()
-            )
-            if not predecesseur:
-                continue
-
-            km_debut = float(predecesseur.kilometrage_releve or 0)
-            km_fin   = float(dernier.kilometrage_releve or 0)
-            km_parcourus = km_fin - km_debut if km_fin > km_debut else 0
-
-            volume  = float(dernier.volume_litres or 0)
-            montant = float(dernier.montant_fcfa or 0)
-
-            conso_100 = round((volume / km_parcourus) * 100, 2) if km_parcourus > 0 else None
-
-            resultats.append({
-                'immatriculation': dernier.vehicule.immatriculation,
-                'marque':          dernier.vehicule.marque_str,
-                'modele':          dernier.vehicule.modele_str,
-                'km_debut':        km_debut,
-                'km_fin':          km_fin,
-                'km_parcourus':    round(km_parcourus, 0),
-                'volume_total':    round(volume, 2),
-                'montant_total':   round(montant, 2),
-                'nb_pleins':       2,
-                'conso_100':       conso_100,
-                'premier_date':    predecesseur.date_plein,
-                'premier_heure':   predecesseur.heure_plein,
-                'dernier_date':    dernier.date_plein,
-                'dernier_heure':   dernier.heure_plein,
-            })
-
-        resultats.sort(key=lambda x: x['conso_100'] or 0, reverse=True)
-        return Response({
-            'periode':   {'debut': date_debut, 'fin': date_fin},
-            'nb_vehicules': len(resultats),
-            'resultats': resultats,
-        })
-
-    @action(detail=False, methods=['get'])
-    def consommation_moyenne_periode(self, request):
-        """
-        Consommation L/100km MOYENNE sur toute la période sélectionnée
-        (du tout premier au tout dernier plein de la fenêtre), par véhicule.
-        Paramètres : date_debut, date_fin (requis), immatriculation (optionnel), chauffeur (optionnel)
-        """
-        date_debut = request.query_params.get('date_debut')
-        date_fin   = request.query_params.get('date_fin')
-        immat      = request.query_params.get('immatriculation', '').strip()
-        chauffeur  = request.query_params.get('chauffeur', '').strip()
-
-        if not date_debut or not date_fin:
-            return Response({'detail': 'date_debut et date_fin sont requis.'}, status=400)
-
-        qs = self.get_queryset().filter(
-            date_plein__gte=date_debut,
-            date_plein__lte=date_fin,
-        )
-        if immat:     qs = qs.filter(vehicule__immatriculation__icontains=immat)
-        if chauffeur: qs = qs.filter(chauffeur__nom__icontains=chauffeur)
-
-        resultats = []
-        vehicule_ids = qs.order_by().values_list('vehicule__id', flat=True).distinct()
-
-        for veh_id in vehicule_ids:
-            pleins_vehicule = list(
-                qs.filter(vehicule__id=veh_id).order_by('date_plein', 'heure_plein')
-            )
-            if len(pleins_vehicule) < 2:
-                continue
-
-            premier = pleins_vehicule[0]
-            dernier = pleins_vehicule[-1]
-
-            km_debut = float(premier.kilometrage_releve or 0)
-            km_fin   = float(dernier.kilometrage_releve or 0)
-            km_parcourus = km_fin - km_debut if km_fin > km_debut else 0
-
-            # Volume consommé pour parcourir ces km : on exclut le 1er plein,
-            # qui ne sert que de référence kilométrique de départ.
-            volume = float(sum(p.volume_litres for p in pleins_vehicule[1:]))
-            montant = float(sum(p.montant_fcfa for p in pleins_vehicule[1:]))
-            nb_pleins = len(pleins_vehicule)
-
-            conso_100 = round((volume / km_parcourus) * 100, 2) if km_parcourus > 0 else None
-
-            resultats.append({
-                'immatriculation': premier.vehicule.immatriculation,
-                'marque':          premier.vehicule.marque_str,
-                'modele':          premier.vehicule.modele_str,
-                'km_debut':        km_debut,
-                'km_fin':          km_fin,
-                'km_parcourus':    round(km_parcourus, 0),
-                'volume_total':    round(volume, 2),
-                'montant_total':   round(montant, 2),
-                'nb_pleins':       nb_pleins,
-                'conso_100':       conso_100,
-                'premier_date':    premier.date_plein,
-                'premier_heure':   premier.heure_plein,
-                'dernier_date':    dernier.date_plein,
-                'dernier_heure':   dernier.heure_plein,
-            })
-
-        resultats.sort(key=lambda x: x['conso_100'] or 0, reverse=True)
-        return Response({
-            'periode':   {'debut': date_debut, 'fin': date_fin},
-            'nb_vehicules': len(resultats),
-            'resultats': resultats,
-        })
+        debut, fin = self._periode()
+        lignes = analyses.consommation_vehicules(list(self._prises_analyse(debut, fin)))
+        return Response({'periode': {'debut': debut, 'fin': fin}, 'nb_vehicules': len(lignes), 'resultats': lignes})
 
     @action(detail=False, methods=['get'])
     def evolution_agences(self, request):
         """
-        Évolution des prises de carburant UbiFleet par agence entre deux dates.
-        Paramètres : date_debut, date_fin, immatriculation (optionnel), chauffeur (optionnel)
+        Évolution mensuelle par agence (mois vides à 0) : litres, montant,
+        nombre de prises, km, conso, découpés tournées / hors tournée, et
+        dotation théorique des tournées effectuées commencées dans le mois.
+        Paramètres : date_debut, date_fin (requis), agence, vehicule, chauffeur, type_mouvement.
         """
-        from django.db.models.functions import TruncMonth
-
-        date_debut = request.query_params.get('date_debut')
-        date_fin   = request.query_params.get('date_fin')
-        immat      = request.query_params.get('immatriculation', '').strip()
-        chauffeur  = request.query_params.get('chauffeur', '').strip()
-
-        if not date_debut or not date_fin:
-            return Response({'detail': 'date_debut et date_fin sont requis.'}, status=400)
-
-        qs = self.get_queryset().filter(
-            date_plein__gte=date_debut,
-            date_plein__lte=date_fin,
-        )
-        if immat:     qs = qs.filter(vehicule__immatriculation__icontains=immat)
-        if chauffeur: qs = qs.filter(chauffeur__nom__icontains=chauffeur)
-
-        series = (
-            qs.annotate(mois=TruncMonth('date_plein'))
-              .values('agence__id', 'agence__nom', 'mois')
-              .annotate(
-                  volume=Sum('volume_litres'),
-                  montant=Sum('montant_fcfa'),
-                  nb=Count('id'),
-              )
-              .order_by('agence__nom', 'mois')
-        )
-
-        agences_data: dict = {}
-        for row in series:
-            nom = row['agence__nom'] or 'Sans agence'
-            mois_str = row['mois'].strftime('%Y-%m') if row['mois'] else '?'
-            if nom not in agences_data:
-                agences_data[nom] = {'nom': nom, 'points': []}
-            agences_data[nom]['points'].append({
-                'mois':    mois_str,
-                'volume':  float(row['volume'] or 0),
-                'montant': float(row['montant'] or 0),
-                'nb':      row['nb'],
-            })
-
-        return Response({
-            'periode': {'debut': date_debut, 'fin': date_fin},
-            'agences': list(agences_data.values()),
-        })
+        debut, fin = self._periode()
+        q = request.query_params
+        tes = filtrer_par_agence(TourneeEffectuee.objects.select_related('agence'), request.user) \
+            .exclude(statut=TourneeEffectuee.Statut.ANNULEE).filter(date_debut__gte=debut, date_debut__lte=fin)
+        if q.get('agence'):    tes = tes.filter(agence=q['agence'])
+        if q.get('vehicule'):  tes = tes.filter(vehicule=q['vehicule'])
+        if q.get('chauffeur'): tes = tes.filter(chauffeur=q['chauffeur'])
+        if q.get('type_mouvement') and q['type_mouvement'] != TypeMouvement.CODE_TOURNEE:
+            tes = tes.none()
+        data = analyses.evolution_agences(list(self._prises_analyse(debut, fin)), list(tes), debut, fin)
+        return Response({'periode': {'debut': debut, 'fin': fin}, **data})
 
     @action(detail=False, methods=['get'])
-    def comparaison_total(self, request):
+    def rapprochement_total(self, request):
         """
-        Compare la consommation L/100km calculée côté UbiFleet (pleins déclarés)
-        avec celle calculée côté Total (transactions facturées par la station),
-        sur la même période et pour les mêmes véhicules.
-
-        Paramètres : date_debut, date_fin, immatriculation (optionnel)
-
-        Logique : pour chaque immatriculation présente d'un côté ou de l'autre,
-        on calcule (volume total / km parcourus) * 100 sur la période, puis on
-        compare les deux valeurs pour faire ressortir les écarts.
+        Prises déclarées vs transactions TotalEnergies facturées sur la période :
+        synthèse par véhicule (litres et montants), lignes rapprochées, écarts,
+        transactions sans prise, prises sans transaction, plaques Total inconnues.
+        Tolérances : Paramètres › Seuils (écart d'heure, écart de volume / montant).
+        Paramètres : date_debut, date_fin (requis), agence, vehicule, chauffeur.
         """
-        from django.db.models import Min, Max
+        from apps.parametrage.models import Parametre
         from apps.total_import.models import TransactionCarburant
-
-        date_debut = request.query_params.get('date_debut')
-        date_fin   = request.query_params.get('date_fin')
-        immat      = request.query_params.get('immatriculation', '').strip()
-
-        if not date_debut or not date_fin:
-            return Response({'detail': 'date_debut et date_fin sont requis.'}, status=400)
-
-        # ── Côté UbiFleet ────────────────────────────────────────────
-        qs_ubi = self.get_queryset().filter(
-            date_plein__gte=date_debut,
-            date_plein__lte=date_fin,
-        )
-        if immat:
-            qs_ubi = qs_ubi.filter(vehicule__immatriculation__icontains=immat)
-
-        ubi_par_vehicule: dict = {}
-        immats_ubi = qs_ubi.order_by().values_list('vehicule__immatriculation', flat=True).distinct()
-
-        for immat_veh in immats_ubi:
-            cle = str(immat_veh or '').upper().strip()
-            if not cle:
-                continue
-
-            pleins_veh = list(
-                qs_ubi.filter(vehicule__immatriculation__iexact=cle)
-                      .order_by('date_plein', 'heure_plein')
-            )
-            if len(pleins_veh) < 2:
-                continue
-
-            premier = pleins_veh[0]
-            dernier = pleins_veh[-1]
-
-            km_debut = float(premier.kilometrage_releve or 0)
-            km_fin   = float(dernier.kilometrage_releve or 0)
-            km_parcourus = km_fin - km_debut if km_fin > km_debut else 0
-
-            # Volume hors 1er plein (référence kilométrique de départ seulement)
-            volume  = float(sum(p.volume_litres for p in pleins_veh[1:]))
-            montant = float(sum(p.montant_fcfa for p in pleins_veh[1:]))
-            conso   = round((volume / km_parcourus) * 100, 2) if km_parcourus > 0 else None
-
-            ubi_par_vehicule[cle] = {
-                'volume':         round(volume, 2),
-                'montant':        round(montant, 2),
-                'nb_pleins':      len(pleins_veh),
-                'km_debut':       km_debut,
-                'km_fin':         km_fin,
-                'km_parcourus':   round(km_parcourus, 0),
-                'conso_100':      conso,
-                'premier_date':   premier.date_plein,
-                'premier_heure':  premier.heure_plein,
-                'dernier_date':   dernier.date_plein,
-                'dernier_heure':  dernier.heure_plein,
-            }
-
-        # ── Côté Total ───────────────────────────────────────────────
-        qs_total = filtrer_transactions_total(TransactionCarburant.objects.filter(
-            date_transaction__gte=date_debut,
-            date_transaction__lte=date_fin,
-        ).exclude(immatriculation='').exclude(immatriculation__isnull=True), request.user)
-        if immat:
-            qs_total = qs_total.filter(immatriculation__icontains=immat)
-
-        total_par_vehicule: dict = {}
-        for row in (
-            qs_total.values('immatriculation')
-                    .annotate(
-                        volume_total = Sum('volume'),
-                        montant_total= Sum('montant'),
-                        nb_pleins    = Count('id'),
-                        km_debut     = Min('kilometrage_precedent'),
-                        km_fin       = Max('kilometrage_actuel'),
-                    )
-                    .filter(volume_total__gt=0)
-        ):
-            cle = str(row['immatriculation'] or '').upper().strip()
-            if not cle:
-                continue
-            km_debut = float(row['km_debut'] or 0)
-            km_fin   = float(row['km_fin'] or 0)
-            km_parcourus = km_fin - km_debut if km_fin > km_debut else 0
-            volume = float(row['volume_total'] or 0)
-            conso  = round((volume / km_parcourus) * 100, 2) if km_parcourus > 0 else None
-
-            trans_veh = qs_total.filter(
-                immatriculation__iexact=cle
-            ).order_by('date_transaction', 'heure_transaction')
-            premiere = trans_veh.first()
-            derniere = trans_veh.last()
-
-            total_par_vehicule[cle] = {
-                'volume':         round(volume, 2),
-                'montant':        float(row['montant_total'] or 0),
-                'nb_pleins':      row['nb_pleins'],
-                'km_debut':       km_debut,
-                'km_fin':         km_fin,
-                'km_parcourus':   round(km_parcourus, 0),
-                'conso_100':      conso,
-                'premier_date':   premiere.date_transaction  if premiere else None,
-                'premier_heure':  premiere.heure_transaction  if premiere else None,
-                'dernier_date':   derniere.date_transaction  if derniere else None,
-                'dernier_heure':  derniere.heure_transaction  if derniere else None,
-            }
-
-        # ── Rapprochement par immatriculation ───────────────────────
-        toutes_immats = set(ubi_par_vehicule.keys()) | set(total_par_vehicule.keys())
-        resultats = []
-        for cle in sorted(toutes_immats):
-            u = ubi_par_vehicule.get(cle)
-            t = total_par_vehicule.get(cle)
-
-            conso_ubi   = u['conso_100'] if u else None
-            conso_total = t['conso_100'] if t else None
-
-            ecart = None
-            ecart_pct = None
-            statut = 'donnees_insuffisantes'
-            if conso_ubi is not None and conso_total is not None:
-                ecart = round(conso_ubi - conso_total, 2)
-                base  = conso_total if conso_total > 0 else conso_ubi
-                ecart_pct = round((abs(ecart) / base) * 100, 1) if base else None
-                if ecart_pct is not None and ecart_pct <= 10:
-                    statut = 'coherent'
-                elif ecart_pct is not None and ecart_pct <= 25:
-                    statut = 'ecart_modere'
-                else:
-                    statut = 'ecart_important'
-            elif u and not t:
-                statut = 'total_absent'
-            elif t and not u:
-                statut = 'ubifleet_absent'
-
-            resultats.append({
-                'immatriculation':    cle,
-                'ubifleet_volume':    u['volume']       if u else None,
-                'ubifleet_km':        u['km_parcourus'] if u else None,
-                'ubifleet_nb_pleins': u['nb_pleins']    if u else None,
-                'ubifleet_conso_100': conso_ubi,
-                'ubifleet_premier_date':  u['premier_date']  if u else None,
-                'ubifleet_premier_heure': u['premier_heure'] if u else None,
-                'ubifleet_dernier_date':  u['dernier_date']  if u else None,
-                'ubifleet_dernier_heure': u['dernier_heure'] if u else None,
-                'total_volume':       t['volume']       if t else None,
-                'total_km':           t['km_parcourus'] if t else None,
-                'total_nb_pleins':    t['nb_pleins']     if t else None,
-                'total_conso_100':    conso_total,
-                'total_premier_date':  t['premier_date']  if t else None,
-                'total_premier_heure': t['premier_heure'] if t else None,
-                'total_dernier_date':  t['dernier_date']  if t else None,
-                'total_dernier_heure': t['dernier_heure'] if t else None,
-                'ecart_conso':        ecart,
-                'ecart_pct':          ecart_pct,
-                'statut':             statut,
-            })
-
-        # Trier : écarts importants en premier
-        ordre_statut = {'ecart_important': 0, 'ecart_modere': 1, 'ubifleet_absent': 2,
-                         'total_absent': 3, 'coherent': 4, 'donnees_insuffisantes': 5}
-        resultats.sort(key=lambda r: (ordre_statut.get(r['statut'], 9), -(r['ecart_pct'] or 0)))
-
-        stats = {
-            'total':            len(resultats),
-            'coherent':         sum(1 for r in resultats if r['statut'] == 'coherent'),
-            'ecart_modere':     sum(1 for r in resultats if r['statut'] == 'ecart_modere'),
-            'ecart_important':  sum(1 for r in resultats if r['statut'] == 'ecart_important'),
-            'ubifleet_absent':  sum(1 for r in resultats if r['statut'] == 'ubifleet_absent'),
-            'total_absent':     sum(1 for r in resultats if r['statut'] == 'total_absent'),
-        }
-
-        return Response({
-            'periode':   {'debut': date_debut, 'fin': date_fin},
-            'stats':     stats,
-            'resultats': resultats,
-        })
-
+        from apps.vehicules.models import Vehicule
+        debut, fin = self._periode()
+        q = request.query_params
+        prises = list(self._prises_analyse(debut, fin).select_related('station', 'chauffeur'))
+        vehicules = filtrer_par_agence(Vehicule.objects.select_related('agence'), request.user, 'agence')
+        if q.get('agence'):   vehicules = vehicules.filter(agence=q['agence'])
+        if q.get('vehicule'): vehicules = vehicules.filter(pk=q['vehicule'])
+        # Marge d'un jour : une transaction proche minuit peut répondre à une prise de la veille
+        tx = filtrer_transactions_total(TransactionCarburant.objects.filter(
+            date_transaction__gte=debut - timedelta(days=1), date_transaction__lte=fin + timedelta(days=1)),
+            request.user)
+        if q.get('chauffeur'):
+            from apps.chauffeurs.models import Chauffeur
+            c = Chauffeur.objects.filter(pk=q['chauffeur']).first()
+            tx = tx.filter(numero_chauffeur=c.numero_chauffeur_total) if c and c.numero_chauffeur_total else tx.none()
+        tolerance = float(Parametre.get(analyses.CLE_TOLERANCE_HEURES, analyses.TOLERANCE_HEURES_DEFAUT))
+        ecart = float(Parametre.get(analyses.CLE_ECART_PCT, analyses.ECART_PCT_DEFAUT))
+        data = analyses.rapprocher(prises, list(tx), list(vehicules), tolerance, ecart, periode=(debut, fin))
+        if q.get('vehicule') or q.get('agence'):
+            data['immatriculations_inconnues'] = []
+        return Response({'periode': {'debut': debut, 'fin': fin}, **data})
 
 class DotationViewSet(AgenceMixin, viewsets.ModelViewSet):
     serializer_class = DotationSerializer

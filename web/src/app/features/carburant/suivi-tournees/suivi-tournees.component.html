@@ -24,9 +24,9 @@
           @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
         </select></div>
     }
-    <div class="st-filtre"><label for="st-immat">Véhicule</label>
-      <input id="st-immat" type="text" class="form-control" placeholder="Immatriculation" [value]="immat()"
-             (input)="immat.set($any($event.target).value)" (keyup.enter)="charger()" /></div>
+    <div class="st-filtre st-filtre-large"><label>Véhicule</label>
+      <ubi-select-recherche placeholder="Immatriculation…" [options]="vehicules()" [selection]="vehicule()"
+                            (choix)="vehicule.set($event ?? '')" /></div>
     @if (vue() === 'tournees') {
       <div class="st-filtre"><label for="st-tournee">Tournée</label>
         <select id="st-tournee" class="form-control" [value]="tournee()" (change)="tournee.set($any($event.target).value)">

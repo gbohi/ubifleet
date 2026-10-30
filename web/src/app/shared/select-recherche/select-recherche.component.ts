@@ -4,9 +4,10 @@
 // tournées, stations) : on tape quelques caractères et la liste se filtre
 // (sans tenir compte des accents ni de la casse). S'utilise comme un champ
 // de formulaire (formControlName / ngModel) ; la valeur est `value` de l'option.
+// Hors formulaire (filtres) : [selection] et (choix).
 import {
-  ChangeDetectionStrategy, Component, ElementRef, HostListener, computed, forwardRef,
-  inject, input, signal, viewChild,
+  ChangeDetectionStrategy, Component, ElementRef, HostListener, computed, effect, forwardRef,
+  inject, input, output, signal, untracked, viewChild,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
@@ -91,6 +92,10 @@ export class SelectRechercheComponent implements ControlValueAccessor {
   placeholder = input('Rechercher…');
   invalid     = input(false);
   inputId     = input<string | null>(null);
+  /** Valeur imposée hors formulaire (filtres) ; undefined = laissée au formulaire. */
+  selection   = input<string | number | null | undefined>(undefined);
+  /** Valeur choisie (ou null quand on vide le champ). */
+  choix       = output<any>();
 
   private hote = inject(ElementRef<HTMLElement>);
   private champ = viewChild<ElementRef<HTMLInputElement>>('champ');
@@ -119,6 +124,14 @@ export class SelectRechercheComponent implements ControlValueAccessor {
   private onChange: (v: any) => void = () => {};
   private onTouched: () => void = () => {};
 
+  constructor() {
+    effect(() => {
+      const s = this.selection();
+      if (s === undefined) return;
+      untracked(() => { this.valeur.set(s === '' ? null : s); this.recherche.set(null); });
+    }, { allowSignalWrites: true });
+  }
+
   writeValue(v: any): void { this.valeur.set(v === '' || v === undefined ? null : v); this.recherche.set(null); }
   registerOnChange(fn: (v: any) => void): void { this.onChange = fn; }
   registerOnTouched(fn: () => void): void { this.onTouched = fn; }
@@ -141,7 +154,7 @@ export class SelectRechercheComponent implements ControlValueAccessor {
     const v = o ? o.value : null;
     this.recherche.set(null);
     this.ouvert.set(false);
-    if (v !== this.valeur()) { this.valeur.set(v); this.onChange(v); }
+    if (v !== this.valeur()) { this.valeur.set(v); this.onChange(v); this.choix.emit(v); }
     this.onTouched();
     if (!o) this.champ()?.nativeElement.focus();
   }

@@ -71,19 +71,15 @@
     </button>
     <button class="tab" [class.active]="activeTab() === 'consommation'"
             (click)="activeTab.set('consommation')">
-      <i class="fas fa-tachometer-alt"></i> Consommation L/100
-    </button>
-    <button class="tab" [class.active]="activeTab() === 'moyenne_periode'"
-            (click)="activeTab.set('moyenne_periode')">
-      <i class="fas fa-chart-area"></i> Moyenne période
+      <i class="fas fa-tachometer-alt"></i> Consommation
     </button>
     <button class="tab" [class.active]="activeTab() === 'evolution'"
             (click)="activeTab.set('evolution')">
       <i class="fas fa-chart-line"></i> Évolution par agence
     </button>
-    <button class="tab" [class.active]="activeTab() === 'comparaison'"
-            (click)="activeTab.set('comparaison')">
-      <i class="fas fa-balance-scale"></i> Comparaison Total
+    <button class="tab" [class.active]="activeTab() === 'rapprochement'"
+            (click)="activeTab.set('rapprochement')">
+      <i class="fas fa-balance-scale"></i> Rapprochement Total
     </button>
   </div>
 
@@ -94,13 +90,28 @@
     <div class="filters-bar">
       <div class="search-box">
         <i class="fas fa-search"></i>
-        <input type="text" placeholder="Immatriculation, bon, chauffeur..."
+        <input type="text" placeholder="Bon, immatriculation, station…"
                (input)="onSearch($event)" />
       </div>
       <select class="form-control filter-select" (change)="onAgenceFilter($event)">
         <option value="">Toutes les agences</option>
         @for (a of agences(); track a.id) {
           <option [value]="a.id">{{ a.nom }}</option>
+        }
+      </select>
+      <div class="filter-sr">
+        <ubi-select-recherche placeholder="Véhicule…" [options]="vehiculesFiltre()"
+                              [selection]="store.filters().vehicule" (choix)="onFiltreListe('vehicule', $event)" />
+      </div>
+      <div class="filter-sr">
+        <ubi-select-recherche placeholder="Chauffeur…" [options]="chauffeursFiltre()"
+                              [selection]="store.filters().chauffeur" (choix)="onFiltreListe('chauffeur', $event)" />
+      </div>
+      <select class="form-control filter-select" [value]="store.filters().type_mouvement"
+              (change)="onFiltreListe('type_mouvement', $any($event.target).value)">
+        <option value="">Tous les types</option>
+        @for (t of typesMvt.tous(); track t.code) {
+          @if (t.pour_prises) { <option [value]="t.code">{{ t.libelle }}</option> }
         }
       </select>
       <select class="form-control filter-select" (change)="onMoisFilter($event)">
@@ -401,506 +412,11 @@
     <ubi-suivi-tournees [agences]="agences()" />
   }
 
-  <!-- ── ONGLET CONSOMMATION L/100 ── -->
-  @if (activeTab() === 'consommation') {
-    <div class="analyse-tab">
-      <div class="analyse-header">
-        <div class="analyse-title">
-          <i class="fas fa-tachometer-alt" style="color:var(--green-dark)"></i>
-          Consommation aux 100 km par véhicule
-        </div>
-        <p class="analyse-subtitle">
-          Consommation de la dernière prise de carburant de chaque véhicule, comparée à la prise précédente immédiate
-          (même calcul que la détection d'anomalie).
-        </p>
-      </div>
+  <!-- ── ANALYSES ── -->
+  @if (activeTab() === 'consommation') { <ubi-consommation-vehicules [agences]="agences()" /> }
+  @if (activeTab() === 'evolution') { <ubi-evolution-agences [agences]="agences()" /> }
+  @if (activeTab() === 'rapprochement') { <ubi-rapprochement-total [agences]="agences()" /> }
 
-      <div class="analyse-filters card">
-        <div class="filters-grid">
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date début *</label>
-            <input type="date" class="form-control" [value]="consoDateDebut()" (input)="onConsoInput('debut',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin *</label>
-            <input type="date" class="form-control" [value]="consoDateFin()" (input)="onConsoInput('fin',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-            <input type="text" class="form-control" placeholder="Filtrer par véhicule"
-                   [value]="consoImmat()" (input)="onConsoInput('immat',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-id-badge"></i> Chauffeur</label>
-            <input type="text" class="form-control" placeholder="Nom du chauffeur"
-                   [value]="consoChauf()" (input)="onConsoInput('chauf',$event)" />
-          </div>
-        </div>
-        @if (consoError()) {
-          <div class="alert-error-sm"><i class="fas fa-exclamation-triangle"></i> {{ consoError() }}</div>
-        }
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-green" [disabled]="consoLoading()" (click)="calculerConso()">
-            @if (consoLoading()) { <i class="fas fa-circle-notch fa-spin"></i> Calcul... }
-            @else { <i class="fas fa-calculator"></i> Calculer }
-          </button>
-          @if (consoData().length > 0) {
-            <button class="btn btn-excel" (click)="exportConsoCsv()">
-              <i class="fas fa-file-excel"></i> Exporter
-            </button>
-          }
-        </div>
-      </div>
-
-      @if (consoData().length > 0) {
-        <div class="card" style="margin-top:16px">
-          <div class="card-header">
-            <div class="card-title">{{ consoData().length }} véhicule(s) — période {{ consoDateDebut() }} au {{ consoDateFin() }}</div>
-          </div>
-          <div class="table-container">
-            <table class="ubi-table">
-              <thead>
-                <tr>
-                  <th (click)="sortConso('immatriculation')" class="sortable">Immatriculation <i class="fas fa-sort"></i></th>
-                  <th>Période réelle</th>
-                  <th (click)="sortConso('km_parcourus')" class="sortable">Km parcourus <i class="fas fa-sort"></i></th>
-                  <th (click)="sortConso('volume_total')" class="sortable">Volume (L) <i class="fas fa-sort"></i></th>
-                  <th (click)="sortConso('montant_total')" class="sortable">Montant (FCFA) <i class="fas fa-sort"></i></th>
-                  <th (click)="sortConso('nb_pleins')" class="sortable">Nb prises <i class="fas fa-sort"></i></th>
-                  <th (click)="sortConso('conso_100')" class="sortable">Conso L/100km <i class="fas fa-sort"></i></th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (r of consoSorted(); track r.immatriculation) {
-                  <tr>
-                    <td>
-                      <span class="immat-badge">{{ r.immatriculation }}</span>
-                      @if (r.marque || r.modele) {
-                        <div style="font-size:11px;color:var(--gray-400)">{{ r.marque }} {{ r.modele }}</div>
-                      }
-                    </td>
-                    <td style="font-size:11px;color:var(--gray-500);white-space:nowrap">
-                      @if (r.premier_date) {
-                        <div>
-                          <i class="fas fa-play" style="font-size:9px;color:var(--green-dark)"></i>
-                          {{ r.premier_date | date:'dd/MM/yy' }}
-                          @if (r.premier_heure) { <span style="font-family:monospace">{{ r.premier_heure.substring(0,5) }}</span> }
-                        </div>
-                      }
-                      @if (r.dernier_date) {
-                        <div>
-                          <i class="fas fa-stop" style="font-size:9px;color:var(--danger)"></i>
-                          {{ r.dernier_date | date:'dd/MM/yy' }}
-                          @if (r.dernier_heure) { <span style="font-family:monospace">{{ r.dernier_heure.substring(0,5) }}</span> }
-                        </div>
-                      }
-                    </td>
-                    <td style="text-align:right">{{ r.km_parcourus | number:'1.0-0' }} km</td>
-                    <td style="text-align:right;font-weight:600">{{ r.volume_total | number:'1.2-2' }} L</td>
-                    <td style="text-align:right">{{ r.montant_total | number:'1.0-0' }}</td>
-                    <td style="text-align:center">{{ r.nb_pleins }}</td>
-                    <td style="text-align:center">
-                      @if (r.conso_100 !== null) {
-                        <span class="badge" [class]="consoClass(r.conso_100)">{{ r.conso_100 | number:'1.1-1' }} L/100</span>
-                      } @else {
-                        <span class="badge badge-gray">N/A</span>
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-          <div class="conso-legend">
-            <span class="badge badge-green">≤ 8 L</span> Bonne consommation
-            <span class="badge badge-warning" style="margin-left:12px">≤ 12 L</span> Consommation modérée
-            <span class="badge badge-danger" style="margin-left:12px">&gt; 12 L</span> Consommation élevée
-          </div>
-        </div>
-      }
-    </div>
-  }
-
-  <!-- ── ONGLET MOYENNE PÉRIODE ── -->
-  @if (activeTab() === 'moyenne_periode') {
-    <div class="analyse-tab">
-      <div class="analyse-header">
-        <div class="analyse-title">
-          <i class="fas fa-chart-area" style="color:var(--green-dark)"></i>
-          Consommation moyenne sur la période
-        </div>
-        <p class="analyse-subtitle">
-          Moyenne calculée entre la première et la dernière prise de carburant de chaque véhicule
-          sur la période sélectionnée (lisse les variations entre toutes les prises).
-        </p>
-      </div>
-
-      <div class="analyse-filters card">
-        <div class="filters-grid">
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date début *</label>
-            <input type="date" class="form-control" [value]="moyDateDebut()" (input)="onMoyInput('debut',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin *</label>
-            <input type="date" class="form-control" [value]="moyDateFin()" (input)="onMoyInput('fin',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-            <input type="text" class="form-control" placeholder="Filtrer par véhicule"
-                   [value]="moyImmat()" (input)="onMoyInput('immat',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-id-badge"></i> Chauffeur</label>
-            <input type="text" class="form-control" placeholder="Nom du chauffeur"
-                   [value]="moyChauf()" (input)="onMoyInput('chauf',$event)" />
-          </div>
-        </div>
-        @if (moyError()) {
-          <div class="alert-error-sm"><i class="fas fa-exclamation-triangle"></i> {{ moyError() }}</div>
-        }
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-green" [disabled]="moyLoading()" (click)="calculerMoyennePeriode()">
-            @if (moyLoading()) { <i class="fas fa-circle-notch fa-spin"></i> Calcul... }
-            @else { <i class="fas fa-calculator"></i> Calculer }
-          </button>
-          @if (moyData().length > 0) {
-            <button class="btn btn-excel" (click)="exportMoyCsv()">
-              <i class="fas fa-file-excel"></i> Exporter
-            </button>
-          }
-        </div>
-      </div>
-
-      @if (moyData().length > 0) {
-        <div class="card" style="margin-top:16px">
-          <div class="card-header">
-            <div class="card-title">{{ moyData().length }} véhicule(s) — période {{ moyDateDebut() }} au {{ moyDateFin() }}</div>
-          </div>
-          <div class="table-container">
-            <table class="ubi-table">
-              <thead>
-                <tr>
-                  <th (click)="sortMoy('immatriculation')" class="sortable">Immatriculation <i class="fas fa-sort"></i></th>
-                  <th>Période réelle</th>
-                  <th (click)="sortMoy('km_parcourus')" class="sortable">Km parcourus <i class="fas fa-sort"></i></th>
-                  <th (click)="sortMoy('volume_total')" class="sortable">Volume (L) <i class="fas fa-sort"></i></th>
-                  <th (click)="sortMoy('montant_total')" class="sortable">Montant (FCFA) <i class="fas fa-sort"></i></th>
-                  <th (click)="sortMoy('nb_pleins')" class="sortable">Nb prises <i class="fas fa-sort"></i></th>
-                  <th (click)="sortMoy('conso_100')" class="sortable">Conso moyenne L/100km <i class="fas fa-sort"></i></th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (r of moySorted(); track r.immatriculation) {
-                  <tr>
-                    <td>
-                      <span class="immat-badge">{{ r.immatriculation }}</span>
-                      @if (r.marque || r.modele) {
-                        <div style="font-size:11px;color:var(--gray-400)">{{ r.marque }} {{ r.modele }}</div>
-                      }
-                    </td>
-                    <td style="font-size:11px;color:var(--gray-500);white-space:nowrap">
-                      @if (r.premier_date) {
-                        <div>
-                          <i class="fas fa-play" style="font-size:9px;color:var(--green-dark)"></i>
-                          {{ r.premier_date | date:'dd/MM/yy' }}
-                          @if (r.premier_heure) { <span style="font-family:monospace">{{ r.premier_heure.substring(0,5) }}</span> }
-                        </div>
-                      }
-                      @if (r.dernier_date) {
-                        <div>
-                          <i class="fas fa-stop" style="font-size:9px;color:var(--danger)"></i>
-                          {{ r.dernier_date | date:'dd/MM/yy' }}
-                          @if (r.dernier_heure) { <span style="font-family:monospace">{{ r.dernier_heure.substring(0,5) }}</span> }
-                        </div>
-                      }
-                    </td>
-                    <td style="text-align:right">{{ r.km_parcourus | number:'1.0-0' }} km</td>
-                    <td style="text-align:right;font-weight:600">{{ r.volume_total | number:'1.2-2' }} L</td>
-                    <td style="text-align:right">{{ r.montant_total | number:'1.0-0' }}</td>
-                    <td style="text-align:center">{{ r.nb_pleins }}</td>
-                    <td style="text-align:center">
-                      @if (r.conso_100 !== null) {
-                        <span class="badge" [class]="moyClass(r.conso_100)">{{ r.conso_100 | number:'1.1-1' }} L/100</span>
-                      } @else {
-                        <span class="badge badge-gray">N/A</span>
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-          <div class="conso-legend">
-            <span class="badge badge-green">≤ 8 L</span> Bonne consommation
-            <span class="badge badge-warning" style="margin-left:12px">≤ 12 L</span> Consommation modérée
-            <span class="badge badge-danger" style="margin-left:12px">&gt; 12 L</span> Consommation élevée
-          </div>
-        </div>
-      }
-    </div>
-  }
-
-  <!-- ── ONGLET ÉVOLUTION PAR AGENCE ── -->
-  @if (activeTab() === 'evolution') {
-    <div class="analyse-tab">
-      <div class="analyse-header">
-        <div class="analyse-title">
-          <i class="fas fa-chart-line" style="color:var(--green-dark)"></i>
-          Évolution des prises de carburant par agence
-        </div>
-        <p class="analyse-subtitle">Chaque courbe représente une agence sur la période sélectionnée.</p>
-      </div>
-
-      <div class="analyse-filters card">
-        <div class="filters-grid">
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date début *</label>
-            <input type="date" class="form-control" [value]="evoDateDebut()" (input)="onEvoInput('debut',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin *</label>
-            <input type="date" class="form-control" [value]="evoDateFin()" (input)="onEvoInput('fin',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-            <input type="text" class="form-control" placeholder="Filtrer par véhicule"
-                   [value]="evoImmat()" (input)="onEvoInput('immat',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-id-badge"></i> Chauffeur</label>
-            <input type="text" class="form-control" placeholder="Nom du chauffeur"
-                   [value]="evoChauf()" (input)="onEvoInput('chauf',$event)" />
-          </div>
-        </div>
-
-        <div class="metrique-selector">
-          <span class="metrique-label">Afficher :</span>
-          <div class="metrique-btns">
-            <button class="metrique-btn" [class.active]="evoMetrique()==='volume'"  (click)="onMetriqueChange('volume')">
-              <i class="fas fa-tint"></i> Volume (L)
-            </button>
-            <button class="metrique-btn" [class.active]="evoMetrique()==='montant'" (click)="onMetriqueChange('montant')">
-              <i class="fas fa-coins"></i> Montant (FCFA)
-            </button>
-            <button class="metrique-btn" [class.active]="evoMetrique()==='nb'"      (click)="onMetriqueChange('nb')">
-              <i class="fas fa-gas-pump"></i> Nb prises de carburant
-            </button>
-          </div>
-        </div>
-
-        @if (evoError()) {
-          <div class="alert-error-sm"><i class="fas fa-exclamation-triangle"></i> {{ evoError() }}</div>
-        }
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-green" [disabled]="evoLoading()" (click)="chargerEvolution()">
-            @if (evoLoading()) { <i class="fas fa-circle-notch fa-spin"></i> Chargement... }
-            @else { <i class="fas fa-chart-line"></i> Afficher la courbe }
-          </button>
-        </div>
-      </div>
-
-      @if (evoData().length > 0) {
-        <div class="card chart-card" style="margin-top:16px">
-          <div class="card-header">
-            <div class="card-title">
-              Évolution
-              @if (evoMetrique()==='volume')  { du volume en litres }
-              @if (evoMetrique()==='montant') { des montants en FCFA }
-              @if (evoMetrique()==='nb')      { du nombre de prises de carburant }
-              — {{ evoData().length }} agence(s)
-            </div>
-          </div>
-          <div class="chart-container">
-            <canvas #chartCanvas></canvas>
-          </div>
-          <div class="agences-summary">
-            @for (a of evoData(); let i = $index; track a.nom) {
-              <div class="agence-card">
-                <div class="agence-color-dot" [style.background]="getColor(i)"></div>
-                <div class="agence-info">
-                  <div class="agence-nom">{{ a.nom }}</div>
-                  <div class="agence-stats">
-                    <span>{{ a.points.length }} mois</span>
-                    @if (evoMetrique()==='volume')  { <span>{{ sumPoints(a.points,'volume')  | number:'1.0-0' }} L</span> }
-                    @if (evoMetrique()==='montant') { <span>{{ sumPoints(a.points,'montant') | number:'1.0-0' }} FCFA</span> }
-                    @if (evoMetrique()==='nb')      { <span>{{ sumPoints(a.points,'nb') }} prise(s) de carburant</span> }
-                  </div>
-                </div>
-              </div>
-            }
-          </div>
-        </div>
-      }
-    </div>
-  }
-
-  <!-- ── ONGLET COMPARAISON UBIFLEET VS TOTAL ── -->
-  @if (activeTab() === 'comparaison') {
-    <div class="analyse-tab">
-      <div class="analyse-header">
-        <div class="analyse-title">
-          <i class="fas fa-balance-scale" style="color:var(--green-dark)"></i>
-          Comparaison consommation UbiFleet vs Total
-        </div>
-        <p class="analyse-subtitle">
-          Compare la consommation L/100km calculée à partir des prises de carburant déclarées dans UbiFleet
-          avec celle calculée à partir des transactions facturées par TotalEnergies,
-          sur la même période et par véhicule.
-        </p>
-      </div>
-
-      <div class="analyse-filters card">
-        <div class="filters-grid">
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date début *</label>
-            <input type="date" class="form-control" [value]="compDateDebut()" (input)="onCompInput('debut',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin *</label>
-            <input type="date" class="form-control" [value]="compDateFin()" (input)="onCompInput('fin',$event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-            <input type="text" class="form-control" placeholder="Filtrer par véhicule"
-                   [value]="compImmat()" (input)="onCompInput('immat',$event)" />
-          </div>
-        </div>
-        @if (compError()) {
-          <div class="alert-error-sm"><i class="fas fa-exclamation-triangle"></i> {{ compError() }}</div>
-        }
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-green" [disabled]="compLoading()" (click)="lancerComparaison()">
-            @if (compLoading()) { <i class="fas fa-circle-notch fa-spin"></i> Analyse... }
-            @else { <i class="fas fa-balance-scale"></i> Lancer la comparaison }
-          </button>
-          @if (compData()) {
-            <button class="btn btn-excel" (click)="exportCompCsv()">
-              <i class="fas fa-file-excel"></i> Exporter
-            </button>
-          }
-        </div>
-      </div>
-
-      @if (compData(); as d) {
-        <!-- Cartes statistiques cliquables -->
-        <div class="comp-stats">
-          <div class="comp-stat comp-stat-green" (click)="toggleCompFiltre('coherent')"
-               [class.comp-stat-selected]="compFiltre()==='coherent'">
-            <div class="comp-stat-val">{{ d.stats.coherent }}</div>
-            <div class="comp-stat-label"><i class="fas fa-check-circle"></i> Cohérents</div>
-          </div>
-          <div class="comp-stat comp-stat-warn" (click)="toggleCompFiltre('ecart_modere')"
-               [class.comp-stat-selected]="compFiltre()==='ecart_modere'">
-            <div class="comp-stat-val">{{ d.stats.ecart_modere }}</div>
-            <div class="comp-stat-label"><i class="fas fa-exclamation-circle"></i> Écart modéré</div>
-          </div>
-          <div class="comp-stat comp-stat-danger" (click)="toggleCompFiltre('ecart_important')"
-               [class.comp-stat-selected]="compFiltre()==='ecart_important'">
-            <div class="comp-stat-val">{{ d.stats.ecart_important }}</div>
-            <div class="comp-stat-label"><i class="fas fa-exclamation-triangle"></i> Écart important</div>
-          </div>
-          <div class="comp-stat comp-stat-navy" (click)="toggleCompFiltre('ubifleet_absent')"
-               [class.comp-stat-selected]="compFiltre()==='ubifleet_absent'">
-            <div class="comp-stat-val">{{ d.stats.ubifleet_absent }}</div>
-            <div class="comp-stat-label"><i class="fas fa-database"></i> Absent UbiFleet</div>
-          </div>
-          <div class="comp-stat comp-stat-gray" (click)="toggleCompFiltre('total_absent')"
-               [class.comp-stat-selected]="compFiltre()==='total_absent'">
-            <div class="comp-stat-val">{{ d.stats.total_absent }}</div>
-            <div class="comp-stat-label"><i class="fas fa-receipt"></i> Absent Total</div>
-          </div>
-        </div>
-
-        @if (compFiltre()) {
-          <div class="comp-filtre-active">
-            <i class="fas fa-filter"></i> Filtre actif : {{ compStatutLabel(compFiltre()) }}
-            <button class="comp-clear-filtre" (click)="compFiltre.set('')"><i class="fas fa-times"></i></button>
-          </div>
-        }
-
-        <div class="card">
-          <div class="table-container table-scroll-x">
-            <table class="ubi-table comp-table">
-              <thead>
-                <tr>
-                  <th>Statut</th>
-                  <th>Immatriculation</th>
-                  <th class="col-ubi">Volume UbiFleet (L)</th>
-                  <th class="col-ubi">Km UbiFleet</th>
-                  <th class="col-ubi">Période UbiFleet</th>
-                  <th class="col-ubi">Conso UbiFleet</th>
-                  <th class="col-total">Volume Total (L)</th>
-                  <th class="col-total">Km Total</th>
-                  <th class="col-total">Période Total</th>
-                  <th class="col-total">Conso Total</th>
-                  <th class="col-ecart">Écart (L/100)</th>
-                  <th class="col-ecart">% Écart</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (r of compLignes(); track r.immatriculation) {
-                  <tr [class.row-ecart-important]="r.statut==='ecart_important'"
-                      [class.row-ecart-modere]="r.statut==='ecart_modere'">
-                    <td><span class="badge" [class]="compStatutClass(r.statut)">{{ compStatutLabel(r.statut) }}</span></td>
-                    <td><span class="immat-badge">{{ r.immatriculation }}</span></td>
-                    <td class="col-ubi" style="text-align:right">
-                      @if (r.ubifleet_volume !== null) { {{ r.ubifleet_volume | number:'1.2-2' }} } @else { <span style="color:var(--gray-300)">—</span> }
-                    </td>
-                    <td class="col-ubi" style="text-align:right">
-                      @if (r.ubifleet_km !== null) { {{ r.ubifleet_km | number:'1.0-0' }} } @else { <span style="color:var(--gray-300)">—</span> }
-                    </td>
-                    <td class="col-ubi" style="font-size:10px;color:var(--gray-500);white-space:nowrap">
-                      @if (r.ubifleet_premier_date) {
-                        <div>{{ r.ubifleet_premier_date | date:'dd/MM/yy' }} <span style="font-family:monospace">{{ r.ubifleet_premier_heure ? r.ubifleet_premier_heure.substring(0,5) : '' }}</span></div>
-                        <div>→ {{ r.ubifleet_dernier_date | date:'dd/MM/yy' }} <span style="font-family:monospace">{{ r.ubifleet_dernier_heure ? r.ubifleet_dernier_heure.substring(0,5) : '' }}</span></div>
-                      } @else { <span style="color:var(--gray-300)">—</span> }
-                    </td>
-                    <td class="col-ubi" style="text-align:center">
-                      @if (r.ubifleet_conso_100 !== null) {
-                        <span class="badge badge-navy">{{ r.ubifleet_conso_100 | number:'1.1-1' }} L/100</span>
-                      } @else { <span style="color:var(--gray-300)">—</span> }
-                    </td>
-                    <td class="col-total" style="text-align:right">
-                      @if (r.total_volume !== null) { {{ r.total_volume | number:'1.2-2' }} } @else { <span style="color:var(--gray-300)">—</span> }
-                    </td>
-                    <td class="col-total" style="text-align:right">
-                      @if (r.total_km !== null) { {{ r.total_km | number:'1.0-0' }} } @else { <span style="color:var(--gray-300)">—</span> }
-                    </td>
-                    <td class="col-total" style="font-size:10px;color:var(--gray-500);white-space:nowrap">
-                      @if (r.total_premier_date) {
-                        <div>{{ r.total_premier_date | date:'dd/MM/yy' }} <span style="font-family:monospace">{{ r.total_premier_heure ? r.total_premier_heure.substring(0,5) : '' }}</span></div>
-                        <div>→ {{ r.total_dernier_date | date:'dd/MM/yy' }} <span style="font-family:monospace">{{ r.total_dernier_heure ? r.total_dernier_heure.substring(0,5) : '' }}</span></div>
-                      } @else { <span style="color:var(--gray-300)">—</span> }
-                    </td>
-                    <td class="col-total" style="text-align:center">
-                      @if (r.total_conso_100 !== null) {
-                        <span class="badge badge-green">{{ r.total_conso_100 | number:'1.1-1' }} L/100</span>
-                      } @else { <span style="color:var(--gray-300)">—</span> }
-                    </td>
-                    <td class="col-ecart" style="text-align:right;font-weight:700"
-                        [class.text-danger]="(r.ecart_conso ?? 0) > 0.5 || (r.ecart_conso ?? 0) < -0.5">
-                      @if (r.ecart_conso !== null) { {{ r.ecart_conso | number:'1.1-1' }} } @else { — }
-                    </td>
-                    <td class="col-ecart" style="text-align:right">
-                      @if (r.ecart_pct !== null) {
-                        <span class="badge" [class]="r.ecart_pct > 25 ? 'badge-danger' : (r.ecart_pct > 10 ? 'badge-warning' : 'badge-green')">
-                          {{ r.ecart_pct | number:'1.1-1' }}%
-                        </span>
-                      } @else { — }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-          @if (compLignes().length === 0) {
-            <div class="empty-state"><i class="fas fa-check-circle" style="color:var(--green-dark)"></i><p>Aucune ligne avec ce filtre.</p></div>
-          }
-        </div>
-      }
-    </div>
-  }
   <!-- ── LIGHTBOX PHOTO TABLEAU DE BORD ── -->
   @if (photoLightbox()) {
     <div class="lightbox-backdrop" (click)="closePhoto()">

@@ -78,6 +78,7 @@ export interface Vehicule {
   chauffeur_nom: string | null;
   kilometrage_actuel: number;
   conso_theorique_origine: number;
+  numero_carte_carburant?: string;
   kilometrage_revision: number;
   revision_due: boolean;
   dotation_carburant_mensuelle: number;

@@ -25,6 +25,8 @@ interface CarburantState {
     agence:            string;
     statut_validation: string;
     vehicule:          string;
+    chauffeur:         string;
+    type_mouvement:    string;
     mois:              string;
     annee:             string;
   };
@@ -44,6 +46,8 @@ const initialState: CarburantState = {
     agence:            '',
     statut_validation: '',
     vehicule:          '',
+    chauffeur:         '',
+    type_mouvement:    '',
     mois:              '',
     annee:             '',
   },
@@ -67,7 +71,8 @@ export const CarburantStore = signalStore(
     ),
     hasActiveFilters: computed(() => {
       const f = store.filters();
-      return !!(f.search || f.agence || f.statut_validation || f.vehicule || f.mois || f.annee);
+      return !!(f.search || f.agence || f.statut_validation || f.vehicule || f.chauffeur
+                || f.type_mouvement || f.mois || f.annee);
     }),
   })),
 
@@ -86,6 +91,8 @@ export const CarburantStore = signalStore(
           if (f.agence)            params['agence']            = f.agence;
           if (f.statut_validation) params['statut_validation'] = f.statut_validation;
           if (f.vehicule)          params['vehicule']          = f.vehicule;
+          if (f.chauffeur)         params['chauffeur']         = f.chauffeur;
+          if (f.type_mouvement)    params['type_mouvement']    = f.type_mouvement;
           if (f.mois)              params['mois']              = f.mois;
           if (f.annee)             params['annee']             = f.annee;
 

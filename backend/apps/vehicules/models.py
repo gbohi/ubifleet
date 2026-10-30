@@ -112,6 +112,11 @@ class Vehicule(UbiFleetBaseModel):
     kilometrage_initial = models.PositiveIntegerField(
         default=0, verbose_name="Kilométrage à l'entrée dans le parc"
     )
+    # Carte carburant TotalEnergies du véhicule : rapproche les transactions
+    # Total du véhicule même si la plaque y est mal saisie.
+    numero_carte_carburant = models.CharField(
+        max_length=40, blank=True, verbose_name="N° carte carburant (TotalEnergies)",
+    )
     conso_theorique_origine = models.DecimalField(
         max_digits=5, decimal_places=2, default=0,
         verbose_name="Consommation théorique de référence (L/100km)",

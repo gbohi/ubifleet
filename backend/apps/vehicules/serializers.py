@@ -56,7 +56,7 @@ class VehiculeListSerializer(serializers.ModelSerializer):
             'type_carburant', 'type_carburant_display',
             'statut', 'statut_display', 'statut_couleur', 'affectation_libelle',
             'agence', 'agence_detail',
-            'kilometrage_actuel', 'conso_theorique_origine', 'kilometrage_revision', 'revision_due',
+            'kilometrage_actuel', 'conso_theorique_origine', 'numero_carte_carburant', 'kilometrage_revision', 'revision_due',
             'dotation_carburant_mensuelle',
             'valeur_acquisition',
             'chauffeur_attitré', 'chauffeur_nom',

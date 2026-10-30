@@ -11,7 +11,8 @@ import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CarburantApiService } from '../../../core/services/api.service';
 import { FenetreSaisieService, heureLocale, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
-import { OptionTournee, OptionsSaisieService } from '../../../core/services/options-saisie.service';
+import { OptionTournee, OptionVehicule, OptionsSaisieService } from '../../../core/services/options-saisie.service';
+import { SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { Agence } from '../../../core/models';
 
@@ -24,7 +25,7 @@ const debutDuMois = () => aujourdhui().substring(0, 8) + '01';
 @Component({
   selector: 'ubi-suivi-tournees',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, RouterLink],
+  imports: [DatePipe, DecimalPipe, RouterLink, SelectRechercheComponent],
   templateUrl: './suivi-tournees.component.html',
   styleUrls: ['./suivi-tournees.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,7 +43,8 @@ export class SuiviTourneesComponent implements OnInit {
   dateDebut = signal(debutDuMois());
   dateFin   = signal(aujourdhui());
   agence    = signal('');
-  immat     = signal('');
+  vehicule  = signal('');
+  vehicules = signal<OptionVehicule[]>([]);
   tournee   = signal('');
   statut    = signal('');
   typeMvt   = signal('');
@@ -91,6 +93,7 @@ export class SuiviTourneesComponent implements OnInit {
     this.typesMvt.charger();
     this.fenetres.charger();
     this.options.tournees().subscribe({ next: l => this.tournees.set(l), error: () => {} });
+    this.options.vehicules().subscribe({ next: l => this.vehicules.set(l), error: () => {} });
     this.charger();
   }
 
@@ -99,7 +102,7 @@ export class SuiviTourneesComponent implements OnInit {
     if (this.dateDebut()) f['date_debut'] = this.dateDebut();
     if (this.dateFin())   f['date_fin'] = this.dateFin();
     if (this.agence())    f['agence'] = this.agence();
-    if (this.immat())     f['immatriculation'] = this.immat();
+    if (this.vehicule())  f['vehicule'] = this.vehicule();
     return f;
   }
 
@@ -127,7 +130,7 @@ export class SuiviTourneesComponent implements OnInit {
 
   reinitialiser(): void {
     this.dateDebut.set(debutDuMois()); this.dateFin.set(aujourdhui());
-    this.agence.set(''); this.immat.set(''); this.tournee.set(''); this.statut.set(''); this.typeMvt.set('');
+    this.agence.set(''); this.vehicule.set(''); this.tournee.set(''); this.statut.set(''); this.typeMvt.set('');
     this.charger();
   }
 

@@ -87,6 +87,7 @@ export class VehiculeFormComponent implements OnInit {
     // Technique
     kilometrage_actuel:              [0, [Validators.required, Validators.min(0)]],
     conso_theorique_origine:   [0],
+    numero_carte_carburant:    [''],
     kilometrage_revision:            [0],
     dotation_carburant_mensuelle:    [0, [Validators.min(0)]],
     // Dates
@@ -160,6 +161,7 @@ export class VehiculeFormComponent implements OnInit {
             statut:                       v.statut,
             kilometrage_actuel:              v.kilometrage_actuel,
             conso_theorique_origine:         v.conso_theorique_origine ?? 0,
+            numero_carte_carburant:          v.numero_carte_carburant ?? '',
             kilometrage_revision:             v.kilometrage_revision,
             dotation_carburant_mensuelle: Number(v.dotation_carburant_mensuelle),
             date_mise_en_service:         v.date_mise_en_service ?? '',

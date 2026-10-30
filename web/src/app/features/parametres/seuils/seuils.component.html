@@ -20,7 +20,7 @@
     <div class="p-head">
       <div>
         <h2>Consommation et tournées</h2>
-        <p>Seuil de détection des consommations anormales et délai d'alerte des tournées non clôturées.</p>
+        <p>Consommations anormales, tournées non clôturées et tolérances du rapprochement avec les transactions Total.</p>
         <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant</span><span class="p-chip">Suivi tournées</span><span class="p-chip">Alertes</span></div>
       </div>
     </div>
@@ -102,6 +102,22 @@
             <span class="carte-saisie">
               <input type="number" min="1" formControlName="tournee_ouverte_max_jours" />
               <span class="unite">jours</span>
+            </span>
+          </label>
+          <label class="carte" [class.modifie]="modifie('rapprochement_tolerance_heures')">
+            <span class="carte-titre"><i class="fas fa-clock"></i> Rapprochement Total : heure</span>
+            <span class="carte-aide">Une transaction Total est associée à une prise du même véhicule si leurs heures diffèrent d'au plus :</span>
+            <span class="carte-saisie">
+              <input type="number" min="1" formControlName="rapprochement_tolerance_heures" />
+              <span class="unite">heures</span>
+            </span>
+          </label>
+          <label class="carte" [class.modifie]="modifie('rapprochement_ecart_pct')">
+            <span class="carte-titre"><i class="fas fa-balance-scale"></i> Rapprochement Total : écart</span>
+            <span class="carte-aide">Une prise rapprochée est signalée en écart si son volume ou son montant diffère de la transaction de plus de :</span>
+            <span class="carte-saisie">
+              <input type="number" min="1" formControlName="rapprochement_ecart_pct" />
+              <span class="unite">%</span>
             </span>
           </label>
         </div>

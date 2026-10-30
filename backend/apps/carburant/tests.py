@@ -346,3 +346,122 @@ class TourneesEffectueesTests(UtilisateursMixin, APITestCase):
         run_all_checks_sync()
         a.refresh_from_db()
         self.assertEqual(a.statut, 'traitee')
+
+
+class AnalysesCarburantTests(UtilisateursMixin, APITestCase):
+    """Onglets Consommation, Évolution par agence et Rapprochement Total."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from apps.chauffeurs.models import Chauffeur
+        cls.agence_a.numero_client_total = '132'
+        cls.agence_a.save()
+        cls.v = Vehicule.objects.create(immatriculation='56317 WW 01', agence=cls.agence_a, annee=2020,
+                                        type_carburant='diesel', kilometrage_actuel=10000,
+                                        kilometrage_initial=10000, conso_theorique_origine=10)
+        cls.ch = Chauffeur.objects.create(matricule='C1', nom='KONE', prenom='Moussa', agence=cls.agence_a,
+                                          numero_chauffeur_total='0005')
+        cls.d = datetime.date(2026, 5, 4)
+
+    def prise(self, jour, heure, km, litres, type_mvt='course'):
+        p = PleinsCarburant.objects.create(
+            vehicule=self.v, agence=self.agence_a, chauffeur=self.ch, type_mouvement=type_mvt,
+            date_plein=self.d + datetime.timedelta(days=jour), heure_plein=datetime.time(*heure),
+            volume_litres=litres, montant_fcfa=litres * 675, prix_litre=675, kilometrage_releve=km)
+        from apps.vehicules.kilometrage import recalculer_consommations
+        recalculer_consommations(self.v, self.d)
+        return p
+
+    def transaction(self, jour, heure, litres, km, code, plaque='56317WW-CI', chauffeur='0005', carte='111'):
+        from apps.total_import.models import ImportTotal, TransactionCarburant
+        imp = ImportTotal.objects.get_or_create(fichier_nom='t.csv')[0]
+        return TransactionCarburant.objects.create(
+            import_source=imp, numero_client='132', immatriculation=plaque, numero_chauffeur=chauffeur,
+            numero_moyen_paiement=f'="{carte}"', date_transaction=self.d + datetime.timedelta(days=jour),
+            heure_transaction=datetime.time(*heure), volume=litres, montant=litres * 675,
+            kilometrage_actuel=km, numero_ticket=str(code), code_autorisation=str(code))
+
+    def get(self, action, **params):
+        self.client.force_authenticate(self.responsable_flotte)
+        return self.client.get(f'/api/v1/carburant/pleins/{action}/',
+                               {'date_debut': '2026-05-01', 'date_fin': '2026-05-31', **params})
+
+    def test_consommation_plein_a_plein(self):
+        self.prise(0, (8, 0), 10000, 50)
+        self.prise(1, (8, 0), 10500, 55, 'tournee')
+        self.prise(2, (8, 0), 11000, 65)
+        r = self.get('consommation')
+        self.assertEqual(r.status_code, 200, r.data)
+        l = r.data['resultats'][0]
+        self.assertEqual((l['nb_prises'], l['km_parcourus'], l['litres']), (3, 1000, 170.0))
+        self.assertEqual(l['conso_moyenne'], 12.0)            # (55 + 65) / 1000 km
+        self.assertEqual((l['conso_reference'], l['ecart_pct']), (10.0, 20.0))
+        self.assertEqual(l['derniere_conso'], 13.0)
+        self.assertEqual(l['part_hors_tournee'], 67.6)
+        # Filtre par type : seuls les intervalles des prises de ce type
+        l = self.get('consommation', type_mouvement='tournee').data['resultats'][0]
+        self.assertEqual((l['km_parcourus'], l['conso_moyenne']), (500, 11.0))
+
+    def test_historique_insuffisant(self):
+        self.prise(0, (8, 0), 10000, 50)
+        l = self.get('consommation').data['resultats'][0]
+        self.assertTrue(l['historique_insuffisant'])
+        self.assertIsNone(l['conso_moyenne'])
+
+    def test_evolution_mois_vides_et_decoupage(self):
+        self.prise(0, (8, 0), 10000, 50)
+        self.prise(1, (8, 0), 10500, 55, 'tournee')
+        self.client.force_authenticate(self.responsable_flotte)
+        r = self.client.get('/api/v1/carburant/pleins/evolution_agences/',
+                            {'date_debut': '2026-03-01', 'date_fin': '2026-05-31'})
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['mois'], ['2026-03', '2026-04', '2026-05'])
+        pts = r.data['agences'][0]['points']
+        self.assertEqual([p['volume'] for p in pts], [0, 0, 105.0])
+        self.assertEqual((pts[2]['volume_tournee'], pts[2]['volume_hors'], pts[2]['nb']), (55.0, 50.0, 2))
+        self.assertEqual(pts[2]['conso'], 11.0)
+
+    def test_rapprochement(self):
+        self.prise(0, (8, 0), 10000, 50)          # ↔ transaction 8h20 : rapprochée
+        self.prise(1, (9, 0), 10500, 55)          # ↔ transaction 50 L : écart de volume
+        self.prise(3, (10, 0), 11000, 40)         # aucune transaction : payée autrement ?
+        self.transaction(0, (8, 20), 50, 10000, 1)
+        self.transaction(1, (9, 30), 50, 10500, 2)
+        self.transaction(2, (7, 0), 45, 10800, 3)                 # sans prise déclarée
+        self.transaction(2, (7, 5), -45, 10800, -3)               # … annulée (timeout)
+        self.transaction(2, (18, 0), 30, 10900, 4)                # sans prise déclarée
+        self.transaction(1, (12, 0), 40, 5000, 5, plaque='99999 XX 01', carte='999')   # plaque inconnue
+        r = self.get('rapprochement_total')
+        self.assertEqual(r.status_code, 200, r.data)
+        statuts = sorted(l['statut'] for l in r.data['lignes'])
+        self.assertEqual(statuts, ['ecart', 'prise_sans_transaction', 'rapproche', 'transaction_sans_prise'])
+        s = r.data['synthese'][0]
+        self.assertEqual((s['litres_declares'], s['litres_factures'], s['ecart_litres']), (145.0, 130.0, 15.0))
+        self.assertEqual(r.data['immatriculations_inconnues'][0]['immatriculation'], '99999 XX 01')
+        ecart = next(l for l in r.data['lignes'] if l['statut'] == 'ecart')
+        self.assertEqual(ecart['ecart_volume_pct'], 10.0)
+        self.assertFalse(ecart['chauffeur_different'])
+
+    def test_carte_prioritaire_sur_la_plaque(self):
+        self.v.numero_carte_carburant = '7903 1800'
+        self.v.save()
+        self.prise(0, (8, 0), 10000, 50)
+        self.transaction(0, (8, 10), 50, 10000, 1, plaque='36930', carte='79031800')
+        r = self.get('rapprochement_total')
+        self.assertEqual([l['statut'] for l in r.data['lignes']], ['rapproche'])
+
+    def test_tolerance_parametrable(self):
+        from apps.parametrage.models import Parametre
+        self.prise(0, (8, 0), 10000, 50)
+        self.transaction(0, (16, 0), 50, 10000, 1)          # 8 h d'écart > 6 h par défaut
+        self.assertEqual(self.get('rapprochement_total').data['totaux']['nb_rapproches'], 0)
+        Parametre.objects.update_or_create(cle='rapprochement_tolerance_heures',
+                                           defaults={'valeur': '10', 'type_valeur': 'int'})
+        self.assertEqual(self.get('rapprochement_total').data['totaux']['nb_rapproches'], 1)
+
+    def test_normalisation_des_plaques(self):
+        from .analyses import normaliser_immat
+        self.assertEqual(normaliser_immat('56317WW-CI'), normaliser_immat('56317 WW 01'))
+        self.assertEqual(normaliser_immat('36929 WW'), normaliser_immat('36929 WW 01'))
+        self.assertEqual(normaliser_immat('AA-623-YG-01'), 'AA623YG')

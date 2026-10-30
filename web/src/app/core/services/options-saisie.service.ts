@@ -26,8 +26,9 @@ export class OptionsSaisieService {
       }))));
   }
 
-  chauffeurs(): Observable<OptionRecherche[]> {
-    return this.chauffeurApi.getAll({ page_size: 1000, statut: 'actif' }).pipe(map(res =>
+  /** Chauffeurs actifs (saisie) ; `tous` : aussi les inactifs (filtres de consultation). */
+  chauffeurs(tous = false): Observable<OptionRecherche[]> {
+    return this.chauffeurApi.getAll({ page_size: 1000, ...(tous ? {} : { statut: 'actif' }) }).pipe(map(res =>
       liste(res).map((c: any) => ({
         value: c.id,
         label: [c.matricule, c.nom_complet || `${c.prenom ?? ''} ${c.nom ?? ''}`.trim()].filter(Boolean).join(' — '),

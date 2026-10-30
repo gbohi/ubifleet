@@ -1,0 +1,43 @@
+// UbiFleet — Styles communs des analyses carburant
+:host { display: block; }
+.an-entete { margin-bottom: 12px;
+  h2 { margin: 0; font-size: 17px; color: var(--navy); i { color: var(--green-dark); margin-right: 6px; } }
+  p { margin: 4px 0 0; font-size: 12.5px; color: var(--gray-500); max-width: 920px; line-height: 1.5; }
+}
+.an-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px;
+  @media (max-width: 900px) { grid-template-columns: 1fr 1fr; } }
+.an-kpi { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; background: white; min-width: 0;
+  border: 1px solid var(--gray-200); border-radius: var(--radius-lg);
+  &.alerte { border-color: var(--danger); background: var(--danger-light); }
+  &.attention { border-color: var(--warning); background: var(--warning-light); } }
+.an-kpi-lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--gray-500); }
+.an-kpi-val { font-size: 20px; font-weight: 700; color: var(--navy); }
+.an-kpi-sub { font-size: 11.5px; color: var(--gray-500); }
+.an-notice { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-radius: var(--radius-md);
+  font-size: 13px; margin-bottom: 12px; background: var(--danger-light); color: var(--danger);
+  &.info { background: var(--info-light); color: #1d4ed8; } }
+.an-vide { padding: 40px 16px; text-align: center; color: var(--gray-400); font-size: 13px; }
+.an-table-wrap { overflow-x: auto; background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); }
+.an-table { width: 100%; border-collapse: collapse; font-size: 12.5px;
+  th { background: var(--gray-50); text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+       letter-spacing: .3px; color: var(--gray-500); padding: 9px 8px; white-space: nowrap; border-bottom: 1px solid var(--gray-200);
+       &.triable { cursor: pointer; user-select: none; &:hover { color: var(--navy); } } }
+  td { padding: 8px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+  .num { text-align: right; white-space: nowrap; }
+  tfoot td { font-weight: 700; background: var(--gray-50); border-top: 2px solid var(--gray-200); }
+}
+.nowrap { white-space: nowrap; }
+.fort { font-weight: 600; }
+.muted { color: var(--gray-400); }
+.petit { font-size: 11px; }
+.ecart-pos { color: var(--danger); font-weight: 600; }
+.ecart-neg { color: var(--green-dark); font-weight: 600; }
+.an-note { margin: 8px 0 0; font-size: 11.5px; color: var(--gray-400); }
+.an-onglets { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--gray-200); margin: 14px 0 10px;
+  button { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border: none; background: none; cursor: pointer;
+    font-size: 12.5px; font-weight: 600; color: var(--gray-500); border-bottom: 2px solid transparent; margin-bottom: -1px;
+    &.active { color: var(--navy); border-bottom-color: var(--green-dark); } } }
+.an-nb { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--gray-100); color: var(--gray-600); }
+.an-choix { display: inline-flex; border: 1px solid var(--gray-200); border-radius: var(--radius-md); overflow: hidden;
+  button { border: none; background: white; padding: 6px 10px; font-size: 12px; cursor: pointer; color: var(--gray-500);
+    &.active { background: var(--navy); color: white; } } }

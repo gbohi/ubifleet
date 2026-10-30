@@ -347,10 +347,6 @@ export class CarburantApiService extends ApiBaseService {
     const p = params ? this.buildParams(params) : undefined;
     return this.http.get<any>(`${API}/carburant/pleins/consommation/`, { params: p });
   }
-  getConsommationMoyennePeriode(params: Record<string, any>): Observable<any> {
-    const p = this.buildParams(params);
-    return this.http.get<any>(`${API}/carburant/pleins/consommation_moyenne_periode/`, { params: p });
-  }
   getEvolutionAgences(params: Record<string, any>): Observable<any> {
     const p = this.buildParams(params);
     return this.http.get<any>(`${API}/carburant/pleins/evolution_agences/`, { params: p });
@@ -381,9 +377,9 @@ export class CarburantApiService extends ApiBaseService {
     return this.http.post<any>(`${API}/carburant/tournees/${id}/annuler/`, data);
   }
 
-  getComparaisonTotal(params: Record<string, any>): Observable<any> {
+  getRapprochementTotal(params: Record<string, any>): Observable<any> {
     const p = this.buildParams(params);
-    return this.http.get<any>(`${API}/carburant/pleins/comparaison_total/`, { params: p });
+    return this.http.get<any>(`${API}/carburant/pleins/rapprochement_total/`, { params: p });
   }
   getDotations(filters?: Record<string, any>): Observable<PaginatedResponse<DotationCarburant>> {
     const params = filters ? this.buildParams(filters) : undefined;
@@ -1005,13 +1001,8 @@ export class TotalImportApiService extends ApiBaseService {
     return this.http.get<any>(`${API}/total-import/transactions/consommation/`, { params });
   }
 
-  getEvolutionAgences(filters: Record<string, string>): Observable<any> {
-    const params = this.buildParams(filters);
-    return this.http.get<any>(`${API}/total-import/transactions/evolution_agences/`, { params });
-  }
-
-  getReconciliation(filters: Record<string, any>): Observable<any> {
-    const params = this.buildParams(filters);
-    return this.http.get<any>(`${API}/total-import/reconciliation/comparer/`, { params });
+  /** Plaques et chauffeurs présents dans les transactions (listes des filtres). */
+  getValeursFiltres(): Observable<{ immatriculations: string[]; chauffeurs: { numero: string; nom: string }[] }> {
+    return this.http.get<any>(`${API}/total-import/transactions/valeurs/`);
   }
 }

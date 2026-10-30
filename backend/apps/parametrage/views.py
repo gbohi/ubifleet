@@ -72,7 +72,9 @@ class ParametreViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Format invalide. Attendu: liste.'}, status=400)
 
         # Le prix du carburant a son propre historique daté (/carburant/prix/)
-        CONNUES = {CLE_CONSO_ANOMALIE: 'alertes', CLE_TOURNEE_OUVERTE: 'alertes'}
+        from apps.carburant.analyses import CLE_ECART_PCT, CLE_TOLERANCE_HEURES
+        CONNUES = {CLE_CONSO_ANOMALIE: 'alertes', CLE_TOURNEE_OUVERTE: 'alertes',
+                   CLE_TOLERANCE_HEURES: 'alertes', CLE_ECART_PCT: 'alertes'}
         for code in ECHEANCES:
             CONNUES[cle(code, 'attention')] = 'alertes'
             CONNUES[cle(code, 'urgent')] = 'alertes'
