@@ -327,7 +327,7 @@ class FenetreSaisieTests(UtilisateursMixin, APITestCase):
     def plein(self, user, n, km=1000):
         self.client.force_authenticate(user)
         return self.client.post('/api/v1/carburant/pleins/', {
-            'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'volume_litres': 30,
+            'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'heure_plein': '08:00', 'volume_litres': 30,
             'montant_fcfa': 21000, 'kilometrage_releve': km, 'agence': str(self.agence_a.id),
         }, format='json')
 
@@ -457,17 +457,59 @@ class CorrectionSaisieTests(UtilisateursMixin, APITestCase):
     def jour(self, n):
         return (self.auj - datetime.timedelta(days=n)).isoformat()
 
-    def plein(self, user, n, km, litres=40):
+    def plein(self, user, n, km, litres=40, heure='08:00'):
         self.client.force_authenticate(user)
         return self.client.post('/api/v1/carburant/pleins/', {
-            'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'volume_litres': litres,
-            'montant_fcfa': 28000, 'kilometrage_releve': km, 'agence': str(self.agence_a.id),
+            'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'heure_plein': heure,
+            'volume_litres': litres, 'montant_fcfa': 28000, 'kilometrage_releve': km,
+            'agence': str(self.agence_a.id),
         }, format='json')
 
-    def releve(self, user, n, km):
+    def releve(self, user, n, km, heure=None):
         self.client.force_authenticate(user)
-        return self.client.post('/api/v1/vehicules/releves-km/', {
-            'vehicule': str(self.vehicule.id), 'kilometrage': km, 'date_releve': self.jour(n)}, format='json')
+        data = {'vehicule': str(self.vehicule.id), 'kilometrage': km, 'date_releve': self.jour(n)}
+        if heure:
+            data['heure_releve'] = heure
+        return self.client.post('/api/v1/vehicules/releves-km/', data, format='json')
+
+    def test_heure_du_plein_obligatoire(self):
+        resp = self.plein(self.operateur, 1, 10100, heure=None)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('heure_plein', resp.data)
+        # Plein ancien sans heure : modifiable sans la renseigner, mais on ne peut pas l'effacer
+        from apps.carburant.models import PleinsCarburant
+        ancien = PleinsCarburant.objects.create(vehicule=self.vehicule, agence=self.agence_a, volume_litres=30, montant_fcfa=21000,
+                                                kilometrage_releve=10200, date_plein=self.auj, created_by=self.dg)
+        self.client.force_authenticate(self.dg)
+        url = f'/api/v1/carburant/pleins/{ancien.id}/'
+        self.assertEqual(self.client.patch(url, {'notes': 'ok', 'motif_correction': 'x'}, format='json').status_code, 200)
+        self.assertEqual(self.client.patch(url, {'heure_plein': None}, format='json').status_code, 400)
+
+    def test_saisies_du_meme_jour_comparees_par_heure(self):
+        self.assertEqual(self.releve(self.operateur, 0, 11000, heure='08:00').status_code, 201)
+        # Plein à 10 h inférieur au relevé de 8 h : refusé, le message cite l'heure
+        resp = self.plein(self.operateur, 0, 10900, heure='10:00')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('à 08:00', str(resp.data['kilometrage_releve']))
+        # Relevé à 7 h supérieur à celui de 8 h : refusé
+        self.assertEqual(self.releve(self.operateur, 0, 11200, heure='07:00').status_code, 400)
+        # Dans l'ordre des heures : accepté
+        self.assertEqual(self.plein(self.operateur, 0, 10950, heure='06:30').status_code, 201)
+        self.assertEqual(self.releve(self.operateur, 0, 11100, heure='12:00').status_code, 201)
+        # Saisie du même jour sans heure (antérieure à l'heure obligatoire) : non comparée
+        from apps.vehicules.models import ReleveKilometrage
+        ReleveKilometrage.objects.create(vehicule=self.vehicule, kilometrage=99999, date_releve=self.auj)
+        self.assertEqual(self.releve(self.operateur, 0, 11150, heure='13:00').status_code, 201)
+
+    def test_heure_du_releve_par_defaut(self):
+        resp = self.releve(self.operateur, 0, 10100)
+        self.assertEqual(resp.status_code, 201)
+        self.assertIsNotNone(resp.data['heure_releve'])     # aujourd'hui : heure du serveur
+        resp = self.releve(self.operateur, 1, 10050)
+        self.assertEqual(resp.status_code, 201)
+        self.assertIsNone(resp.data['heure_releve'])        # date passée : pas d'heure inventée
+        self.client.force_authenticate(self.operateur)
+        self.assertIn('maintenant', self.client.get('/api/v1/parametrage/fenetre-saisie/').data)
 
     def km(self):
         self.vehicule.refresh_from_db()

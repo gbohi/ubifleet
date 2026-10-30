@@ -85,6 +85,9 @@ export class PleinFormComponent implements OnInit {
 
   get f() { return this.form.controls; }
 
+  /** Plein enregistré sans heure (avant qu'elle soit obligatoire) : à compléter. */
+  heureManquante = signal(false);
+
   private currentTimeStr(): string {
     const now = new Date();
     return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -97,12 +100,14 @@ export class PleinFormComponent implements OnInit {
   }
 
   constructor() {
-    // Bornes reçues du serveur : date du jour du serveur par défaut, puis revalidation
+    // Bornes reçues du serveur : date et heure du serveur par défaut, puis revalidation
     effect(() => {
       const f = this.fenetres.fenetre('carburant');
       if (!f) return;
       const date = this.form.controls.date_plein;
+      const heure = this.form.controls.heure_plein;
       if (!this.isEditMode() && !date.dirty) date.setValue(f.date_max);
+      if (!this.isEditMode() && !heure.dirty) heure.setValue(this.fenetres.heureServeur() ?? heure.value);
       date.updateValueAndValidity();
     });
   }
@@ -161,7 +166,7 @@ export class PleinFormComponent implements OnInit {
               tournee:            p.tournee ?? null,
               station:            p.station ?? null,
               date_plein:         p.date_plein,
-              heure_plein:        p.heure_plein ?? this.currentTimeStr(),
+              heure_plein:        p.heure_plein ? p.heure_plein.substring(0, 5) : null,
               volume_litres:      p.volume_litres,
               prix_litre:         p.prix_litre,
               bon_carburant:      p.bon_carburant,
@@ -169,6 +174,7 @@ export class PleinFormComponent implements OnInit {
               agence:             p.agence,
               notes:              p.notes ?? '',
             });
+            this.heureManquante.set(!p.heure_plein);
             if (p.photo_tableau_bord) {
               this.photoExistante.set(p.photo_tableau_bord);
             }

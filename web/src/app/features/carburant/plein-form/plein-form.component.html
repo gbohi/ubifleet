@@ -174,6 +174,10 @@
                   <div class="form-error">
                     <i class="fas fa-times-circle"></i> L'heure est requise.
                   </div>
+                } @else if (heureManquante() && !f['heure_plein'].value) {
+                  <div class="form-hint hint-warning"><i class="fas fa-clock"></i> Ce plein a été enregistré sans heure : renseignez-la pour l'enregistrer.</div>
+                } @else {
+                  <div class="form-hint"><i class="fas fa-clock"></i> Ordonne les saisies d'une même journée.</div>
                 }
               </div>
               <div class="form-group">

@@ -130,13 +130,17 @@ class ParametreViewSet(viewsets.ModelViewSet):
 
 class FenetreSaisieView(viewsets.ViewSet):
     """Fenêtres de saisie applicables à l'utilisateur connecté :
-    {carburant: {jours, active, date_min, date_max, hors_delai}, releves: {...}}.
-    date_max est la date du jour du serveur."""
+    {carburant: {jours, active, date_min, date_max, hors_delai}, releves: {...},
+    maintenant: date et heure locales du serveur}.
+    date_max est la date du jour du serveur ; `maintenant` pré-remplit l'heure des saisies."""
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
+        from django.utils import timezone
         from . import fenetre_saisie as fs
-        return Response({d: fs.fenetre(request.user, d).en_dict() for d in fs.DOMAINES})
+        data = {d: fs.fenetre(request.user, d).en_dict() for d in fs.DOMAINES}
+        data['maintenant'] = timezone.localtime().replace(tzinfo=None, microsecond=0).isoformat()
+        return Response(data)
 
 
 from .models import Tournee, ChangementDotation

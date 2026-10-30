@@ -9,6 +9,8 @@ Règles communes aux deux saisies (mixin de vue) :
 - le compteur du véhicule et les consommations sont recalculés.
 """
 
+from datetime import time
+
 from django.db import transaction
 from rest_framework import serializers
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied
@@ -29,6 +31,8 @@ def _lisible(obj, champ):
         return str(v)
     if hasattr(v, 'name'):              # fichier
         return v.name.rsplit('/', 1)[-1] if v.name else None
+    if isinstance(v, time):
+        return v.strftime('%H:%M')
     if hasattr(v, 'isoformat'):
         return v.isoformat()
     return str(v)

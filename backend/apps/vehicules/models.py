@@ -2,6 +2,7 @@
 
 import uuid
 from django.db import models
+from django.db.models import F
 from apps.core.models import UbiFleetBaseModel
 
 class Vehicule(UbiFleetBaseModel):
@@ -275,6 +276,8 @@ class ReleveKilometrage(models.Model):
     )
     kilometrage = models.PositiveIntegerField(verbose_name='Kilométrage relevé (km)')
     date_releve = models.DateField(verbose_name='Date du relevé')
+    # Distingue les relevés d'une même journée ; vide pour les relevés antérieurs
+    heure_releve = models.TimeField(null=True, blank=True, verbose_name='Heure du relevé')
     # Code d'un type de mouvement paramétrable (Paramètres › Types de mouvement)
     type_mouvement = models.CharField(max_length=20, default='releve')
     tournee  = models.CharField(max_length=200, blank=True, null=True,
@@ -305,7 +308,7 @@ class ReleveKilometrage(models.Model):
     class Meta:
         verbose_name         = 'Relevé kilométrage'
         verbose_name_plural  = 'Relevés kilométrage'
-        ordering             = ['-date_releve', '-created_at']
+        ordering             = ['-date_releve', F('heure_releve').desc(nulls_last=True), '-created_at']
 
     def __str__(self):
         return (f"{self.vehicule.immatriculation} — "

@@ -8,7 +8,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { AbstractControl, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { VehiculeApiService, ChauffeurApiService } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
-import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { FenetreSaisieService, heureLocale, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/historique-corrections.component';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
@@ -46,6 +46,8 @@ export class VehiculeRelevesKmComponent implements OnInit {
   /** Motif obligatoire : relevé sorti de la fenêtre, ou nouvelle date hors fenêtre. */
   motifRequis = computed(() => !!this.releveEdite()
     && (!!this.releveEdite()!.hors_fenetre || this.fenetres.horsDelai('releves', this.dateCourante())));
+  /** Relevé ancien enregistré sans heure : on ne force pas à en inventer une. */
+  heureFacultative = computed(() => !!this.releveEdite() && !this.releveEdite()!.heure_releve);
   releveASupprimer = signal<ReleveKilometrage | null>(null);
   deleteEnCours    = signal(false);
   deleteErreur     = signal('');
@@ -65,6 +67,8 @@ export class VehiculeRelevesKmComponent implements OnInit {
     kilometrage:    [null as number | null, [Validators.required, Validators.min(0)]],
     date_releve:    [new Date().toISOString().split('T')[0],
                      [Validators.required, (c: AbstractControl) => this.fenetres.erreur('releves', c.value) ? { fenetre: true } : null]],
+    heure_releve:   [null as string | null,
+                     (c: AbstractControl) => !c.value && !this.heureFacultative() ? { required: true } : null],
     type_mouvement: ['releve', Validators.required],
     tournee:        [''],
     chauffeur:      [''],
@@ -74,7 +78,11 @@ export class VehiculeRelevesKmComponent implements OnInit {
   constructor() {
     // Revalider la date à la réception des bornes du serveur
     effect(() => {
-      if (this.fenetres.fenetre('releves')) this.f['date_releve'].updateValueAndValidity();
+      if (!this.fenetres.fenetre('releves')) return;
+      this.f['date_releve'].updateValueAndValidity();
+      // Nouveau relevé : heure du serveur, tant que l'utilisateur ne l'a pas changée
+      const heure = this.f['heure_releve'];
+      if (!this.editId() && !heure.dirty) heure.setValue(this.fenetres.heureServeur() ?? heure.value);
     });
   }
 
@@ -140,6 +148,7 @@ export class VehiculeRelevesKmComponent implements OnInit {
       this.form.patchValue({
         kilometrage:    releve.kilometrage,
         date_releve:    releve.date_releve,
+        heure_releve:   releve.heure_releve ? releve.heure_releve.substring(0, 5) : null,
         type_mouvement: releve.type_mouvement,
         chauffeur:      releve.chauffeur ?? '',
         tournee:        releve.tournee ?? '',
@@ -149,6 +158,7 @@ export class VehiculeRelevesKmComponent implements OnInit {
       this.editId.set(null);
       this.form.reset({
         date_releve: this.fenetres.max('releves') ?? new Date().toISOString().split('T')[0],
+        heure_releve: this.fenetres.heureServeur() ?? heureLocale(),
         type_mouvement: 'releve',
       });
     }
@@ -190,6 +200,7 @@ export class VehiculeRelevesKmComponent implements OnInit {
       date_releve:    raw.date_releve,
       type_mouvement: raw.type_mouvement,
     };
+    if (raw.heure_releve) payload['heure_releve'] = raw.heure_releve;
     const edition = this.editId();
     if (edition) {
       // Modification : champs vidés transmis, motif conservé dans le journal

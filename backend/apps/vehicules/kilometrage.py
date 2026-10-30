@@ -9,14 +9,25 @@ le compteur faussé.
 Un kilométrage saisi est contrôlé par rapport aux saisies voisines (jours
 précédents et suivants), et non par rapport au compteur actuel : on peut
 ainsi corriger une valeur trop élevée ou saisir un relevé antérieur.
+Le même jour, les saisies sont comparées selon leur heure, quand les deux
+en ont une (les relevés antérieurs à l'heure obligatoire n'en ont pas).
 """
 
-from django.db.models import Max
+from django.db.models import Max, Q
+from django.utils import timezone
 from rest_framework import serializers
 
 
+def heure_par_defaut(date):
+    """Heure d'un relevé saisi sans heure : l'heure du serveur s'il est du
+    jour même, sinon aucune (on ne l'invente pas pour une date passée)."""
+    if date != timezone.localdate():
+        return None
+    return timezone.localtime().time().replace(second=0, microsecond=0)
+
+
 def _sources(vehicule, exclure=None):
-    """(queryset, champ km, champ date, libellé) des saisies kilométriques du véhicule.
+    """(queryset, champ km, champ date, champ heure, libellé) des saisies kilométriques du véhicule.
     `exclure` : instance à ignorer (la saisie en cours de correction)."""
     from apps.carburant.models import PleinsCarburant
     from apps.vehicules.models import ReleveKilometrage
@@ -27,27 +38,38 @@ def _sources(vehicule, exclure=None):
     if isinstance(exclure, ReleveKilometrage) and exclure.pk:
         releves = releves.exclude(pk=exclure.pk)
     return [
-        (pleins.order_by(), 'kilometrage_releve', 'date_plein', 'plein'),
-        (releves.order_by(), 'kilometrage', 'date_releve', 'relevé'),
+        (pleins.order_by(), 'kilometrage_releve', 'date_plein', 'heure_plein', 'plein'),
+        (releves.order_by(), 'kilometrage', 'date_releve', 'heure_releve', 'relevé'),
     ]
 
 
-def controler_km(vehicule, km, date, champ, exclure=None):
-    """Refuse un kilométrage inférieur à une saisie d'un jour précédent ou
-    supérieur à une saisie d'un jour suivant (même jour : pas de contrôle)."""
+def _quand(obj, f_date, f_heure):
+    d, h = getattr(obj, f_date), getattr(obj, f_heure)
+    return f"{d:%d/%m/%Y}" + (f" à {h:%H:%M}" if h else '')
+
+
+def controler_km(vehicule, km, date, champ, exclure=None, heure=None):
+    """Refuse un kilométrage inférieur à une saisie antérieure ou supérieur à
+    une saisie postérieure. Le même jour, seules les saisies ayant une heure
+    sont comparées, et seulement si `heure` est connue."""
     if km is None or date is None or vehicule is None:
         return
-    for qs, f_km, f_date, libelle in _sources(vehicule, exclure):
-        avant = qs.filter(**{f'{f_date}__lt': date, f'{f_km}__gt': km}).order_by(f'-{f_km}').first()
+    for qs, f_km, f_date, f_heure, libelle in _sources(vehicule, exclure):
+        anterieur = Q(**{f'{f_date}__lt': date})
+        posterieur = Q(**{f'{f_date}__gt': date})
+        if heure is not None:
+            anterieur |= Q(**{f_date: date, f'{f_heure}__lt': heure})
+            posterieur |= Q(**{f_date: date, f'{f_heure}__gt': heure})
+        avant = qs.filter(anterieur, **{f'{f_km}__gt': km}).order_by(f'-{f_km}').first()
         if avant:
             raise serializers.ValidationError({champ: (
-                f"Kilométrage inférieur à celui du {libelle} du {getattr(avant, f_date):%d/%m/%Y} "
+                f"Kilométrage inférieur à celui du {libelle} du {_quand(avant, f_date, f_heure)} "
                 f"({getattr(avant, f_km):,} km). Si cette saisie est erronée, corrigez-la d'abord."
             ).replace(',', ' ')})
-        apres = qs.filter(**{f'{f_date}__gt': date, f'{f_km}__lt': km}).order_by(f_km).first()
+        apres = qs.filter(posterieur, **{f'{f_km}__lt': km}).order_by(f_km).first()
         if apres:
             raise serializers.ValidationError({champ: (
-                f"Kilométrage supérieur à celui du {libelle} du {getattr(apres, f_date):%d/%m/%Y} "
+                f"Kilométrage supérieur à celui du {libelle} du {_quand(apres, f_date, f_heure)} "
                 f"({getattr(apres, f_km):,} km). Si cette saisie est erronée, corrigez-la d'abord."
             ).replace(',', ' ')})
 
@@ -57,7 +79,7 @@ def recalculer_kilometrage(vehicule):
     if vehicule is None:
         return
     km = vehicule.kilometrage_initial or 0
-    for qs, f_km, _, _ in _sources(vehicule):
+    for qs, f_km, *_ in _sources(vehicule):
         km = max(km, qs.aggregate(m=Max(f_km))['m'] or 0)
     if km != vehicule.kilometrage_actuel:
         vehicule.kilometrage_actuel = km

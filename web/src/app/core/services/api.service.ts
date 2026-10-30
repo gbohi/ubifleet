@@ -176,6 +176,7 @@ export class VehiculeApiService extends ApiBaseService {
   updateKilometrage(id: string, data: {
     kilometrage: number;
     date_releve: string;
+    heure_releve?: string;
     type_mouvement?: string;
     chauffeur?: string;
     tournee?: string;
@@ -185,6 +186,7 @@ export class VehiculeApiService extends ApiBaseService {
     const fd = new FormData();
     fd.append('kilometrage',    String(data.kilometrage));
     fd.append('date_releve',    data.date_releve);
+    if (data.heure_releve)      fd.append('heure_releve',   data.heure_releve);
     if (data.type_mouvement)    fd.append('type_mouvement', data.type_mouvement);
     if (data.chauffeur)         fd.append('chauffeur',      data.chauffeur);
     if (data.tournee)           fd.append('tournee',        data.tournee);

@@ -414,6 +414,7 @@ export interface ReleveKilometrage {
   vehicule_designation: string;
   kilometrage: number;
   date_releve: string;
+  heure_releve: string | null;   // HH:MM:SS ; null pour les relevés antérieurs
   type_mouvement: TypeMouvement;
   type_display: string;
   chauffeur: string | null;

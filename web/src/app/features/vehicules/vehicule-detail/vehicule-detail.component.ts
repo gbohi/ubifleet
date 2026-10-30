@@ -16,7 +16,7 @@ import {
   ParametrageApiService
 } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
-import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { FenetreSaisieService, messageErreurApi, heureLocale } from '../../../core/services/fenetre-saisie.service';
 import {
   Intervention, PleinCarburant, DocumentVehicule,
   StatutIntervention, ContratAssurance, HistoriqueImmatriculation,
@@ -110,6 +110,9 @@ export class VehiculeDetailComponent implements OnInit {
   showKmModal     = signal(false);
   kmValue         = signal<number>(0);
   kmDate          = signal(new Date().toISOString().split('T')[0]);
+  /** Heure saisie ; null = heure actuelle du serveur. */
+  kmHeure         = signal<string | null>(null);
+  kmHeureEffective(): string { return this.kmHeure() ?? this.fenetres.heureServeur() ?? heureLocale(); }
   kmTypeMouvement = signal<string>('releve');
   // Types de mouvement paramétrables (Paramètres › Types de mouvement)
   typesMvt = inject(TypesMouvementService);
@@ -449,6 +452,7 @@ export class VehiculeDetailComponent implements OnInit {
     const v = this.store.selectedVehicule();
     this.kmValue.set(v ? v.kilometrage_actuel + 1 : 0);
     this.kmDate.set(this.fenetres.max('releves') ?? new Date().toISOString().split('T')[0]);
+    this.kmHeure.set(null);
     this.fenetres.charger();
     this.kmTypeMouvement.set('releve');
     this.kmChauffeur.set('');
@@ -517,6 +521,7 @@ export class VehiculeDetailComponent implements OnInit {
       return;
     }
     if (this.kmDateErreur()) { this.kmError.set(this.kmDateErreur()!); return; }
+    if (!this.kmHeureEffective()) { this.kmError.set('Veuillez saisir une heure.'); return; }
 
     // Avertissement si inférieur (pas bloquant - on laisse passer)
     const type = this.kmTypeMouvement();
@@ -532,6 +537,7 @@ export class VehiculeDetailComponent implements OnInit {
     this.vehiculeApi.updateKilometrage(this.id(), {
       kilometrage:          km,
       date_releve:          this.kmDate(),
+      heure_releve:         this.kmHeureEffective(),
       type_mouvement:       this.kmTypeMouvement(),
       chauffeur:            this.kmChauffeur() || undefined,
       tournee:              this.kmTournee() || undefined,

@@ -528,7 +528,7 @@
                 <tbody>
                   @for (r of relevesKm(); track r.id) {
                     <tr>
-                      <td><strong>{{ r.date_releve | date:'dd/MM/yyyy' }}</strong></td>
+                      <td><strong>{{ r.date_releve | date:'dd/MM/yyyy' }}</strong>@if (r.heure_releve) { <span class="text-muted">{{ r.heure_releve.substring(0, 5) }}</span> }</td>
                       <td>
                         <strong style="color:var(--navy)">
                           {{ r.kilometrage | number:'1.0-0' }} km
@@ -769,7 +769,7 @@
 
       <div class="releve-form">
 
-        <div class="form-row">
+        <div class="form-row-3">
           <div class="form-group">
             <label class="form-label">
               <i class="fas fa-tachometer-alt"></i> Kilométrage relevé (km) *
@@ -796,6 +796,12 @@
             } @else if (fenetres.aide('releves')) {
               <div class="form-hint"><i class="fas fa-calendar-check"></i> {{ fenetres.aide('releves') }}</div>
             }
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-clock"></i> Heure du relevé *</label>
+            <input type="time" class="form-control form-control-lg" [class.is-invalid]="!kmHeureEffective()"
+                   [value]="kmHeureEffective()" (input)="kmHeure.set($any($event.target).value)" />
+            <div class="form-hint"><i class="fas fa-clock"></i> Ordonne les relevés d'une même journée.</div>
           </div>
         </div>
 

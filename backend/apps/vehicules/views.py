@@ -26,7 +26,7 @@ from .serializers import (
 from apps.accounts.permissions import IsFleetManager, IsAgenceUser, RoleBasedPermission
 from apps.parametrage.corrections import SaisieCorrigeableMixin
 from apps.parametrage.fenetre_saisie import ACTION_HORS_DELAI, RELEVES, fenetre, tracer_hors_delai
-from apps.vehicules.kilometrage import recalculer_kilometrage
+from apps.vehicules.kilometrage import recalculer_kilometrage, heure_par_defaut
 from apps.core.agences import (
     agence_effective, agence_pour_creation, controler_agence,
     filtrer_par_agence, filtrer_transactions_total,
@@ -112,7 +112,8 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         if vehicule.kilometrage_actuel > km_avant:
             ReleveKilometrage.objects.create(
                 vehicule=vehicule, kilometrage=vehicule.kilometrage_actuel,
-                date_releve=timezone.localdate(), type_mouvement='releve',
+                date_releve=timezone.localdate(), heure_releve=heure_par_defaut(timezone.localdate()),
+                type_mouvement='releve',
                 notes='Kilométrage mis à jour depuis la fiche véhicule.', created_by=user,
             )
 
@@ -161,6 +162,7 @@ class VehiculeViewSet(viewsets.ModelViewSet):
             vehicule=vehicule,
             kilometrage=new_km,
             date_releve=date_releve,
+            heure_releve=serializer.validated_data['heure_releve'],
             type_mouvement=type_mouvement,
             chauffeur=chauffeur_obj,
             tournee=request.data.get('tournee') or '',
@@ -509,7 +511,7 @@ class ReleveKilometrageViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
     # Fenêtre de saisie et journal des corrections (cf. parametrage.corrections)
     domaine_saisie = RELEVES
     champ_date     = 'date_releve'
-    champs_journal = ('vehicule', 'kilometrage', 'date_releve', 'type_mouvement', 'chauffeur',
+    champs_journal = ('vehicule', 'kilometrage', 'date_releve', 'heure_releve', 'type_mouvement', 'chauffeur',
                       'tournee', 'notes', 'photo_tableau_bord')
     parser_classes   = [MultiPartParser, FormParser, JSONParser]
     module   = 'releves_km'
@@ -529,7 +531,7 @@ class ReleveKilometrageViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['vehicule', 'type_mouvement', 'date_releve', 'chauffeur']
     search_fields    = ['vehicule__immatriculation', 'chauffeur__nom', 'chauffeur__prenom', 'tournee']
-    ordering_fields  = ['date_releve', 'kilometrage', 'created_at']
+    ordering_fields  = ['date_releve', 'heure_releve', 'kilometrage', 'created_at']
 
     def get_queryset(self):
         return filtrer_par_agence(ReleveKilometrage.objects.select_related(

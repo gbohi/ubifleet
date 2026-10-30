@@ -8,7 +8,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { forkJoin } from 'rxjs';
 import { VehiculeApiService, AgenceApiService, ChauffeurApiService, TotalImportApiService } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
-import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { FenetreSaisieService, messageErreurApi, heureLocale } from '../../../core/services/fenetre-saisie.service';
 import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/historique-corrections.component';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
@@ -325,6 +325,9 @@ export class RelevesKmGlobalComponent implements OnInit {
   nrVehicule       = signal('');
   nrKm             = signal<number>(0);
   nrDate           = signal(new Date().toISOString().split('T')[0]);
+  /** Heure saisie ; null = heure actuelle du serveur. */
+  nrHeure         = signal<string | null>(null);
+  nrHeureEffective(): string { return this.nrHeure() ?? this.fenetres.heureServeur() ?? heureLocale(); }
   nrType           = signal<string>('releve');
   nrChauffeur      = signal('');
   nrTournee        = signal('');
@@ -386,6 +389,7 @@ export class RelevesKmGlobalComponent implements OnInit {
     this.nrChauffeurOpen.set(false);
     this.nrKm.set(0);
     this.nrDate.set(this.fenetres.max('releves') ?? new Date().toISOString().split('T')[0]);
+    this.nrHeure.set(null);
     this.fenetres.charger();
     this.nrType.set('releve');
     this.nrChauffeur.set('');
@@ -478,6 +482,7 @@ export class RelevesKmGlobalComponent implements OnInit {
     if (!km || km <= 0) { this.nrError.set('Veuillez saisir un kilométrage valide.'); return; }
     if (!this.nrDate()) { this.nrError.set('Veuillez saisir une date.'); return; }
     if (this.nrDateErreur()) { this.nrError.set(this.nrDateErreur()!); return; }
+    if (!this.nrHeureEffective()) { this.nrError.set('Veuillez saisir une heure.'); return; }
 
     this.nrSaving.set(true);
     this.nrError.set('');
@@ -485,6 +490,7 @@ export class RelevesKmGlobalComponent implements OnInit {
       vehicule:           this.nrVehicule(),
       kilometrage:        km,
       date_releve:        this.nrDate(),
+      heure_releve:       this.nrHeureEffective(),
       type_mouvement:     this.nrType() as TypeMouvement,
       chauffeur:          this.nrChauffeur() || null,
       tournee:            this.nrTournee() || null,

@@ -67,10 +67,15 @@ class PleinSerializer(FenetreSaisieSerializerMixin, serializers.ModelSerializer)
         # une valeur trop élevée doit pouvoir être corrigée.
         from apps.vehicules.kilometrage import controler_km
         inst = self.instance
+        # Heure obligatoire : elle ordonne les saisies d'une même journée.
+        # Un plein ancien sans heure reste modifiable tant qu'on ne touche pas à ce champ.
+        if (inst is None or 'heure_plein' in attrs) and not attrs.get('heure_plein'):
+            raise serializers.ValidationError({'heure_plein': "L'heure du plein est obligatoire."})
         controler_km(attrs.get('vehicule', inst and inst.vehicule),
                      attrs.get('kilometrage_releve', inst and inst.kilometrage_releve),
                      attrs.get('date_plein', inst and inst.date_plein),
-                     'kilometrage_releve', exclure=inst)
+                     'kilometrage_releve', exclure=inst,
+                     heure=attrs.get('heure_plein', inst and inst.heure_plein))
         return attrs
 
 

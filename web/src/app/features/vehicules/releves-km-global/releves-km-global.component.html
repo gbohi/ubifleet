@@ -148,6 +148,9 @@
                 <tr>
                   <td>
                     <strong>{{ r.date_releve | date:'dd/MM/yyyy' }}</strong>
+                    @if (r.heure_releve) {
+                      <div class="td-sub">{{ r.heure_releve.substring(0, 5) }}</div>
+                    }
                     @if (r.saisie_hors_delai) {
                       <div><span class="badge badge-warning badge-hd"
                             [title]="'Saisi ou corrigé hors délai' + (r.hors_delai_par_nom ? ' par ' + r.hors_delai_par_nom : '') + (r.hors_delai_le ? ' le ' + (r.hors_delai_le | date:'dd/MM/yyyy HH:mm') : '')">Hors délai</span></div>
@@ -434,7 +437,7 @@
       }
 
       <div class="releve-form">
-        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-row-3" style="gap:12px">
           <div class="form-group" style="position:relative">
             <label class="form-label"><i class="fas fa-car"></i> Véhicule *</label>
             <input type="text" class="form-control form-control-lg"
@@ -468,7 +471,7 @@
           </div>
         </div>
 
-        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-row-3" style="gap:12px">
           <div class="form-group">
             <label class="form-label"><i class="fas fa-tachometer-alt"></i> Kilométrage relevé (km) *</label>
             <input type="number" class="form-control form-control-lg"
@@ -489,6 +492,12 @@
               <div class="form-hint"><i class="fas fa-calendar-check"></i> {{ fenetres.aide('releves') }}</div>
             }
           </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-clock"></i> Heure du relevé *</label>
+            <input type="time" class="form-control form-control-lg" [class.is-invalid]="!nrHeureEffective()"
+                   [value]="nrHeureEffective()" (input)="nrHeure.set($any($event.target).value)" />
+            <div class="form-hint"><i class="fas fa-clock"></i> Ordonne les relevés d'une même journée.</div>
+          </div>
         </div>
 
         <div class="form-group">
@@ -501,7 +510,7 @@
           </select>
         </div>
 
-        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-row-3" style="gap:12px">
           <div class="form-group" style="position:relative">
             <label class="form-label"><i class="fas fa-id-badge"></i> Chauffeur</label>
             <div style="position:relative">
@@ -618,7 +627,7 @@
       <div class="detail-grid">
         <div class="detail-item">
           <div class="detail-label"><i class="fas fa-calendar-alt"></i> Date du relevé</div>
-          <div class="detail-value">{{ r.date_releve | date:'dd/MM/yyyy' }}</div>
+          <div class="detail-value">{{ r.date_releve | date:'dd/MM/yyyy' }}@if (r.heure_releve) { à {{ r.heure_releve.substring(0, 5) }} }</div>
         </div>
         <div class="detail-item">
           <div class="detail-label"><i class="fas fa-exchange-alt"></i> Type de mouvement</div>

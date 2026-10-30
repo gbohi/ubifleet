@@ -281,6 +281,7 @@
 .main-area {
   margin-left: var(--sidebar-width);
   flex: 1;
+  min-width: 0;   // sinon un tableau large élargit toute la page au lieu de défiler
   display: flex;
   flex-direction: column;
   min-height: 100vh;

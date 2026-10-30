@@ -302,7 +302,7 @@
             <tbody>
               @for (r of relevesKm().slice(0,15); track r.id) {
                 <tr>
-                  <td>{{ r.date_releve | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ r.date_releve | date:'dd/MM/yyyy' }}@if (r.heure_releve) { {{ r.heure_releve.substring(0, 5) }} }</td>
                   <td class="num">{{ r.kilometrage | number:'1.0-0' }} km</td>
                   <td>{{ r.type_mouvement_display || r.type_mouvement }}</td>
                   <td>{{ r.chauffeur_nom || '—' }}</td>

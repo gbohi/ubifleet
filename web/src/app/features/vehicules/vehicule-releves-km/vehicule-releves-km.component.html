@@ -97,9 +97,11 @@
                 <tr>
                   <td>
                     <strong>{{ r.date_releve | date:'dd/MM/yyyy' }}</strong>
-                    <div class="td-sub">
-                      {{ r.created_at | date:'HH:mm' }}
-                    </div>
+                    @if (r.heure_releve) {
+                      <div class="td-sub">{{ r.heure_releve.substring(0, 5) }}</div>
+                    } @else {
+                      <div class="td-sub" title="Relevé enregistré sans heure (heure de saisie)">saisi à {{ r.created_at | date:'HH:mm' }}</div>
+                    }
                     @if (r.saisie_hors_delai) {
                       <span class="badge badge-warning badge-hd"
                             [title]="'Saisi ou corrigé hors délai' + (r.hors_delai_par_nom ? ' par ' + r.hors_delai_par_nom : '') + (r.hors_delai_le ? ' le ' + (r.hors_delai_le | date:'dd/MM/yyyy HH:mm') : '')">Hors délai</span>
@@ -204,7 +206,7 @@
       }
       <form [formGroup]="form" (ngSubmit)="saveReleve()" novalidate>
 
-        <div class="form-row">
+        <div class="form-row-3">
           <div class="form-group">
             <label class="form-label">Kilométrage (km) *</label>
             <input type="number" formControlName="kilometrage"
@@ -228,6 +230,18 @@
               <div class="form-hint hint-warning"><i class="fas fa-exclamation-triangle"></i> Saisie hors délai : elle sera tracée à votre nom.</div>
             } @else if (fenetres.aide('releves')) {
               <div class="form-hint"><i class="fas fa-calendar-check"></i> {{ fenetres.aide('releves') }}</div>
+            }
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="heure-releve">Heure du relevé {{ heureFacultative() ? '' : '*' }}</label>
+            <input id="heure-releve" type="time" formControlName="heure_releve" class="form-control"
+                   [class.is-invalid]="f['heure_releve'].invalid && f['heure_releve'].touched" />
+            @if (f['heure_releve'].invalid && f['heure_releve'].touched) {
+              <div class="form-error"><i class="fas fa-times-circle"></i> L'heure est requise.</div>
+            } @else if (heureFacultative() && !f['heure_releve'].value) {
+              <div class="form-hint">Relevé enregistré sans heure : renseignez-la si vous la connaissez.</div>
+            } @else {
+              <div class="form-hint"><i class="fas fa-clock"></i> Ordonne les relevés d'une même journée.</div>
             }
           </div>
         </div>

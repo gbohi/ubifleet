@@ -22,11 +22,28 @@ export class FenetreSaisieService {
   private http = inject(HttpClient);
 
   readonly fenetres = signal<Record<DomaineSaisie, FenetreSaisie> | null>(null);
+  /** Écart entre l'horloge locale du serveur et celle de l'appareil (ms). */
+  private readonly decalage = signal<number | null>(null);
 
   /** Recharge les bornes (à l'ouverture de chaque formulaire : la date du jour change). */
   charger(): void {
-    this.http.get<Record<DomaineSaisie, FenetreSaisie>>(`${environment.apiUrl}/parametrage/fenetre-saisie/`)
-      .subscribe({ next: f => this.fenetres.set(f), error: () => {} });
+    this.http.get<Record<DomaineSaisie, FenetreSaisie> & { maintenant: string }>(
+      `${environment.apiUrl}/parametrage/fenetre-saisie/`
+    ).subscribe({
+      next: ({ maintenant, ...f }) => {
+        this.fenetres.set(f);
+        // Heure locale du serveur lue comme UTC : on relira les champs UTC
+        if (maintenant) this.decalage.set(Date.parse(maintenant + 'Z') - Date.now());
+      },
+      error: () => {},
+    });
+  }
+
+  /** Heure actuelle du serveur (HH:MM), pour pré-remplir les saisies ; null tant qu'elle n'est pas connue. */
+  heureServeur(): string | null {
+    const d = this.decalage();
+    if (d === null) return null;
+    return new Date(Date.now() + d).toISOString().slice(11, 16);
   }
 
   fenetre(domaine: DomaineSaisie): FenetreSaisie | null {
@@ -70,6 +87,12 @@ export class FenetreSaisieService {
       ? `Fenêtre de saisie : du ${fr(f.date_min)} au ${fr(f.date_max)}. Vous pouvez saisir hors délai (ce sera tracé).`
       : `Dates acceptées : du ${fr(f.date_min)} au ${fr(f.date_max)}.`;
   }
+}
+
+/** Heure de l'appareil (HH:MM), en attendant celle du serveur. */
+export function heureLocale(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 function fr(d: string): string {

@@ -105,12 +105,15 @@ class VehiculeWriteSerializer(serializers.ModelSerializer):
 
 class VehiculeKilometrageSerializer(serializers.Serializer):
     """Mise à jour rapide du kilométrage."""
-    kilometrage = serializers.IntegerField(min_value=0)
-    date_releve = serializers.DateField()
+    kilometrage  = serializers.IntegerField(min_value=0)
+    date_releve  = serializers.DateField()
+    heure_releve = serializers.TimeField(required=False, allow_null=True)
 
     def validate(self, attrs):
-        from .kilometrage import controler_km
-        controler_km(self.context['vehicule'], attrs['kilometrage'], attrs['date_releve'], 'kilometrage')
+        from .kilometrage import controler_km, heure_par_defaut
+        attrs['heure_releve'] = attrs.get('heure_releve') or heure_par_defaut(attrs['date_releve'])
+        controler_km(self.context['vehicule'], attrs['kilometrage'], attrs['date_releve'], 'kilometrage',
+                     heure=attrs['heure_releve'])
         return attrs
 
 
@@ -128,7 +131,7 @@ class ReleveKilometrageSerializer(FenetreSaisieSerializerMixin, serializers.Mode
         model  = ReleveKilometrage
         fields = [
             'id', 'vehicule', 'vehicule_immat', 'vehicule_designation',
-            'kilometrage', 'date_releve', 'type_mouvement', 'type_display', 'type_couleur',
+            'kilometrage', 'date_releve', 'heure_releve', 'type_mouvement', 'type_display', 'type_couleur',
             'chauffeur', 'chauffeur_nom',
             'tournee', 'notes',
             'photo_tableau_bord', 'photo_tableau_bord_url',
@@ -152,12 +155,15 @@ class ReleveKilometrageSerializer(FenetreSaisieSerializerMixin, serializers.Mode
         return t.couleur if t else 'gray'
 
     def validate(self, attrs):
-        from .kilometrage import controler_km
+        from .kilometrage import controler_km, heure_par_defaut
         inst = self.instance
+        if inst is None and not attrs.get('heure_releve'):
+            attrs['heure_releve'] = heure_par_defaut(attrs.get('date_releve'))
         controler_km(attrs.get('vehicule', inst and inst.vehicule),
                      attrs.get('kilometrage', inst and inst.kilometrage),
                      attrs.get('date_releve', inst and inst.date_releve),
-                     'kilometrage', exclure=inst)
+                     'kilometrage', exclure=inst,
+                     heure=attrs.get('heure_releve', inst and inst.heure_releve))
         return attrs
 
     def validate_type_mouvement(self, value):
