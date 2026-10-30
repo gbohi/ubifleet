@@ -9,7 +9,7 @@ from .models import Parametre
 from .serializers import ParametreSerializer
 from apps.accounts.permissions import IsSuperAdmin, IsFleetManager, RoleBasedPermission
 from apps.core.agences import controler_agence, filtrer_par_agence, voit_toutes_agences
-from django.db.models import Q
+from django.db.models import Count as _Count, IntegerField, OuterRef, Q, Subquery
 from apps.core.referentiels import NbUtilisationsField, SuppressionProtegeeMixin, annoter_utilisations
 
 
@@ -63,14 +63,15 @@ class ParametreViewSet(viewsets.ModelViewSet):
         """Mise à jour en masse : [{cle, valeur}, ...].
 
         Clés acceptées : paramètres existants et seuils connus (échéances,
-        consommation, prix carburant). Pour chaque échéance, le seuil
+        consommation). Pour chaque échéance, le seuil
         « attention » doit rester strictement supérieur au seuil « urgent »."""
         from .echeances import ECHEANCES, CLE_CONSO_ANOMALIE, cle, seuils
 
         if not isinstance(request.data, list):
             return Response({'detail': 'Format invalide. Attendu: liste.'}, status=400)
 
-        CONNUES = {CLE_CONSO_ANOMALIE: 'alertes', 'prix_carburant_litre': 'alertes'}
+        # Le prix du carburant a son propre historique daté (/carburant/prix/)
+        CONNUES = {CLE_CONSO_ANOMALIE: 'alertes'}
         for code in ECHEANCES:
             CONNUES[cle(code, 'attention')] = 'alertes'
             CONNUES[cle(code, 'urgent')] = 'alertes'
@@ -117,18 +118,41 @@ class ParametreViewSet(viewsets.ModelViewSet):
         return Response({'updated': list(valeurs)})
 
 
-from .models import Tournee
+from .models import Tournee, ChangementDotation
 from rest_framework import serializers as drf_serializers
 
 
 class TourneeSerializer(drf_serializers.ModelSerializer):
     agence_nom  = drf_serializers.CharField(source='agence.nom',  read_only=True)
     agence_code = drf_serializers.CharField(source='agence.code', read_only=True)
+    # Nouvelle dotation demandée, en attente de validation (None sinon)
+    dotation_en_attente = drf_serializers.IntegerField(read_only=True, default=None, allow_null=True)
 
     class Meta:
         model  = Tournee
         fields = ['id', 'code', 'libelle', 'agence', 'agence_nom', 'agence_code',
-                  'dotation', 'km_theorique', 'actif']
+                  'dotation', 'dotation_en_attente', 'km_theorique', 'actif']
+
+    def validate_dotation(self, value):
+        # Fixée à la création ; ensuite, uniquement par demande validée
+        if self.instance is not None and value != self.instance.dotation:
+            raise drf_serializers.ValidationError(
+                "La dotation se modifie par une demande soumise au circuit de validation "
+                "(bouton « Demander une modification »).")
+        return value
+
+
+class ChangementDotationSerializer(drf_serializers.ModelSerializer):
+    statut_display = drf_serializers.CharField(source='get_statut_display', read_only=True)
+    demandeur_nom  = drf_serializers.CharField(source='demandeur.full_name', read_only=True, allow_null=True)
+    decide_par_nom = drf_serializers.CharField(source='decide_par.full_name', read_only=True, allow_null=True)
+    demande_numero = drf_serializers.CharField(source='demande.numero', read_only=True, allow_null=True)
+
+    class Meta:
+        model  = ChangementDotation
+        fields = ['id', 'ancienne_dotation', 'nouvelle_dotation', 'motif', 'statut', 'statut_display',
+                  'demandeur_nom', 'decide_par_nom', 'date_decision', 'demande', 'demande_numero',
+                  'created_at']
 
 
 from rest_framework import viewsets
@@ -138,9 +162,19 @@ from rest_framework.permissions import IsAuthenticated
 class TourneeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
     serializer_class   = TourneeSerializer
     pagination_class   = None
+    role_map = {
+        **ReferentielPermissionMixin.role_map,
+        'demander_dotation':   'responsable_flotte',
+        'historique_dotation': 'chauffeur',
+    }
 
     def get_queryset(self):
-        qs = filtrer_par_agence(Tournee.objects.select_related('agence'), self.request.user)
+        en_attente = ChangementDotation.objects.filter(
+            tournee=OuterRef('pk'), statut=ChangementDotation.Statut.EN_ATTENTE
+        ).values('nouvelle_dotation')[:1]
+        qs = filtrer_par_agence(
+            Tournee.objects.select_related('agence').annotate(dotation_en_attente=Subquery(en_attente)),
+            self.request.user)
         actif = self.request.query_params.get('actif')
         if actif is not None:
             qs = qs.filter(actif=(actif.lower() == 'true'))
@@ -151,11 +185,37 @@ class TourneeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         controler_agence(self.request.user, serializer.validated_data)
-        serializer.save()
+        tournee = serializer.save()
+        ChangementDotation.objects.create(
+            tournee=tournee, nouvelle_dotation=tournee.dotation, statut=ChangementDotation.Statut.INITIALE,
+            demandeur=self.request.user, motif='Création de la tournée')
 
     def perform_update(self, serializer):
         controler_agence(self.request.user, serializer.validated_data)
         serializer.save()
+
+    @action(detail=True, methods=['post'])
+    def demander_dotation(self, request, pk=None):
+        """Soumet une nouvelle dotation au circuit de validation « dotation »."""
+        from .dotations import demander_modification
+        tournee = self.get_object()
+        try:
+            nouvelle = int(request.data.get('nouvelle_dotation'))
+            if nouvelle < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            return Response({'nouvelle_dotation': 'Nombre de litres invalide.'}, status=400)
+        motif = (request.data.get('motif') or '').strip()
+        if not motif:
+            return Response({'motif': 'Le motif est obligatoire.'}, status=400)
+        changement = demander_modification(tournee, nouvelle, motif, request.user)
+        return Response(ChangementDotationSerializer(changement).data, status=201)
+
+    @action(detail=True, methods=['get'])
+    def historique_dotation(self, request, pk=None):
+        tournee = self.get_object()
+        qs = tournee.changements_dotation.select_related('demandeur', 'decide_par', 'demande')
+        return Response(ChangementDotationSerializer(qs, many=True).data)
 
     @action(detail=False, methods=['post'],
             parser_classes=[MultiPartParser, FormParser])
@@ -292,12 +352,21 @@ class TourneeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
                 erreurs.append(f'Ligne {num} : la tournée « {code} » appartient à une autre agence.')
                 continue
 
+            if existante and existante.dotation != valeurs['dotation']:
+                erreurs.append(
+                    f"Ligne {num} : dotation de « {code} » non modifiée ({existante.dotation} L conservés) — "
+                    "une modification de dotation passe par une demande validée.")
+                valeurs['dotation'] = existante.dotation
+
             try:
                 obj, cree = Tournee.objects.update_or_create(
                     code=code[:20], defaults=valeurs
                 )
                 if cree:
                     crees += 1
+                    ChangementDotation.objects.create(
+                        tournee=obj, nouvelle_dotation=obj.dotation, statut=ChangementDotation.Statut.INITIALE,
+                        demandeur=request.user, motif='Création par import Excel')
                 else:
                     maj += 1
             except Exception as e:
@@ -408,3 +477,44 @@ class ModeleVehiculeViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin
         if marque:
             qs = qs.filter(marque__id=marque)
         return qs
+
+
+# ── Types de mouvement (relevés kilométriques) ───────────────────────
+from .models import TypeMouvement
+
+
+class TypeMouvementSerializer(drf_s2.ModelSerializer):
+    nb_utilisations = NbUtilisationsField()
+
+    class Meta:
+        model  = TypeMouvement
+        fields = ['id', 'code', 'libelle', 'couleur', 'avec_tournee', 'ordre', 'actif', 'nb_utilisations']
+
+    def validate_code(self, value):
+        if self.instance and self.instance.code != value:
+            raise drf_s2.ValidationError(
+                "Le code ne peut pas être modifié : il est enregistré sur les relevés existants.")
+        return value
+
+
+def _releves_par_type():
+    from apps.vehicules.models import ReleveKilometrage
+    return (ReleveKilometrage.objects.filter(type_mouvement=OuterRef('code'))
+            .order_by().values('type_mouvement').annotate(n=_Count('id')).values('n'))
+
+
+class TypeMouvementViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin, viewsets.ModelViewSet):
+    serializer_class   = TypeMouvementSerializer
+    pagination_class   = None
+
+    def get_queryset(self):
+        qs = TypeMouvement.objects.annotate(
+            nb_utilisations=Subquery(_releves_par_type(), output_field=IntegerField()))
+        actif = self.request.query_params.get('actif')
+        if actif is not None:
+            qs = qs.filter(actif=(actif.lower() == 'true'))
+        return qs
+
+    def utilisations(self, obj):
+        from apps.vehicules.models import ReleveKilometrage
+        return [(ReleveKilometrage.objects.filter(type_mouvement=obj.code).count(), 'relevé(s) kilométrique(s)')]

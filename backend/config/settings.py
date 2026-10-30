@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'apps.parametrage.apps.ParametrageConfig',
     'apps.total_import',
     'apps.grand_livre',
+    'apps.faits_marquants.apps.FaitsMarquantsConfig',
 ]
 
 MIDDLEWARE = [

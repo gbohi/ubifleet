@@ -263,12 +263,6 @@ class DocumentVehicule(UbiFleetBaseModel):
 class ReleveKilometrage(models.Model):
     """Historique des relevés de kilométrage."""
 
-    class TypeMouvement(models.TextChoices):
-        ENTREE  = 'entree',  'Entrée (retour véhicule)'
-        SORTIE  = 'sortie',  'Sortie (mise à disposition)'
-        RELEVE  = 'releve',  'Relevé simple'
-        TOURNEE = 'tournee', 'Tournée'
-
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     vehicule   = models.ForeignKey(
@@ -277,10 +271,8 @@ class ReleveKilometrage(models.Model):
     )
     kilometrage = models.PositiveIntegerField(verbose_name='Kilométrage relevé (km)')
     date_releve = models.DateField(verbose_name='Date du relevé')
-    type_mouvement = models.CharField(
-        max_length=10, choices=TypeMouvement.choices,
-        default=TypeMouvement.RELEVE
-    )
+    # Code d'un type de mouvement paramétrable (Paramètres › Types de mouvement)
+    type_mouvement = models.CharField(max_length=20, default='releve')
     tournee  = models.CharField(max_length=200, blank=True, null=True,
                                 verbose_name='Tournée / Destination')
     notes    = models.TextField(blank=True)

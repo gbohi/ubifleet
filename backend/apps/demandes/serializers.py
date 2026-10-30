@@ -113,6 +113,15 @@ class DemandeDetailSerializer(DemandeListSerializer):
 
 
 class DemandeWriteSerializer(serializers.ModelSerializer):
+    # Types créés automatiquement par d'autres écrans (ex. dotation de tournée)
+    TYPES_AUTOMATIQUES = ('dotation',)
+
+    def validate_type_demande(self, value):
+        if value and value.code in self.TYPES_AUTOMATIQUES:
+            raise serializers.ValidationError(
+                "Ce type de demande se crée depuis son écran dédié (ex. Paramètres › Tournées).")
+        return value
+
     class Meta:
         model  = Demande
         fields = ['id', 'type_demande', 'titre', 'description', 'priorite',

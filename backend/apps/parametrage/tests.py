@@ -173,3 +173,129 @@ class ReferentielsTests(UtilisateursMixin, APITestCase):
     def noms(self, params=None):
         data = self.client.get(reverse('type-intervention-list'), params or {}).data
         return [x['nom'] for x in (data['results'] if isinstance(data, dict) else data)]
+
+
+class TypesMouvementTests(UtilisateursMixin, APITestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.vehicule = Vehicule.objects.create(immatriculation='TM-1', agence=cls.agence_a, annee=2020)
+
+    def setUp(self):
+        self.client.force_authenticate(self.responsable_flotte)
+
+    def releve(self, type_mouvement):
+        return self.client.post('/api/v1/vehicules/releves-km/', {
+            'vehicule': str(self.vehicule.id), 'kilometrage': 1000,
+            'date_releve': '2026-03-01', 'type_mouvement': type_mouvement}, format='json')
+
+    def test_types_initiaux_et_nouveau_type(self):
+        codes = [t['code'] for t in self.client.get(reverse('type-mouvement-list')).data]
+        self.assertEqual(codes, ['releve', 'sortie', 'entree', 'tournee'])
+        resp = self.client.post(reverse('type-mouvement-list'),
+                                {'code': 'atelier', 'libelle': 'Entrée atelier', 'couleur': 'orange'}, format='json')
+        self.assertEqual(resp.status_code, 201)
+        resp = self.releve('atelier')
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(resp.data['type_display'], 'Entrée atelier')
+
+    def test_type_inconnu_ou_desactive_refuse(self):
+        self.assertEqual(self.releve('inexistant').status_code, 400)
+        from .models import TypeMouvement
+        TypeMouvement.objects.filter(code='sortie').update(actif=False)
+        self.assertEqual(self.releve('sortie').status_code, 400)
+
+    def test_suppression_type_utilise_refusee_et_code_fige(self):
+        self.releve('tournee')
+        from .models import TypeMouvement
+        t = TypeMouvement.objects.get(code='tournee')
+        resp = self.client.delete(reverse('type-mouvement-detail', args=[t.id]))
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('relevé', resp.data['detail'])
+        resp = self.client.patch(reverse('type-mouvement-detail', args=[t.id]), {'code': 'autre'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+
+class DotationTests(UtilisateursMixin, APITestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from apps.demandes.models import NiveauValidation, TypeDemande
+        from .models import Tournee
+        cls.tournee = Tournee.objects.create(code='NORD1', libelle='Nord', agence=cls.agence_a, dotation=100)
+        # Circuit dotation : une étape validée par le DG
+        type_dotation = TypeDemande.objects.get(code='dotation')
+        NiveauValidation.objects.filter(type_demande=type_dotation).update(role_min=cls.roles['dg'])
+
+    def url(self, action):
+        return reverse(f'tournee-{action}', args=[self.tournee.id])
+
+    def demander(self, valeur=120, user=None):
+        self.client.force_authenticate(user or self.responsable_flotte)
+        return self.client.post(self.url('demander-dotation'),
+                                {'nouvelle_dotation': valeur, 'motif': 'Extension de la tournée'}, format='json')
+
+    def test_modification_directe_interdite(self):
+        self.client.force_authenticate(self.responsable_flotte)
+        resp = self.client.patch(reverse('tournee-detail', args=[self.tournee.id]), {'dotation': 500}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        resp = self.client.patch(reverse('tournee-detail', args=[self.tournee.id]), {'libelle': 'Nord 1'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_circuit_complet(self):
+        from apps.demandes.models import Demande
+        resp = self.demander()
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.tournee.refresh_from_db()
+        self.assertEqual(self.tournee.dotation, 100)          # inchangée avant validation
+        detail = self.client.get(reverse('tournee-detail', args=[self.tournee.id])).data
+        self.assertEqual(detail['dotation_en_attente'], 120)
+
+        demande = Demande.objects.get(changement_dotation__isnull=False)
+        self.assertEqual(demande.statut, Demande.Statut.SOUMISE)
+        self.client.force_authenticate(self.responsable_flotte)   # le demandeur ne valide pas
+        self.assertEqual(self.client.post(reverse('demande-valider', args=[demande.id])).status_code, 403)
+        self.client.force_authenticate(self.dg)
+        self.assertEqual(self.client.post(reverse('demande-valider', args=[demande.id])).status_code, 200)
+
+        self.tournee.refresh_from_db()
+        self.assertEqual(self.tournee.dotation, 120)
+        self.client.force_authenticate(self.responsable_flotte)
+        histo = self.client.get(self.url('historique-dotation')).data
+        self.assertEqual([h['statut'] for h in histo], ['approuvee'])
+        self.assertEqual((histo[0]['ancienne_dotation'], histo[0]['nouvelle_dotation']), (100, 120))
+
+    def test_rejet_ne_change_rien(self):
+        from apps.demandes.models import Demande
+        self.demander()
+        demande = Demande.objects.get(changement_dotation__isnull=False)
+        self.client.force_authenticate(self.dg)
+        self.client.post(reverse('demande-rejeter', args=[demande.id]), {'commentaire': 'Non justifié'}, format='json')
+        self.tournee.refresh_from_db()
+        self.assertEqual(self.tournee.dotation, 100)
+        self.assertEqual(self.tournee.changements_dotation.get().statut, 'rejetee')
+
+    def test_une_seule_demande_en_attente_et_motif_obligatoire(self):
+        self.assertEqual(self.demander().status_code, 201)
+        self.assertEqual(self.demander(150).status_code, 400)
+        self.client.force_authenticate(self.responsable_flotte)
+        resp = self.client.post(self.url('demander-dotation'), {'nouvelle_dotation': 90}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_demande_dotation_non_creable_depuis_demandes(self):
+        from apps.demandes.models import TypeDemande
+        self.client.force_authenticate(self.chauffeur)
+        resp = self.client.post(reverse('demande-list'), {
+            'type_demande': TypeDemande.objects.get(code='dotation').id, 'titre': 'x', 'description': 'y'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_creation_enregistre_la_dotation_initiale(self):
+        self.client.force_authenticate(self.responsable_flotte)
+        resp = self.client.post(reverse('tournee-list'), {
+            'code': 'SUD1', 'libelle': 'Sud', 'agence': str(self.agence_a.id), 'dotation': 80, 'km_theorique': 300},
+            format='json')
+        self.assertEqual(resp.status_code, 201, resp.data)
+        histo = self.client.get(reverse('tournee-historique-dotation', args=[resp.data['id']])).data
+        self.assertEqual([(h['statut'], h['nouvelle_dotation']) for h in histo], [('initiale', 80)])

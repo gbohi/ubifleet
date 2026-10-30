@@ -138,11 +138,17 @@ class VehiculeViewSet(viewsets.ModelViewSet):
             except ChauffeurModel.DoesNotExist:
                 pass
 
+        from apps.parametrage.models import TypeMouvement
+        type_mouvement = request.data.get('type_mouvement') or 'releve'
+        if not TypeMouvement.objects.filter(code=type_mouvement, actif=True).exists():
+            return Response({'detail': 'Type de mouvement inconnu ou désactivé.'}, status=400)
+        controler_agence(request.user, {'chauffeur': chauffeur_obj})
+
         ReleveKilometrage.objects.create(
             vehicule=vehicule,
             kilometrage=new_km,
             date_releve=request.data.get('date_releve') or date.today(),
-            type_mouvement=request.data.get('type_mouvement', 'releve'),
+            type_mouvement=type_mouvement,
             chauffeur=chauffeur_obj,
             tournee=request.data.get('tournee') or '',
             notes=request.data.get('notes') or '',

@@ -26,13 +26,14 @@ class SuppressionProtegeeMixin:
     """
     relations_utilisation = ()
 
+    def utilisations(self, obj):
+        """[(nombre, libellé)] — à redéfinir pour un comptage sans relation."""
+        return [(getattr(obj, relation).count(), libelle)
+                for relation, libelle in self.relations_utilisation]
+
     def destroy(self, request, *args, **kwargs):
         obj = self.get_object()
-        usages = []
-        for relation, libelle in self.relations_utilisation:
-            n = getattr(obj, relation).count()
-            if n:
-                usages.append(f'{n} {libelle}')
+        usages = [f'{n} {libelle}' for n, libelle in self.utilisations(obj) if n]
         if usages:
             return Response(
                 {'detail': f"Suppression impossible : utilisé par {', '.join(usages)}. "

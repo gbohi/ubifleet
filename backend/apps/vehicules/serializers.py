@@ -119,7 +119,8 @@ class VehiculeKilometrageSerializer(serializers.Serializer):
 class ReleveKilometrageSerializer(serializers.ModelSerializer):
     vehicule_immat       = serializers.CharField(source='vehicule.immatriculation', read_only=True)
     vehicule_designation = serializers.CharField(source='vehicule.designation', read_only=True)
-    type_display         = serializers.CharField(source='get_type_mouvement_display', read_only=True)
+    type_display         = serializers.SerializerMethodField()
+    type_couleur         = serializers.SerializerMethodField()
     chauffeur_nom        = serializers.SerializerMethodField()
     created_by_nom       = serializers.SerializerMethodField()
     photo_tableau_bord_url = serializers.SerializerMethodField()
@@ -128,13 +129,35 @@ class ReleveKilometrageSerializer(serializers.ModelSerializer):
         model  = ReleveKilometrage
         fields = [
             'id', 'vehicule', 'vehicule_immat', 'vehicule_designation',
-            'kilometrage', 'date_releve', 'type_mouvement', 'type_display',
+            'kilometrage', 'date_releve', 'type_mouvement', 'type_display', 'type_couleur',
             'chauffeur', 'chauffeur_nom',
             'tournee', 'notes',
             'photo_tableau_bord', 'photo_tableau_bord_url',
             'created_by', 'created_by_nom', 'created_at',
         ]
         read_only_fields = ['created_at', 'photo_tableau_bord_url']
+
+    def _types(self):
+        """Types de mouvement {code: objet}, chargés une fois par sérialisation."""
+        if '_types_mouvement' not in self.context:
+            from apps.parametrage.models import TypeMouvement
+            self.context['_types_mouvement'] = {t.code: t for t in TypeMouvement.objects.all()}
+        return self.context['_types_mouvement']
+
+    def get_type_display(self, obj):
+        t = self._types().get(obj.type_mouvement)
+        return t.libelle if t else obj.type_mouvement
+
+    def get_type_couleur(self, obj):
+        t = self._types().get(obj.type_mouvement)
+        return t.couleur if t else 'gray'
+
+    def validate_type_mouvement(self, value):
+        t = self._types().get(value)
+        changement = self.instance is None or self.instance.type_mouvement != value
+        if t is None or (changement and not t.actif):
+            raise serializers.ValidationError("Type de mouvement inconnu ou désactivé.")
+        return value
 
     def get_chauffeur_nom(self, obj):
         if obj.chauffeur:

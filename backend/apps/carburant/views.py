@@ -12,10 +12,10 @@ from django_filters import rest_framework as df
 from django.utils import timezone
 from django.db.models import Sum, Avg, Count, Q
 
-from .models import PleinsCarburant, DotationCarburant, Station, RapprochementCarburant
+from .models import PleinsCarburant, DotationCarburant, Station, RapprochementCarburant, PrixCarburant
 from .serializers import (
     PleinSerializer, PleinValidationSerializer,
-    DotationSerializer, StationSerializer, RapprochementSerializer
+    DotationSerializer, StationSerializer, RapprochementSerializer, PrixCarburantSerializer,
 )
 from apps.accounts.permissions import IsFleetManager, RoleBasedPermission
 from apps.core.agences import (
@@ -78,9 +78,18 @@ class PleinViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        controler_agence(user, serializer.validated_data)
-        agence = agence_pour_creation(user, serializer.validated_data.get('agence'))
-        serializer.save(created_by=user, agence=agence)
+        data = serializer.validated_data
+        controler_agence(user, data)
+        agence = agence_pour_creation(user, data.get('agence'))
+        extra = {}
+        # Prix non saisi : prix en vigueur à la date du plein pour le carburant du véhicule
+        if not data.get('prix_litre') and data.get('vehicule'):
+            prix = PrixCarburant.en_vigueur(data['vehicule'].type_carburant, data['date_plein'])
+            if prix:
+                extra['prix_litre'] = prix.prix
+                if not data.get('montant_fcfa'):
+                    extra['montant_fcfa'] = round(prix.prix * data['volume_litres'], 2)
+        serializer.save(created_by=user, agence=agence, **extra)
 
     def perform_update(self, serializer):
         controler_agence(self.request.user, serializer.validated_data)
@@ -569,14 +578,11 @@ class PleinViewSet(viewsets.ModelViewSet):
         Paramètres : date_debut, date_fin, agence, vehicule (optionnels)
         """
         from decimal import Decimal, ROUND_HALF_UP
-        from apps.parametrage.models import Parametre
 
-        # Prix par défaut depuis paramètre
-        try:
-            prix_param = Parametre.objects.filter(cle='prix_carburant_litre').first()
-            prix_defaut = Decimal(prix_param.valeur) if prix_param and prix_param.valeur else Decimal('700')
-        except Exception:
-            prix_defaut = Decimal('700')
+        # Plein sans prix : prix en vigueur à sa date pour le carburant du véhicule
+        def prix_defaut(plein):
+            prix = PrixCarburant.en_vigueur(plein.vehicule.type_carburant, plein.date_plein)
+            return prix.prix if prix else Decimal('0')
 
         qs = self.get_queryset().filter(
             tournee__isnull=False
@@ -608,7 +614,7 @@ class PleinViewSet(viewsets.ModelViewSet):
             km_parcouru = (km_retour - km_depart) if km_depart else NA
 
             vol_reel    = float(p.volume_litres)
-            prix_litre  = float(p.prix_litre) if p.prix_litre else float(prix_defaut)
+            prix_litre  = float(p.prix_litre) if p.prix_litre else float(prix_defaut(p))
             montant_reel = float(p.montant_fcfa)
 
             conso_reel = round((vol_reel / km_parcouru) * 100, 2) \
@@ -748,3 +754,69 @@ class RapprochementViewSet(AgenceMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         return self.filtrer_agence(RapprochementCarburant.objects.select_related('agence', 'station'))
+
+
+class PrixCarburantViewSet(viewsets.ModelViewSet):
+    """Historique des prix du carburant.
+
+    GET  /carburant/prix/?type_carburant=diesel        — historique
+    GET  /carburant/prix/en_vigueur/?type_carburant=&date=  (ou ?vehicule=<id>&date=)
+    Un prix déjà entré en vigueur ne se modifie pas et ne se supprime pas :
+    on ajoute un nouveau prix avec sa date d'effet.
+    """
+    serializer_class = PrixCarburantSerializer
+    pagination_class = None
+    filter_backends  = [DjangoFilterBackend]
+    filterset_fields = ['type_carburant']
+    module   = 'carburant'
+    role_map = {
+        'list': 'operateur',
+        'retrieve': 'operateur',
+        'en_vigueur': 'chauffeur',
+        'create': 'responsable_flotte',
+        'update': 'responsable_flotte',
+        'partial_update': 'responsable_flotte',
+        'destroy': 'responsable_flotte',
+    }
+    permission_classes = [RoleBasedPermission]
+
+    def get_queryset(self):
+        return PrixCarburant.objects.select_related('created_by')
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    def _verifier_futur(self, prix):
+        if prix.date_effet <= timezone.now().date():
+            raise PermissionDenied(
+                "Ce prix est déjà entré en vigueur : il fait partie de l'historique. "
+                "Ajoutez un nouveau prix avec sa date d'effet.")
+
+    def perform_update(self, serializer):
+        self._verifier_futur(serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._verifier_futur(instance)
+        instance.delete()
+
+    @action(detail=False, methods=['get'])
+    def en_vigueur(self, request):
+        from apps.vehicules.models import Vehicule
+        date = request.query_params.get('date') or timezone.now().date().isoformat()
+        type_carburant = request.query_params.get('type_carburant')
+        vehicule_id = request.query_params.get('vehicule')
+        if vehicule_id:
+            vehicule = filtrer_par_agence(Vehicule.objects.all(), request.user).filter(pk=vehicule_id).first()
+            if not vehicule:
+                return Response({'detail': 'Véhicule introuvable.'}, status=404)
+            type_carburant = vehicule.type_carburant
+        if not type_carburant:
+            return Response({'detail': 'type_carburant ou vehicule requis.'}, status=400)
+        prix = PrixCarburant.en_vigueur(type_carburant, date)
+        return Response({
+            'type_carburant': type_carburant,
+            'date': date,
+            'prix': prix.prix if prix else None,
+            'date_effet': prix.date_effet if prix else None,
+        })

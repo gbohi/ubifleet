@@ -9,5 +9,6 @@ router.register('pleins', views.PleinViewSet, basename='plein')
 router.register('dotations', views.DotationViewSet, basename='dotation')
 router.register('stations', views.StationViewSet, basename='station')
 router.register('rapprochements', views.RapprochementViewSet, basename='rapprochement')
+router.register('prix', views.PrixCarburantViewSet, basename='prix-carburant')
 
 urlpatterns = [path('', include(router.urls))]

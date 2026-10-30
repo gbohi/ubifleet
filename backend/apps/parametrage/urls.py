@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ParametreViewSet, TourneeViewSet,
     AffectationUsageViewSet, StatutVehiculeViewSet,
-    MarqueVehiculeViewSet, ModeleVehiculeViewSet,
+    MarqueVehiculeViewSet, ModeleVehiculeViewSet, TypeMouvementViewSet,
 )
 
 router = DefaultRouter()
@@ -12,6 +12,7 @@ router.register('affectations',AffectationUsageViewSet,  basename='affectation-u
 router.register('statuts',     StatutVehiculeViewSet,     basename='statut-vehicule')
 router.register('marques',     MarqueVehiculeViewSet,     basename='marque-vehicule')
 router.register('modeles',     ModeleVehiculeViewSet,     basename='modele-vehicule')
+router.register('types-mouvement', TypeMouvementViewSet,  basename='type-mouvement')
 
 urlpatterns = [
     path('',              ParametreViewSet.as_view({'get': 'list'}),         name='parametre-list'),

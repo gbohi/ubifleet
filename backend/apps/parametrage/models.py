@@ -153,3 +153,78 @@ class ModeleVehicule(models.Model):
 
     def __str__(self):
         return f"{self.marque.libelle} {self.libelle}"
+
+
+class TypeMouvement(models.Model):
+    """Types de mouvement des relevés kilométriques (sortie, retour, tournée...)."""
+
+    class Couleur(models.TextChoices):
+        VERT   = 'green',  'Vert'
+        ORANGE = 'orange', 'Orange'
+        BLEU   = 'blue',   'Bleu'
+        ROUGE  = 'red',    'Rouge'
+        GRIS   = 'gray',   'Gris'
+
+    code         = models.SlugField(max_length=20, unique=True,
+                                    help_text="Identifiant technique, enregistré sur les relevés.")
+    libelle      = models.CharField(max_length=100)
+    couleur      = models.CharField(max_length=10, choices=Couleur.choices, default=Couleur.GRIS)
+    avec_tournee = models.BooleanField(
+        default=False, verbose_name="Demande une tournée / destination",
+        help_text="Affiche le champ tournée / destination lors de la saisie du relevé.")
+    ordre        = models.PositiveSmallIntegerField(default=0)
+    actif        = models.BooleanField(default=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = "Type de mouvement"
+        verbose_name_plural = "Types de mouvement"
+        ordering            = ['ordre', 'libelle']
+
+    def __str__(self):
+        return self.libelle
+
+
+class ChangementDotation(models.Model):
+    """Historique de la dotation d'une tournée.
+
+    Une modification passe par une demande validée selon le circuit « dotation »
+    (Paramètres › Circuits de validation) ; la tournée n'est mise à jour qu'à
+    l'approbation finale.
+    """
+
+    class Statut(models.TextChoices):
+        INITIALE   = 'initiale',   'Dotation initiale'
+        EN_ATTENTE = 'en_attente', 'En attente de validation'
+        APPROUVEE  = 'approuvee',  'Approuvée et appliquée'
+        REJETEE    = 'rejetee',    'Rejetée'
+        ANNULEE    = 'annulee',    'Annulée'
+
+    tournee           = models.ForeignKey(Tournee, on_delete=models.CASCADE, related_name='changements_dotation')
+    ancienne_dotation = models.PositiveIntegerField(null=True, blank=True)
+    nouvelle_dotation = models.PositiveIntegerField()
+    motif             = models.TextField(blank=True)
+    statut            = models.CharField(max_length=15, choices=Statut.choices, default=Statut.EN_ATTENTE)
+    demande           = models.OneToOneField(
+        'demandes.Demande', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='changement_dotation'
+    )
+    demandeur         = models.ForeignKey(
+        'accounts.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='changements_dotation_demandes'
+    )
+    decide_par        = models.ForeignKey(
+        'accounts.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='changements_dotation_decides'
+    )
+    date_decision     = models.DateTimeField(null=True, blank=True)
+    created_at        = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = "Changement de dotation"
+        verbose_name_plural = "Changements de dotation"
+        ordering            = ['-created_at']
+
+    def __str__(self):
+        return f"{self.tournee.code} : {self.ancienne_dotation} → {self.nouvelle_dotation} L ({self.statut})"

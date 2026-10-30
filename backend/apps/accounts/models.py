@@ -161,6 +161,7 @@ class PermissionRole(models.Model):
         ('agences',      'Agences'),
         ('parametres',   'Paramètres'),
         ('total_import',  'Import Total Carburant'),
+        ('faits_marquants', 'Faits marquants'),
     ]
 
     # Actions globales (union de toutes les actions possibles)
@@ -216,6 +217,7 @@ class PermissionRole(models.Model):
         'agences':      ['list','retrieve','create','update','partial_update','destroy'],
         'parametres':   ['list','retrieve','create','update','partial_update','destroy'],
         'total_import':  ['list','retrieve','upload','stats'],
+        'faits_marquants': ['list','retrieve','create','update','partial_update','destroy'],
     }
 
     id       = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

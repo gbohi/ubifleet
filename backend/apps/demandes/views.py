@@ -22,6 +22,8 @@ from .serializers import (
     DemandeListSerializer, DemandeDetailSerializer, DemandeWriteSerializer,
 )
 from apps.accounts.permissions import IsSuperAdmin, RoleBasedPermission
+from . import workflow
+from .signals import demande_cloturee
 from apps.core.agences import (
     agence_pour_creation, controler_agence, filtrer_par_agence, voit_toutes_agences,
 )
@@ -432,15 +434,7 @@ class DemandeViewSet(viewsets.ModelViewSet):
                 {'detail': 'Seule une demande en brouillon peut être soumise.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        demande.statut        = Demande.Statut.SOUMISE
-        demande.niveau_actuel = 1
-        demande.save()
-        ValidationDemande.objects.get_or_create(
-            demande=demande, niveau=1,
-            defaults={'decision': ValidationDemande.Decision.EN_ATTENTE}
-        )
-        # Notifier les validateurs du niveau 1
-        _creer_alerte_demande(demande, 1)
+        workflow.soumettre(demande)
         return Response(DemandeDetailSerializer(demande).data)
 
     @action(detail=True, methods=['post'])
@@ -475,6 +469,9 @@ class DemandeViewSet(viewsets.ModelViewSet):
             _supprimer_alerte_niveau(demande, demande.niveau_actuel)
             # Notifier le demandeur : approbation finale
             _notifier_demandeur(demande, 'approuvée définitivement', priorite='haute')
+            demande.save()
+            demande_cloturee.send(sender=Demande, demande=demande, decision='approuvee',
+                                  utilisateur=request.user)
         else:
             _supprimer_alerte_niveau(demande, demande.niveau_actuel)
             niveau_valide = demande.niveau_actuel
@@ -527,6 +524,8 @@ class DemandeViewSet(viewsets.ModelViewSet):
         demande.statut          = Demande.Statut.REJETEE
         demande.date_traitement = timezone.now()
         demande.save()
+        demande_cloturee.send(sender=Demande, demande=demande, decision='rejetee',
+                              utilisateur=request.user)
         # Supprimer les alertes des validateurs et notifier le demandeur
         _supprimer_alerte_demande(demande)
         _notifier_demandeur(demande, f'rejetée — Motif : {commentaire}', priorite='haute')
@@ -545,8 +544,11 @@ class DemandeViewSet(viewsets.ModelViewSet):
                 {'detail': 'Seul le demandeur peut annuler.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        demande.statut = Demande.Statut.ANNULEE
-        demande.save()
+        with transaction.atomic():
+            demande.statut = Demande.Statut.ANNULEE
+            demande.save()
+            demande_cloturee.send(sender=Demande, demande=demande, decision='annulee',
+                                  utilisateur=request.user)
         return Response({'detail': 'Demande annulée.'})
 
     @action(detail=False, methods=['get'])

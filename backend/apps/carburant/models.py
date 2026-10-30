@@ -159,16 +159,11 @@ class PleinsCarburant(UbiFleetBaseModel):
         return f"{self.vehicule.immatriculation} — {self.date_plein} — {self.volume_litres}L"
 
     def save(self, *args, **kwargs):
-        # Auto-remplir prix_litre depuis paramètre si non renseigné
-        if not self.prix_litre:
-            try:
-                from apps.parametrage.models import Parametre
-                prix = Parametre.objects.filter(cle='prix_carburant_litre').first()
-                if prix and prix.valeur:
-                    from decimal import Decimal
-                    self.prix_litre = Decimal(prix.valeur)
-            except Exception:
-                pass
+        # Prix non renseigné : prix en vigueur à la date du plein (historique daté)
+        if not self.prix_litre and self.vehicule_id and self.date_plein:
+            prix = PrixCarburant.en_vigueur(self.vehicule.type_carburant, self.date_plein)
+            if prix:
+                self.prix_litre = prix.prix
 
         # Calcul automatique consommation + auto-remplir kilometrage_depart
         if self.kilometrage_releve and self.vehicule:
@@ -249,3 +244,42 @@ class RapprochementCarburant(UbiFleetBaseModel):
         elif self.ecart != 0:
             self.statut = 'ecart'
         super().save(*args, **kwargs)
+
+
+class PrixCarburant(models.Model):
+    """Historique daté du prix du litre, par type de carburant.
+
+    Le prix applicable à une date est celui de la dernière entrée dont la date
+    d'effet est antérieure ou égale à cette date. Les entrées passées ne sont
+    pas modifiables : un nouveau prix s'ajoute avec sa date d'effet.
+    """
+    TYPES = [
+        ('diesel', 'Diesel'), ('essence', 'Essence'), ('hybride', 'Hybride'),
+        ('electrique', 'Électrique'), ('gpl', 'GPL'),
+    ]
+
+    type_carburant = models.CharField(max_length=15, choices=TYPES)
+    prix           = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Prix (FCFA / L)")
+    date_effet     = models.DateField(verbose_name="Date d'effet")
+    commentaire    = models.CharField(max_length=200, blank=True)
+    created_by     = models.ForeignKey(
+        'accounts.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='prix_carburant_saisis'
+    )
+    created_at     = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = "Prix du carburant"
+        verbose_name_plural = "Prix du carburant"
+        ordering            = ['type_carburant', '-date_effet']
+        unique_together     = [('type_carburant', 'date_effet')]
+
+    def __str__(self):
+        return f"{self.get_type_carburant_display()} — {self.prix} FCFA/L au {self.date_effet}"
+
+    @classmethod
+    def en_vigueur(cls, type_carburant, date):
+        """Prix applicable à une date (None si aucun prix n'est défini)."""
+        return (cls.objects
+                .filter(type_carburant=type_carburant, date_effet__lte=date)
+                .order_by('-date_effet').first())

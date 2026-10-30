@@ -2,7 +2,7 @@
 
 from rest_framework import serializers
 from django.utils import timezone
-from .models import PleinsCarburant, DotationCarburant, Station, RapprochementCarburant
+from .models import PleinsCarburant, DotationCarburant, Station, RapprochementCarburant, PrixCarburant
 
 
 class StationSerializer(serializers.ModelSerializer):
@@ -84,3 +84,19 @@ class RapprochementSerializer(serializers.ModelSerializer):
             'ecart', 'statut', 'fichier_facture', 'notes', 'created_at'
         ]
         read_only_fields = ['ecart', 'statut']
+
+
+class PrixCarburantSerializer(serializers.ModelSerializer):
+    type_display   = serializers.CharField(source='get_type_carburant_display', read_only=True)
+    created_by_nom = serializers.CharField(source='created_by.full_name', read_only=True, allow_null=True)
+
+    class Meta:
+        model  = PrixCarburant
+        fields = ['id', 'type_carburant', 'type_display', 'prix', 'date_effet', 'commentaire',
+                  'created_by', 'created_by_nom', 'created_at']
+        read_only_fields = ['created_by', 'created_at']
+
+    def validate_prix(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Le prix doit être supérieur à 0.')
+        return value
