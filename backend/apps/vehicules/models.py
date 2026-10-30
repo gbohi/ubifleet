@@ -289,6 +289,13 @@ class ReleveKilometrage(models.Model):
         upload_to='vehicules/releves/', null=True, blank=True,
         verbose_name='Photo tableau de bord'
     )
+    # Saisie / correction hors de la fenêtre de saisie (cf. parametrage.fenetre_saisie)
+    saisie_hors_delai = models.BooleanField(default=False, verbose_name="Saisi hors délai")
+    hors_delai_par = models.ForeignKey(
+        'accounts.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', verbose_name="Hors délai : par"
+    )
+    hors_delai_le = models.DateTimeField(null=True, blank=True, verbose_name="Hors délai : le")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

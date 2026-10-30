@@ -19,6 +19,8 @@
   margin-bottom: 20px; font-size: 13px; border-left: 4px solid;
   &.alert-error   { background: var(--danger-light); border-left-color: var(--danger); color: var(--danger); }
   &.alert-success { background: var(--green-alpha); border-left-color: var(--green-dark); color: var(--green-dark); }
+  &.alert-warning { background: var(--warning-light); border-left-color: var(--warning); color: #b45309; }
+  &.alert-info    { background: var(--info-light); border-left-color: var(--info); color: #1d4ed8; }
   i { flex-shrink: 0; font-size: 16px; }
 }
 .form-sections { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }

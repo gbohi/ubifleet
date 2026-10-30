@@ -1,7 +1,7 @@
 // UbiFleet — Vehicule Detail Component (Angular 18 + NgRx Signals Store)
 import {
   Component, inject, OnInit, input,
-  ChangeDetectionStrategy, signal
+  ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { DecimalPipe, DatePipe } from '@angular/common';
@@ -16,6 +16,7 @@ import {
   ParametrageApiService
 } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
+import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import {
   Intervention, PleinCarburant, DocumentVehicule,
   StatutIntervention, ContratAssurance, HistoriqueImmatriculation,
@@ -117,6 +118,8 @@ export class VehiculeDetailComponent implements OnInit {
   kmNotes         = signal('');
   kmLoading       = signal(false);
   kmError         = signal('');
+  readonly fenetres = inject(FenetreSaisieService);
+  kmDateErreur    = computed(() => this.fenetres.erreur('releves', this.kmDate()));
   kmPhoto         = signal<File | null>(null);
   kmPhotoPreview  = signal<string | null>(null);
   photoLightbox   = signal<string | null>(null);
@@ -445,7 +448,8 @@ export class VehiculeDetailComponent implements OnInit {
   openKmModal(): void {
     const v = this.store.selectedVehicule();
     this.kmValue.set(v ? v.kilometrage_actuel + 1 : 0);
-    this.kmDate.set(new Date().toISOString().split('T')[0]);
+    this.kmDate.set(this.fenetres.max('releves') ?? new Date().toISOString().split('T')[0]);
+    this.fenetres.charger();
     this.kmTypeMouvement.set('releve');
     this.kmChauffeur.set('');
     this.kmTournee.set('');
@@ -512,6 +516,7 @@ export class VehiculeDetailComponent implements OnInit {
       this.kmError.set('Veuillez saisir un kilométrage valide.');
       return;
     }
+    if (this.kmDateErreur()) { this.kmError.set(this.kmDateErreur()!); return; }
 
     // Avertissement si inférieur (pas bloquant - on laisse passer)
     const type = this.kmTypeMouvement();
@@ -540,7 +545,7 @@ export class VehiculeDetailComponent implements OnInit {
       },
       error: (err) => {
         this.kmLoading.set(false);
-        this.kmError.set(err?.error?.detail ?? 'Erreur lors de la mise à jour.');
+        this.kmError.set(messageErreurApi(err, 'Erreur lors de la mise à jour.'));
       },
       complete: () => {
         this.kmLoading.set(false);

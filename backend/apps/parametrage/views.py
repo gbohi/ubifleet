@@ -66,6 +66,7 @@ class ParametreViewSet(viewsets.ModelViewSet):
         consommation). Pour chaque échéance, le seuil
         « attention » doit rester strictement supérieur au seuil « urgent »."""
         from .echeances import ECHEANCES, CLE_CONSO_ANOMALIE, cle, seuils
+        from . import fenetre_saisie
 
         if not isinstance(request.data, list):
             return Response({'detail': 'Format invalide. Attendu: liste.'}, status=400)
@@ -75,6 +76,10 @@ class ParametreViewSet(viewsets.ModelViewSet):
         for code in ECHEANCES:
             CONNUES[cle(code, 'attention')] = 'alertes'
             CONNUES[cle(code, 'urgent')] = 'alertes'
+        # Fenêtres de saisie : 0 = désactivée
+        FENETRES = {fenetre_saisie.cle(d): 'carburant' if d == fenetre_saisie.CARBURANT else 'general'
+                    for d in fenetre_saisie.DOMAINES}
+        CONNUES.update(FENETRES)
 
         valeurs, erreurs = {}, []
         for item in request.data:
@@ -87,7 +92,12 @@ class ParametreViewSet(viewsets.ModelViewSet):
                 except (TypeError, ValueError):
                     erreurs.append(f'« {k} » doit être un nombre.')
                     continue
-                if v < 1:
+                if k in FENETRES:
+                    if not 0 <= v <= fenetre_saisie.JOURS_MAX:
+                        erreurs.append(f'La fenêtre de saisie doit être comprise entre 1 et '
+                                       f'{fenetre_saisie.JOURS_MAX} jours (0 pour la désactiver).')
+                        continue
+                elif v < 1:
                     erreurs.append(f'« {k} » doit être supérieur à 0.')
                     continue
             elif not Parametre.objects.filter(cle=k).exists():
@@ -116,6 +126,17 @@ class ParametreViewSet(viewsets.ModelViewSet):
                 p.valeur = str(v)
                 p.save(update_fields=['valeur', 'updated_at'])
         return Response({'updated': list(valeurs)})
+
+
+class FenetreSaisieView(viewsets.ViewSet):
+    """Fenêtres de saisie applicables à l'utilisateur connecté :
+    {carburant: {jours, active, date_min, date_max, hors_delai}, releves: {...}}.
+    date_max est la date du jour du serveur."""
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        from . import fenetre_saisie as fs
+        return Response({d: fs.fenetre(request.user, d).en_dict() for d in fs.DOMAINES})
 
 
 from .models import Tournee, ChangementDotation

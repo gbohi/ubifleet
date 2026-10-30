@@ -8,6 +8,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { forkJoin } from 'rxjs';
 import { VehiculeApiService, AgenceApiService, ChauffeurApiService, TotalImportApiService } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
+import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
 
 type Tab = 'releves' | 'consommation';
@@ -330,6 +331,8 @@ export class RelevesKmGlobalComponent implements OnInit {
   nrPhotoPreview   = signal<string | null>(null);
   nrSaving         = signal(false);
   nrError          = signal('');
+  readonly fenetres = inject(FenetreSaisieService);
+  nrDateErreur     = computed(() => this.fenetres.erreur('releves', this.nrDate()));
 
   // Combobox véhicule (recherche par immatriculation)
   nrVehiculeSearch = signal('');
@@ -360,7 +363,8 @@ export class RelevesKmGlobalComponent implements OnInit {
     this.nrChauffeurSearch.set('');
     this.nrChauffeurOpen.set(false);
     this.nrKm.set(0);
-    this.nrDate.set(new Date().toISOString().split('T')[0]);
+    this.nrDate.set(this.fenetres.max('releves') ?? new Date().toISOString().split('T')[0]);
+    this.fenetres.charger();
     this.nrType.set('releve');
     this.nrChauffeur.set('');
     this.nrTournee.set('');
@@ -451,6 +455,7 @@ export class RelevesKmGlobalComponent implements OnInit {
     const km = this.nrKm();
     if (!km || km <= 0) { this.nrError.set('Veuillez saisir un kilométrage valide.'); return; }
     if (!this.nrDate()) { this.nrError.set('Veuillez saisir une date.'); return; }
+    if (this.nrDateErreur()) { this.nrError.set(this.nrDateErreur()!); return; }
 
     this.nrSaving.set(true);
     this.nrError.set('');
@@ -472,7 +477,7 @@ export class RelevesKmGlobalComponent implements OnInit {
       },
       error: (err) => {
         this.nrSaving.set(false);
-        this.nrError.set(err?.error?.detail ?? "Erreur lors de l'enregistrement.");
+        this.nrError.set(messageErreurApi(err, "Erreur lors de l'enregistrement."));
       },
     });
   }

@@ -299,3 +299,132 @@ class DotationTests(UtilisateursMixin, APITestCase):
         self.assertEqual(resp.status_code, 201, resp.data)
         histo = self.client.get(reverse('tournee-historique-dotation', args=[resp.data['id']])).data
         self.assertEqual([(h['statut'], h['nouvelle_dotation']) for h in histo], [('initiale', 80)])
+
+
+class FenetreSaisieTests(UtilisateursMixin, APITestCase):
+    """Fenêtre de saisie des pleins et relevés : dates hors fenêtre refusées,
+    données figées, exception par le droit « Saisie hors délai »."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from apps.vehicules.models import Vehicule
+        cls.vehicule = Vehicule.objects.create(immatriculation='FS-1', agence=cls.agence_a, annee=2020,
+                                               type_carburant='diesel')
+        cls.auj = timezone.localdate()
+
+    def setUp(self):
+        from apps.accounts.permission_cache import invalidate
+        invalidate()   # règles de permission créées par un test précédent
+        Parametre.objects.update_or_create(cle='fenetre_saisie_carburant_jours',
+                                           defaults={'valeur': '3', 'type_valeur': 'int'})
+        Parametre.objects.update_or_create(cle='fenetre_saisie_releves_jours',
+                                           defaults={'valeur': '3', 'type_valeur': 'int'})
+
+    def jour(self, n):
+        return (self.auj - datetime.timedelta(days=n)).isoformat()
+
+    def plein(self, user, n, km=1000):
+        self.client.force_authenticate(user)
+        return self.client.post('/api/v1/carburant/pleins/', {
+            'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'volume_litres': 30,
+            'montant_fcfa': 21000, 'kilometrage_releve': km, 'agence': str(self.agence_a.id),
+        }, format='json')
+
+    def test_fenetre_exposee(self):
+        self.client.force_authenticate(self.operateur)
+        resp = self.client.get('/api/v1/parametrage/fenetre-saisie/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['carburant']['date_min'], self.auj - datetime.timedelta(days=2))
+        self.assertEqual(resp.data['carburant']['date_max'], self.auj)
+        self.assertFalse(resp.data['carburant']['hors_delai'])
+        self.client.force_authenticate(self.responsable_flotte)
+        self.assertTrue(self.client.get('/api/v1/parametrage/fenetre-saisie/').data['releves']['hors_delai'])
+
+    def test_plein_dans_et_hors_fenetre(self):
+        self.assertEqual(self.plein(self.operateur, 2).status_code, 201)
+        resp = self.plein(self.operateur, 3)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('date_plein', resp.data)
+        self.assertEqual(self.plein(self.operateur, -1).status_code, 400)   # futur
+
+    def test_futur_refuse_meme_desactivee(self):
+        Parametre.objects.filter(cle='fenetre_saisie_carburant_jours').update(valeur='0')
+        self.assertEqual(self.plein(self.operateur, 400).status_code, 201)
+        self.assertEqual(self.plein(self.responsable_flotte, -1).status_code, 400)
+
+    def test_hors_delai_trace(self):
+        resp = self.plein(self.responsable_flotte, 10)
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertTrue(resp.data['saisie_hors_delai'])
+        self.assertEqual(resp.data['hors_delai_par'], self.responsable_flotte.id)
+        self.assertFalse(self.plein(self.responsable_flotte, 0, km=1100).data['saisie_hors_delai'])
+
+    def test_plein_fige(self):
+        from apps.carburant.models import PleinsCarburant
+        p = PleinsCarburant.objects.create(vehicule=self.vehicule, agence=self.agence_a, volume_litres=30,
+                                           montant_fcfa=21000, kilometrage_releve=900,
+                                           date_plein=self.auj - datetime.timedelta(days=5))
+        url = f'/api/v1/carburant/pleins/{p.id}/'
+        self.client.force_authenticate(self.gestionnaire)
+        self.assertTrue(self.client.get(url).data['verrouille'])
+        self.assertEqual(self.client.patch(url, {'notes': 'x'}, format='json').status_code, 403)
+        # Ramener la date dans la fenêtre ne débloque pas non plus
+        self.assertEqual(self.client.patch(url, {'date_plein': self.jour(0)}, format='json').status_code, 403)
+        self.client.force_authenticate(self.responsable_flotte)
+        self.assertFalse(self.client.get(url).data['verrouille'])
+        resp = self.client.patch(url, {'notes': 'corrigé'}, format='json')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertTrue(resp.data['saisie_hors_delai'])
+
+    def test_plein_recent_modifiable_mais_pas_deplace_hors_fenetre(self):
+        resp = self.plein(self.gestionnaire, 1)
+        url = f"/api/v1/carburant/pleins/{resp.data['id']}/"
+        self.assertEqual(self.client.patch(url, {'notes': 'ok'}, format='json').status_code, 200)
+        self.assertEqual(self.client.patch(url, {'date_plein': self.jour(6)}, format='json').status_code, 400)
+
+    def test_droit_hors_delai_parametrable(self):
+        from apps.accounts.models import PermissionRole
+        from apps.accounts.permission_cache import invalidate as invalidate_cache
+        PermissionRole.objects.create(role=self.roles['operateur'], module='carburant',
+                                      action='saisie_hors_delai', autorise=True)
+        invalidate_cache()
+        self.assertEqual(self.plein(self.operateur, 10).status_code, 201)
+        self.client.force_authenticate(self.operateur)
+        acces = self.client.get('/api/v1/auth/me/acces/').data
+        self.assertTrue(acces['carburant_hors_delai'])
+        self.assertFalse(acces['releves_hors_delai'])
+
+    def test_releves(self):
+        from apps.vehicules.models import ReleveKilometrage
+        self.client.force_authenticate(self.operateur)
+        url = f'/api/v1/vehicules/{self.vehicule.id}/kilometrage/'
+        self.assertEqual(self.client.post(url, {'kilometrage': 500, 'date_releve': self.jour(5)}).status_code, 400)
+        self.vehicule.refresh_from_db()
+        self.assertEqual(self.vehicule.kilometrage_actuel, 0)   # rien enregistré
+        self.assertEqual(self.client.post(url, {'kilometrage': 500, 'date_releve': self.jour(0)}).status_code, 200)
+        resp = self.client.post('/api/v1/vehicules/releves-km/', {
+            'vehicule': str(self.vehicule.id), 'kilometrage': 600, 'date_releve': self.jour(4)}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        vieux = ReleveKilometrage.objects.create(vehicule=self.vehicule, kilometrage=100,
+                                                 date_releve=self.auj - datetime.timedelta(days=8))
+        self.client.force_authenticate(self.responsable_flotte)
+        self.assertEqual(self.client.delete(f'/api/v1/vehicules/releves-km/{vieux.id}/').status_code, 204)
+        vieux = ReleveKilometrage.objects.create(vehicule=self.vehicule, kilometrage=100,
+                                                 date_releve=self.auj - datetime.timedelta(days=8))
+        # Le droit hors délai du responsable flotte retiré : relevé figé
+        from apps.accounts.models import PermissionRole
+        from apps.accounts.permission_cache import invalidate as invalidate_cache
+        PermissionRole.objects.create(role=self.roles['responsable_flotte'], module='releves_km',
+                                      action='saisie_hors_delai', autorise=False)
+        invalidate_cache()
+        self.assertEqual(self.client.delete(f'/api/v1/vehicules/releves-km/{vieux.id}/').status_code, 403)
+
+    def test_parametre_desactivable(self):
+        self.client.force_authenticate(self.responsable_flotte)
+        resp = self.client.post('/api/v1/parametrage/bulk_update/',
+                                [{'cle': 'fenetre_saisie_releves_jours', 'valeur': 0}], format='json')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(self.client.post('/api/v1/parametrage/bulk_update/',
+                                          [{'cle': 'fenetre_saisie_releves_jours', 'valeur': -1}],
+                                          format='json').status_code, 400)

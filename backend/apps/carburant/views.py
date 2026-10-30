@@ -19,6 +19,9 @@ from .serializers import (
 )
 from apps.accounts.permissions import IsFleetManager, RoleBasedPermission
 from apps.core.referentiels import SuppressionProtegeeMixin, annoter_utilisations
+from apps.parametrage.fenetre_saisie import (
+    ACTION_HORS_DELAI, CARBURANT, fenetre, tracer_hors_delai,
+)
 from apps.core.agences import (
     AgenceMixin, agence_pour_creation, controler_agence,
     filtrer_par_agence, filtrer_transactions_total, voit_toutes_agences,
@@ -59,6 +62,7 @@ class PleinViewSet(viewsets.ModelViewSet):
             'destroy': 'responsable_flotte',
             'valider': 'operateur',
             'anomalies': 'operateur',
+            ACTION_HORS_DELAI: 'responsable_flotte',   # droit complémentaire, cf. fenetre_saisie
     }
 
     def get_permissions(self):
@@ -83,6 +87,8 @@ class PleinViewSet(viewsets.ModelViewSet):
         controler_agence(user, data)
         agence = agence_pour_creation(user, data.get('agence'))
         extra = {}
+        if fenetre(user, CARBURANT).controler_date(data['date_plein'], 'date_plein'):
+            extra.update(tracer_hors_delai(user))
         # Prix non saisi : prix en vigueur à la date du plein pour le carburant du véhicule
         if not data.get('prix_litre') and data.get('vehicule'):
             prix = PrixCarburant.en_vigueur(data['vehicule'].type_carburant, data['date_plein'])
@@ -93,8 +99,18 @@ class PleinViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=user, agence=agence, **extra)
 
     def perform_update(self, serializer):
-        controler_agence(self.request.user, serializer.validated_data)
-        serializer.save()
+        user = self.request.user
+        data = serializer.validated_data
+        controler_agence(user, data)
+        f = fenetre(user, CARBURANT)
+        hors_delai = f.controler_modification(serializer.instance.date_plein)
+        if 'date_plein' in data:
+            hors_delai = f.controler_date(data['date_plein'], 'date_plein') or hors_delai
+        serializer.save(**(tracer_hors_delai(user) if hors_delai else {}))
+
+    def perform_destroy(self, instance):
+        fenetre(self.request.user, CARBURANT).controler_modification(instance.date_plein)
+        instance.delete()
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def valider(self, request, pk=None):

@@ -1,6 +1,7 @@
 """UbiFleet — Carburant Serializers"""
 
 from rest_framework import serializers
+from apps.parametrage.fenetre_saisie import CARBURANT, FenetreSaisieSerializerMixin
 from apps.core.referentiels import NbUtilisationsField
 from django.utils import timezone
 from .models import PleinsCarburant, DotationCarburant, Station, RapprochementCarburant, PrixCarburant
@@ -29,7 +30,8 @@ class DotationSerializer(serializers.ModelSerializer):
         ]
 
 
-class PleinSerializer(serializers.ModelSerializer):
+class PleinSerializer(FenetreSaisieSerializerMixin, serializers.ModelSerializer):
+    domaine_saisie, champ_date = CARBURANT, 'date_plein'
     vehicule_immat       = serializers.CharField(source='vehicule.immatriculation', read_only=True)
     vehicule_designation = serializers.CharField(source='vehicule.designation', read_only=True)
     chauffeur_nom        = serializers.SerializerMethodField()
@@ -50,12 +52,12 @@ class PleinSerializer(serializers.ModelSerializer):
             'bon_carburant', 'photo_bon', 'photo_tableau_bord',
             'statut_validation', 'statut_display', 'motif_anomalie',
             'valide_par', 'date_validation',
-            'agence', 'agence_nom', 'notes', 'created_at'
-        ]
+            'agence', 'agence_nom', 'notes', 'created_at',
+        ] + FenetreSaisieSerializerMixin.CHAMPS_FENETRE
         read_only_fields = [
             'consommation_calculee', 'statut_validation', 'motif_anomalie',
             'valide_par', 'date_validation', 'created_at', 'kilometrage_depart',
-        ]
+        ] + FenetreSaisieSerializerMixin.LECTURE_SEULE_FENETRE
 
     def get_chauffeur_nom(self, obj):
         return obj.chauffeur.nom_complet if obj.chauffeur else None

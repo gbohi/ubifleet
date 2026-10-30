@@ -14,9 +14,10 @@ import { SeuilsComponent } from './seuils/seuils.component';
 import { CircuitsValidationComponent } from './circuits-validation/circuits-validation.component';
 import { ElementsControleComponent } from './elements-controle/elements-controle.component';
 import { PrixCarburantComponent } from './prix-carburant/prix-carburant.component';
+import { FenetreSaisieComponent } from './fenetre-saisie/fenetre-saisie.component';
 
 export type Section =
-  | 'echeances' | 'carburant' | 'stations'
+  | 'echeances' | 'saisie' | 'carburant' | 'stations'
   | 'marques' | 'statuts' | 'affectations' | 'types_doc' | 'types_mouvement'
   | 'agences' | 'tournees'
   | 'types' | 'prestataires' | 'assureurs'
@@ -28,7 +29,7 @@ interface NavGroupe { titre: string; items: NavItem[]; }
 @Component({
   selector: 'ubi-parametres',
   standalone: true,
-  imports: [ReactiveFormsModule, DecimalPipe, DatePipe, SeuilsComponent, CircuitsValidationComponent, ElementsControleComponent, PrixCarburantComponent],
+  imports: [ReactiveFormsModule, DecimalPipe, DatePipe, SeuilsComponent, CircuitsValidationComponent, ElementsControleComponent, PrixCarburantComponent, FenetreSaisieComponent],
   templateUrl: './parametres.component.html',
   styleUrls: ['./parametres.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -49,6 +50,7 @@ export class ParametresComponent implements OnInit {
   readonly navigation: NavGroupe[] = [
     { titre: 'Règles & seuils', items: [
       { section: 'echeances',    libelle: 'Échéances',                icone: 'fas fa-bell' },
+      { section: 'saisie',       libelle: 'Fenêtre de saisie',        icone: 'fas fa-calendar-check' },
     ]},
     { titre: 'Carburant', items: [
       { section: 'carburant',    libelle: 'Prix & consommation',      icone: 'fas fa-gas-pump' },

@@ -786,8 +786,16 @@
             <label class="form-label">
               <i class="fas fa-calendar-alt"></i> Date du relevé *
             </label>
-            <input type="date" class="form-control form-control-lg"
+            <input type="date" class="form-control form-control-lg" [class.is-invalid]="kmDateErreur()"
+                   [attr.min]="fenetres.min('releves')" [attr.max]="fenetres.max('releves')"
                    [value]="kmDate()" (input)="onKmDateInput($event)" />
+            @if (kmDateErreur(); as msg) {
+              <div class="form-error"><i class="fas fa-times-circle"></i> {{ msg }}</div>
+            } @else if (fenetres.horsDelai('releves', kmDate())) {
+              <div class="form-hint hint-warning"><i class="fas fa-exclamation-triangle"></i> Saisie hors délai : elle sera tracée à votre nom.</div>
+            } @else if (fenetres.aide('releves')) {
+              <div class="form-hint"><i class="fas fa-calendar-check"></i> {{ fenetres.aide('releves') }}</div>
+            }
           </div>
         </div>
 

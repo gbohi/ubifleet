@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    ParametreViewSet, TourneeViewSet,
+    ParametreViewSet, TourneeViewSet, FenetreSaisieView,
     AffectationUsageViewSet, StatutVehiculeViewSet,
     MarqueVehiculeViewSet, ModeleVehiculeViewSet, TypeMouvementViewSet,
 )
@@ -17,6 +17,7 @@ router.register('types-mouvement', TypeMouvementViewSet,  basename='type-mouveme
 urlpatterns = [
     path('',              ParametreViewSet.as_view({'get': 'list'}),         name='parametre-list'),
     path('by_categorie/', ParametreViewSet.as_view({'get': 'by_categorie'}), name='parametre-by-cat'),
+    path('fenetre-saisie/', FenetreSaisieView.as_view({'get': 'list'}), name='fenetre-saisie'),
     path('bulk_update/',  ParametreViewSet.as_view({'post': 'bulk_update'}), name='parametre-bulk'),
     path('<int:pk>/',     ParametreViewSet.as_view({'get': 'retrieve', 'patch': 'partial_update'}),
          name='parametre-detail'),

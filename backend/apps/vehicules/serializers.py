@@ -1,6 +1,7 @@
 """UbiFleet — Véhicules Serializers"""
 
 from rest_framework import serializers
+from apps.parametrage.fenetre_saisie import RELEVES, FenetreSaisieSerializerMixin
 from apps.accounts.serializers import AgenceSerializer
 from .models import Vehicule, DocumentVehicule, TypeDocumentVehicule, ReleveKilometrage, HistoriqueImmatriculation, AffectationVehicule, HistoriqueStatutVehicule
 
@@ -116,7 +117,8 @@ class VehiculeKilometrageSerializer(serializers.Serializer):
         return attrs
 
 
-class ReleveKilometrageSerializer(serializers.ModelSerializer):
+class ReleveKilometrageSerializer(FenetreSaisieSerializerMixin, serializers.ModelSerializer):
+    domaine_saisie, champ_date = RELEVES, 'date_releve'
     vehicule_immat       = serializers.CharField(source='vehicule.immatriculation', read_only=True)
     vehicule_designation = serializers.CharField(source='vehicule.designation', read_only=True)
     type_display         = serializers.SerializerMethodField()
@@ -134,8 +136,8 @@ class ReleveKilometrageSerializer(serializers.ModelSerializer):
             'tournee', 'notes',
             'photo_tableau_bord', 'photo_tableau_bord_url',
             'created_by', 'created_by_nom', 'created_at',
-        ]
-        read_only_fields = ['created_at', 'photo_tableau_bord_url']
+        ] + FenetreSaisieSerializerMixin.CHAMPS_FENETRE
+        read_only_fields = ['created_at', 'photo_tableau_bord_url'] + FenetreSaisieSerializerMixin.LECTURE_SEULE_FENETRE
 
     def _types(self):
         """Types de mouvement {code: objet}, chargés une fois par sérialisation."""

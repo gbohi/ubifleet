@@ -188,6 +188,7 @@ class PermissionRole(models.Model):
         ('valider_demande',         'Valider une demande'),
         ('rejeter',                 'Rejeter une demande'),
         ('annuler',                 'Annuler une demande'),
+        ('saisie_hors_delai',       'Saisie hors délai (hors fenêtre de saisie)'),
     ]
 
     # Actions par module — utilisé dans l'UI pour n'afficher que les actions pertinentes
@@ -195,7 +196,7 @@ class PermissionRole(models.Model):
         'vehicules':    ['list','retrieve','create','update','partial_update','destroy',
                          'kilometrage','changer_immatriculation'],
         'carburant':    ['list','retrieve','create','update','partial_update','destroy',
-                         'valider','anomalies'],
+                         'valider','anomalies','saisie_hors_delai'],
         'entretien':    ['list','retrieve','create','update','partial_update','destroy',
                          'demarrer','terminer'],
         'sinistres':    ['list','retrieve','create','update','partial_update','destroy',
@@ -203,7 +204,8 @@ class PermissionRole(models.Model):
         'budget':       ['list','retrieve','create','update','partial_update','destroy',
                          'tableau_de_bord'],
         'chauffeurs':   ['list','retrieve','create','update','partial_update','destroy'],
-        'releves_km':   ['list','retrieve','create','update','partial_update','destroy'],
+        'releves_km':   ['list','retrieve','create','update','partial_update','destroy',
+                         'saisie_hors_delai'],
         'affectations': ['list','retrieve','create','update','partial_update','destroy'],
         'alertes':      ['list','retrieve'],
         'controle':     ['list','retrieve','create','update','partial_update','destroy',

@@ -1,13 +1,14 @@
 // UbiFleet — Plein Form Component (Angular 18)
 import {
   Component, inject, OnInit, input,
-  ChangeDetectionStrategy, signal, computed
+  ChangeDetectionStrategy, signal, computed, effect
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { AbstractControl, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CarburantApiService, AgenceApiService, VehiculeApiService, ChauffeurApiService, ParametrageApiService } from '../../../core/services/api.service';
 import { Agence } from '../../../core/models';
+import { FenetreSaisieService } from '../../../core/services/fenetre-saisie.service';
 
 @Component({
   selector: 'ubi-plein-form',
@@ -27,6 +28,7 @@ export class PleinFormComponent implements OnInit {
   private vehiculeApi  = inject(VehiculeApiService);
   private chauffeurApi   = inject(ChauffeurApiService);
   private parametrageApi = inject(ParametrageApiService);
+  readonly fenetres      = inject(FenetreSaisieService);
 
   isEditMode = computed(() => !!this.id());
   agences    = signal<Agence[]>([]);
@@ -41,6 +43,9 @@ export class PleinFormComponent implements OnInit {
   saving     = signal(false);
   error      = signal('');
   success    = signal('');
+  /** Plein sorti de la fenêtre de saisie : consultation seule. */
+  verrouille = signal(false);
+  infoHorsDelai = signal<string | null>(null);
 
   // ── Photo tableau de bord ──
   photoFile        = signal<File | null>(null);
@@ -53,7 +58,8 @@ export class PleinFormComponent implements OnInit {
     chauffeur:          [null as string | null],
     tournee:            [null as number | null],
     station:            [null as string | null],
-    date_plein:         [new Date().toISOString().split('T')[0], Validators.required],
+    date_plein:         [new Date().toISOString().split('T')[0],
+                         [Validators.required, (c: AbstractControl) => this.fenetres.erreur('carburant', c.value) ? { fenetre: true } : null]],
     heure_plein:        [this.currentTimeStr(), Validators.required],
     volume_litres:      [null as number | null, [Validators.required, Validators.min(0.1)]],
     prix_litre:         [null as number | null],
@@ -76,7 +82,23 @@ export class PleinFormComponent implements OnInit {
     return vol > 0 && prix > 0 ? parseFloat((vol * prix).toFixed(2)) : 0;
   }
 
+  constructor() {
+    // Bornes reçues du serveur : date du jour du serveur par défaut, puis revalidation
+    effect(() => {
+      const f = this.fenetres.fenetre('carburant');
+      if (!f) return;
+      const date = this.form.controls.date_plein;
+      if (!this.isEditMode() && !date.dirty) date.setValue(f.date_max);
+      date.updateValueAndValidity();
+    });
+  }
+
+  dateErreur(): string | null {
+    return this.fenetres.erreur('carburant', this.form.controls.date_plein.value);
+  }
+
   ngOnInit(): void {
+    this.fenetres.charger();
     this.parametrageApi.getTournees().subscribe({
       next: (l) => this.tournees.set(l.filter((t: any) => t.actif)),
       error: () => {},
@@ -134,6 +156,14 @@ export class PleinFormComponent implements OnInit {
             });
             if (p.photo_tableau_bord) {
               this.photoExistante.set(p.photo_tableau_bord);
+            }
+            if (p.verrouille) {
+              this.verrouille.set(true);
+              this.form.disable();
+            }
+            if (p.saisie_hors_delai) {
+              this.infoHorsDelai.set(`Saisi ou corrigé hors délai${p.hors_delai_par_nom ? ' par ' + p.hors_delai_par_nom : ''}`
+                + (p.hors_delai_le ? ` le ${new Date(p.hors_delai_le).toLocaleDateString('fr-FR')}` : '') + '.');
             }
           }
           this.loading.set(false);
@@ -209,7 +239,7 @@ export class PleinFormComponent implements OnInit {
 
   // ── Submit ──
   onSubmit(): void {
-    if (this.form.invalid || this.saving()) return;
+    if (this.form.invalid || this.saving() || this.verrouille()) return;
     this.saving.set(true);
     this.error.set('');
     this.success.set('');
@@ -249,7 +279,10 @@ export class PleinFormComponent implements OnInit {
         this.saving.set(false);
         if (err?.error && typeof err.error === 'object') {
           const msgs = Object.entries(err.error)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+            .map(([k, v]) => {
+              const texte = Array.isArray(v) ? v.join(', ') : v;
+              return k === 'detail' || k === 'date_plein' ? texte : `${k}: ${texte}`;
+            })
             .join(' | ');
           this.error.set(msgs);
         } else {

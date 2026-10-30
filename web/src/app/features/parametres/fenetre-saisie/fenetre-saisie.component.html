@@ -1,0 +1,92 @@
+<!-- UbiFleet — Paramètres › Fenêtre de saisie -->
+<section class="p-panel">
+  <div class="p-head">
+    <div>
+      <h2>Fenêtre de saisie</h2>
+      <p>
+        Oblige à saisir les pleins et les relevés au fil de l'eau : dans le calendrier, seules les dates
+        de la fenêtre sont sélectionnables, les autres sont grisées. Une donnée sortie de la fenêtre est
+        <strong>figée</strong>. Les dates futures sont toujours refusées.
+      </p>
+      <div class="p-used-in">
+        <span class="p-chip">Utilisé dans : Carburant</span>
+        <span class="p-chip">Relevés km</span>
+      </div>
+    </div>
+  </div>
+
+  @if (notice(); as n) {
+    <div class="p-notice" [class]="n.type">
+      <i [class]="n.type === 'ok' ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i>
+      {{ n.texte }}
+      <button class="p-notice-close" (click)="notice.set(null)" aria-label="Fermer"><i class="fas fa-times"></i></button>
+    </div>
+  }
+
+  @if (chargement()) {
+    <div class="p-empty"><i class="fas fa-circle-notch fa-spin"></i></div>
+  } @else {
+    <div class="fs-body">
+      @for (d of domaines; track d.code) {
+        <div class="fs-carte" [class.modifie]="modifie(d)" [class.erreur]="invalide(d)">
+          <div class="fs-entete">
+            <span class="fs-titre"><i [class]="d.icone"></i> {{ d.titre }}</span>
+            <label class="fs-activer">
+              <span>{{ active(d) ? 'Activée' : 'Désactivée' }}</span>
+              <button type="button" class="p-toggle" [class.on]="active(d)" [disabled]="!ecriture()"
+                      (click)="basculer(d)" [attr.aria-label]="'Activer la fenêtre — ' + d.titre"></button>
+            </label>
+          </div>
+
+          @if (active(d) || invalide(d)) {
+            <label class="fs-saisie">
+              Nombre de jours ouverts à la saisie
+              <input type="number" min="1" [max]="joursMax" step="1" [value]="jours(d) > 0 ? jours(d) : ''"
+                     [disabled]="!ecriture()" (input)="saisir(d, $event)" />
+              <span class="unite">jour{{ jours(d) > 1 ? 's' : '' }}</span>
+            </label>
+            @if (invalide(d)) {
+              <div class="fs-erreur"><i class="fas fa-exclamation-circle"></i>
+                Indiquez un nombre entier de 1 à {{ joursMax }}, ou désactivez la fenêtre.</div>
+            }
+          }
+
+          <div class="fs-apercu" aria-hidden="true">
+            @for (j of apercu(d); track j.libelle) {
+              <div class="fs-jour" [class.ouvert]="j.ouvert">
+                <span class="fs-jour-l">{{ j.libelle }}</span>
+                <span class="fs-jour-d">{{ j.jour }}</span>
+              </div>
+            }
+          </div>
+          <p class="fs-resume">{{ resume(d) }}</p>
+        </div>
+      }
+
+      <div class="fs-exception">
+        <i class="fas fa-user-shield"></i>
+        <div>
+          <strong>Saisie hors délai.</strong>
+          Les rôles disposant de l'action « Saisie hors délai » (modules Carburant et Relevés km, écran
+          Permissions) peuvent saisir ou corriger hors de la fenêtre — par défaut le responsable flotte et
+          au-dessus. Chaque opération est tracée sur la donnée (par qui, quand).
+        </div>
+      </div>
+
+      @if (ecriture() && modifiees().length) {
+        <div class="barre-enregistrement">
+          <span class="pastille"></span>
+          {{ modifiees().length }} modification{{ modifiees().length > 1 ? 's' : '' }} non enregistrée{{ modifiees().length > 1 ? 's' : '' }}
+          <div class="p-actions">
+            <button type="button" class="btn btn-outline btn-sm btn-clair" (click)="annuler()">Annuler</button>
+            <button type="button" class="btn btn-green btn-sm" (click)="enregistrer()"
+                    [disabled]="invalides().length > 0 || enregistrement()">
+              @if (enregistrement()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-save"></i> }
+              Enregistrer
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</section>

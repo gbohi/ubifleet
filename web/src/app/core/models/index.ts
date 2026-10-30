@@ -117,6 +117,11 @@ export type StatutValidation = 'en_attente' | 'valide' | 'anomalie' | 'rejete';
 
 export interface PleinCarburant {
   id: string;
+  // Fenêtre de saisie : figé pour l'utilisateur courant, trace hors délai
+  verrouille?: boolean;
+  saisie_hors_delai?: boolean;
+  hors_delai_par_nom?: string | null;
+  hors_delai_le?: string | null;
   vehicule: string;
   vehicule_immat: string;
   vehicule_designation: string;
@@ -393,6 +398,11 @@ export type TypeMouvement = string;
 
 export interface ReleveKilometrage {
   id: string;
+  // Fenêtre de saisie : figé pour l'utilisateur courant, trace hors délai
+  verrouille?: boolean;
+  saisie_hors_delai?: boolean;
+  hors_delai_par_nom?: string | null;
+  hors_delai_le?: string | null;
   vehicule: string;
   vehicule_immat: string;
   vehicule_designation: string;

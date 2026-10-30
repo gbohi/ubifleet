@@ -56,6 +56,7 @@
 
         <!-- ════ RÈGLES & SEUILS ════ -->
         @case ('echeances') { <ubi-param-seuils vue="echeances" [ecriture]="ecritureSeuils()" /> }
+        @case ('saisie') { <ubi-param-fenetre-saisie [ecriture]="ecritureSeuils()" /> }
         @case ('carburant') {
           <ubi-param-prix-carburant [ecriture]="ecritureReferentiels()" />
           <ubi-param-seuils vue="carburant" [ecriture]="ecritureSeuils()" />

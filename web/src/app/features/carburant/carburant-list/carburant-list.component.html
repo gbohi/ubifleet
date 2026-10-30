@@ -183,6 +183,10 @@
                     @if (p.heure_plein) {
                       <div style="font-size:11px;color:var(--gray-400);font-family:monospace">{{ p.heure_plein ? p.heure_plein.substring(0,5) : '' }}</div>
                     }
+                    @if (p.saisie_hors_delai) {
+                      <div><span class="badge badge-warning badge-hd"
+                            [title]="'Saisi ou corrigé hors délai' + (p.hors_delai_par_nom ? ' par ' + p.hors_delai_par_nom : '') + (p.hors_delai_le ? ' le ' + (p.hors_delai_le | date:'dd/MM/yyyy HH:mm') : '')">Hors délai</span></div>
+                    }
                   </td>
                   <td>
                     <div class="td-bold">{{ p.vehicule_immat }}</div>
@@ -224,10 +228,14 @@
                   </td>
                   <td>
                     <div class="td-actions">
-                      <button class="btn btn-icon" title="Modifier"
-                              (click)="goToEdit($event, p.id)">
-                        <i class="fas fa-edit"></i>
-                      </button>
+                      @if (p.verrouille) {
+                        <span class="icone-verrou" title="Plein figé : sorti de la fenêtre de saisie"><i class="fas fa-lock"></i></span>
+                      } @else {
+                        <button class="btn btn-icon" title="Modifier"
+                                (click)="goToEdit($event, p.id)">
+                          <i class="fas fa-edit"></i>
+                        </button>
+                      }
                       @if (p.statut_validation === 'en_attente') {
                         <button class="btn btn-icon btn-icon-green" title="Valider"
                                 (click)="valider($event, p.id)">
@@ -345,6 +353,10 @@
                     {{ p.date_plein | date:'dd/MM/yyyy' }}
                     @if (p.heure_plein) {
                       <div style="font-size:11px;color:var(--gray-400);font-family:monospace">{{ p.heure_plein ? p.heure_plein.substring(0,5) : '' }}</div>
+                    }
+                    @if (p.saisie_hors_delai) {
+                      <div><span class="badge badge-warning badge-hd"
+                            [title]="'Saisi ou corrigé hors délai' + (p.hors_delai_par_nom ? ' par ' + p.hors_delai_par_nom : '') + (p.hors_delai_le ? ' le ' + (p.hors_delai_le | date:'dd/MM/yyyy HH:mm') : '')">Hors délai</span></div>
                     }
                   </td>
                   <td>

@@ -1,13 +1,14 @@
 // UbiFleet — Historique Kilométrage (Angular 18)
 import {
   Component, inject, OnInit, input,
-  ChangeDetectionStrategy, signal
+  ChangeDetectionStrategy, signal, effect
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { AbstractControl, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { VehiculeApiService, ChauffeurApiService } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
+import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
 
 @Component({
@@ -45,17 +46,28 @@ export class VehiculeRelevesKmComponent implements OnInit {
 
   // Types de mouvement paramétrables (Paramètres › Types de mouvement)
   typesMvt = inject(TypesMouvementService);
+  readonly fenetres = inject(FenetreSaisieService);
 
   form = this.fb.group({
     kilometrage:    [null as number | null, [Validators.required, Validators.min(0)]],
-    date_releve:    [new Date().toISOString().split('T')[0], Validators.required],
+    date_releve:    [new Date().toISOString().split('T')[0],
+                     [Validators.required, (c: AbstractControl) => this.fenetres.erreur('releves', c.value) ? { fenetre: true } : null]],
     type_mouvement: ['releve', Validators.required],
     tournee:        [''],
     chauffeur:      [''],
     notes:          [''],
   });
 
+  constructor() {
+    // Revalider la date à la réception des bornes du serveur
+    effect(() => {
+      if (this.fenetres.fenetre('releves')) this.f['date_releve'].updateValueAndValidity();
+    });
+  }
+
   get f() { return this.form.controls; }
+
+  dateErreur(): string | null { return this.fenetres.erreur('releves', this.f['date_releve'].value); }
 
   get totalPages(): number { return Math.ceil(this.total() / 20) || 1; }
   get pages(): number[] {
@@ -114,10 +126,11 @@ export class VehiculeRelevesKmComponent implements OnInit {
     } else {
       this.editId.set(null);
       this.form.reset({
-        date_releve: new Date().toISOString().split('T')[0],
+        date_releve: this.fenetres.max('releves') ?? new Date().toISOString().split('T')[0],
         type_mouvement: 'releve',
       });
     }
+    this.fenetres.charger();
     this.showForm.set(true);
   }
 
@@ -184,7 +197,7 @@ export class VehiculeRelevesKmComponent implements OnInit {
       },
       error: (err) => {
         this.saving.set(false);
-        this.error.set(err?.error?.detail ?? 'Erreur lors de l\'enregistrement.');
+        this.error.set(messageErreurApi(err, 'Erreur lors de l\'enregistrement.'));
       },
     });
   }
@@ -195,7 +208,7 @@ export class VehiculeRelevesKmComponent implements OnInit {
   doDelete(id: string): void {
     this.vehiculeApi.deleteReleveKm(id).subscribe({
       next: () => { this.deleteId.set(null); this.loadReleves(); },
-      error: () => this.deleteId.set(null),
+      error: (err) => { this.deleteId.set(null); this.error.set(messageErreurApi(err, 'Suppression impossible.')); },
     });
   }
 
