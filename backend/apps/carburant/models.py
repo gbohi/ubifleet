@@ -63,6 +63,19 @@ class DotationCarburant(UbiFleetBaseModel):
         return round((float(self.volume_consomme) / float(self.volume_alloue)) * 100, 1)
 
 
+def motif_anomalie(vehicule, consommation, moyenne=None):
+    """Motif si la consommation dépasse la moyenne du véhicule de plus du seuil
+    paramétré (Paramètres › Carburant & consommation), sinon chaîne vide."""
+    from apps.parametrage.echeances import seuil_conso_anomalie
+    if consommation is None:
+        return ''
+    moyenne = moyenne if moyenne is not None else vehicule.consommation_moyenne()
+    marge = 1 + seuil_conso_anomalie() / 100
+    if moyenne and float(consommation) > float(moyenne) * marge:
+        return f"Consommation anormale: {consommation} L/100km (moyenne: {moyenne} L/100km)"
+    return ''
+
+
 class PleinsCarburant(UbiFleetBaseModel):
     """Enregistrement d'un plein de carburant."""
 
@@ -133,9 +146,11 @@ class PleinsCarburant(UbiFleetBaseModel):
         null=True, blank=True,
         verbose_name="Photo tableau de bord"
     )
+    # Plus de circuit de validation : un plein enregistré est valide, sauf
+    # consommation anormale détectée à l'enregistrement (statut « anomalie »).
     statut_validation = models.CharField(
         max_length=15, choices=StatutValidation.choices,
-        default=StatutValidation.EN_ATTENTE
+        default=StatutValidation.VALIDE
     )
     motif_anomalie = models.TextField(blank=True)
     # Saisie / correction hors de la fenêtre de saisie (cf. parametrage.fenetre_saisie)
@@ -173,6 +188,8 @@ class PleinsCarburant(UbiFleetBaseModel):
                 self.prix_litre = prix.prix
 
         # Calcul automatique consommation + auto-remplir kilometrage_depart
+        if self.statut_validation != self.StatutValidation.REJETE:
+            self.statut_validation, self.motif_anomalie = self.StatutValidation.VALIDE, ''
         if self.kilometrage_releve and self.vehicule:
             from django.db.models import Q
 
@@ -197,17 +214,9 @@ class PleinsCarburant(UbiFleetBaseModel):
                     self.consommation_calculee = round(
                         (float(self.volume_litres) / km_parcourus) * 100, 2
                     )
-                    # Détection anomalie si conso > X % au-dessus de la moyenne
-                    # (Paramètres › Carburant & consommation)
-                    from apps.parametrage.echeances import seuil_conso_anomalie
-                    moyenne = self.vehicule.consommation_moyenne()
-                    marge = 1 + seuil_conso_anomalie() / 100
-                    if moyenne and float(self.consommation_calculee) > float(moyenne) * marge:
-                        self.statut_validation = self.StatutValidation.ANOMALIE
-                        self.motif_anomalie = (
-                            f"Consommation anormale: {self.consommation_calculee} L/100km "
-                            f"(moyenne: {moyenne} L/100km)"
-                        )
+                    motif = motif_anomalie(self.vehicule, self.consommation_calculee)
+                    if motif:
+                        self.statut_validation, self.motif_anomalie = self.StatutValidation.ANOMALIE, motif
 
         # MAJ kilométrage véhicule
         if self.vehicule and self.kilometrage_releve > self.vehicule.kilometrage_actuel:

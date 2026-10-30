@@ -11,7 +11,7 @@ from apps.alertes.tasks import run_all_checks_sync
 from apps.core.testing import UtilisateursMixin
 from apps.vehicules.models import DocumentVehicule, TypeDocumentVehicule, Vehicule
 from .echeances import ATTENTION, DEPASSE, NC, OK, URGENT, niveau, seuils
-from .models import Parametre
+from .models import Parametre, Tournee, TypeMouvement
 
 
 def regler(code, attention, urgent):
@@ -311,6 +311,7 @@ class FenetreSaisieTests(UtilisateursMixin, APITestCase):
         from apps.vehicules.models import Vehicule
         cls.vehicule = Vehicule.objects.create(immatriculation='FS-1', agence=cls.agence_a, annee=2020,
                                                type_carburant='diesel')
+        cls.tournee = Tournee.objects.create(code='FS-T', libelle='Tournée FS', agence=cls.agence_a)
         cls.auj = timezone.localdate()
 
     def setUp(self):
@@ -327,7 +328,8 @@ class FenetreSaisieTests(UtilisateursMixin, APITestCase):
     def plein(self, user, n, km=1000):
         self.client.force_authenticate(user)
         return self.client.post('/api/v1/carburant/pleins/', {
-            'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'heure_plein': '08:00', 'volume_litres': 30,
+            'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'heure_plein': '08:00',
+            'tournee': self.tournee.id, 'volume_litres': 30,
             'montant_fcfa': 21000, 'kilometrage_releve': km, 'agence': str(self.agence_a.id),
         }, format='json')
 
@@ -444,6 +446,7 @@ class CorrectionSaisieTests(UtilisateursMixin, APITestCase):
         cls.vehicule = Vehicule.objects.create(immatriculation='CS-1', agence=cls.agence_a, annee=2020,
                                                type_carburant='diesel', kilometrage_actuel=10000,
                                                kilometrage_initial=10000)
+        cls.tournee = Tournee.objects.create(code='CS-T', libelle='Tournée CS', agence=cls.agence_a)
         cls.auj = timezone.localdate()
 
     def setUp(self):
@@ -461,7 +464,7 @@ class CorrectionSaisieTests(UtilisateursMixin, APITestCase):
         self.client.force_authenticate(user)
         return self.client.post('/api/v1/carburant/pleins/', {
             'vehicule': str(self.vehicule.id), 'date_plein': self.jour(n), 'heure_plein': heure,
-            'volume_litres': litres, 'montant_fcfa': 28000, 'kilometrage_releve': km,
+            'tournee': self.tournee.id, 'volume_litres': litres, 'montant_fcfa': 28000, 'kilometrage_releve': km,
             'agence': str(self.agence_a.id),
         }, format='json')
 
@@ -471,6 +474,46 @@ class CorrectionSaisieTests(UtilisateursMixin, APITestCase):
         if heure:
             data['heure_releve'] = heure
         return self.client.post('/api/v1/vehicules/releves-km/', data, format='json')
+
+    def test_tournee_du_releve(self):
+        self.client.force_authenticate(self.operateur)
+        url = '/api/v1/vehicules/releves-km/'
+        base = {'vehicule': str(self.vehicule.id), 'date_releve': self.jour(0), 'heure_releve': '08:00'}
+        resp = self.client.post(url, {**base, 'kilometrage': 10100, 'type_mouvement': 'tournee'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('tournee', resp.data)
+        resp = self.client.post(url, {**base, 'kilometrage': 10100, 'type_mouvement': 'tournee',
+                                      'tournee': self.tournee.id}, format='json')
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(resp.data['tournee_code'], 'CS-T')
+        # Autre type : la tournée est ignorée
+        resp = self.client.post(url, {**base, 'heure_releve': '09:00', 'kilometrage': 10150,
+                                      'type_mouvement': 'releve', 'tournee': self.tournee.id}, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertIsNone(resp.data['tournee'])
+        # Même règle depuis la fiche véhicule
+        resp = self.client.post(f'/api/v1/vehicules/{self.vehicule.id}/kilometrage/',
+                                {'kilometrage': 10200, 'date_releve': self.jour(0), 'heure_releve': '10:00',
+                                 'type_mouvement': 'tournee'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('tournee', resp.data)
+
+    def test_type_tournee_reserve(self):
+        self.client.force_authenticate(self.super_admin)
+        t = TypeMouvement.objects.get(code='tournee')
+        resp = self.client.delete(f'/api/v1/parametrage/types-mouvement/{t.id}/')
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(TypeMouvement.objects.filter(code='tournee').exists())
+
+    def test_plein_valide_des_l_enregistrement_et_agence_du_vehicule(self):
+        self.client.force_authenticate(self.dg)
+        resp = self.client.post('/api/v1/carburant/pleins/', {
+            'vehicule': str(self.vehicule.id), 'date_plein': self.jour(0), 'heure_plein': '08:00',
+            'tournee': self.tournee.id, 'volume_litres': 30, 'montant_fcfa': 21000,
+            'kilometrage_releve': 10100}, format='json')
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(resp.data['statut_validation'], 'valide')
+        self.assertEqual(str(resp.data['agence']), str(self.agence_a.id))
 
     def test_heure_du_plein_obligatoire(self):
         resp = self.plein(self.operateur, 1, 10100, heure=None)

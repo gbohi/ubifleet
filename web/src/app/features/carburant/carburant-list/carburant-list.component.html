@@ -115,18 +115,13 @@
       </select>
     </div>
 
-    <div class="chip-row">
-      @for (chip of statutChips; track chip.value) {
-        <button class="chip"
-                [class.active]="store.filters().statut_validation === chip.value"
-                (click)="onStatutFilter(chip.value)">{{ chip.label }}</button>
-      }
-      @if (store.hasActiveFilters()) {
+    @if (store.hasActiveFilters()) {
+      <div class="chip-row">
         <button class="chip chip-reset" (click)="resetFilters()">
-          <i class="fas fa-times"></i> Réinitialiser
+          <i class="fas fa-times"></i> Réinitialiser les filtres
         </button>
-      }
-    </div>
+      </div>
+    }
 
     <!-- Chargement -->
     @if (store.isLoading()) {
@@ -163,14 +158,14 @@
                 <th>Conso.</th>
                 <th>Bon</th>
                 <th>Photo TB</th>
-                <th>Statut</th>
+                <th>Tournée</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               @if (store.pleins().length === 0) {
                 <tr>
-                  <td colspan="11" class="td-empty">
+                  <td colspan="12" class="td-empty">
                     <i class="fas fa-gas-pump"></i>
                     Aucun plein trouvé
                   </td>
@@ -203,8 +198,10 @@
                   <td>{{ p.kilometrage_releve | number:'1.0-0' }}</td>
                   <td>
                     @if (p.consommation_calculee !== null) {
-                      <span [class.text-danger]="p.statut_validation === 'anomalie'">
+                      <span [class.text-danger]="p.statut_validation === 'anomalie'"
+                            [attr.title]="p.statut_validation === 'anomalie' ? p.motif_anomalie : null">
                         {{ p.consommation_calculee | number:'1.1-1' }} L/100
+                        @if (p.statut_validation === 'anomalie') { <i class="fas fa-exclamation-triangle"></i> }
                       </span>
                     } @else { — }
                   </td>
@@ -221,11 +218,7 @@
                       <span style="color:var(--gray-300);font-size:12px">—</span>
                     }
                   </td>
-                  <td>
-                    <span class="badge" [class]="statutBadgeClass(p.statut_validation)">
-                      {{ p.statut_display }}
-                    </span>
-                  </td>
+                  <td>{{ p.tournee_code || '—' }}</td>
                   <td>
                     <div class="td-actions">
                       @if (p.verrouille) {
@@ -248,12 +241,6 @@
                         <button class="btn btn-icon btn-icon-danger" title="Supprimer"
                                 (click)="confirmDelete($event, p)">
                           <i class="fas fa-trash"></i>
-                        </button>
-                      }
-                      @if (p.statut_validation === 'en_attente') {
-                        <button class="btn btn-icon btn-icon-green" title="Valider"
-                                (click)="valider($event, p.id)">
-                          <i class="fas fa-check"></i>
                         </button>
                       }
                     </div>
@@ -390,9 +377,8 @@
                   </td>
                   <td>{{ p.chauffeur_nom ?? '—' }}</td>
                   <td>
-                    <button class="btn btn-icon btn-icon-green" title="Valider malgré anomalie"
-                            (click)="valider($event, p.id)">
-                      <i class="fas fa-check"></i>
+                    <button class="btn btn-icon" title="Voir le plein" (click)="goToEdit($event, p.id)">
+                      <i class="fas fa-eye"></i>
                     </button>
                   </td>
                 </tr>

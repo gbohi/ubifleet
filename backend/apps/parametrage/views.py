@@ -513,7 +513,13 @@ class TypeMouvementSerializer(drf_s2.ModelSerializer):
 
     class Meta:
         model  = TypeMouvement
-        fields = ['id', 'code', 'libelle', 'couleur', 'avec_tournee', 'ordre', 'actif', 'nb_utilisations']
+        fields = ['id', 'code', 'libelle', 'couleur', 'ordre', 'actif', 'nb_utilisations', 'reserve']
+
+    reserve = drf_s2.SerializerMethodField()
+
+    def get_reserve(self, obj):
+        """Type réservé (tournée) : ni supprimable ni recodable."""
+        return obj.code == TypeMouvement.CODE_TOURNEE
 
     def validate_code(self, value):
         if self.instance and self.instance.code != value:
@@ -543,6 +549,12 @@ class TypeMouvementViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin,
     def utilisations(self, obj):
         from apps.vehicules.models import ReleveKilometrage
         return [(ReleveKilometrage.objects.filter(type_mouvement=obj.code).count(), 'relevé(s) kilométrique(s)')]
+
+    def destroy(self, request, *args, **kwargs):
+        if self.get_object().code == TypeMouvement.CODE_TOURNEE:
+            return Response({'detail': "Le type « Tournée » est réservé : il ne peut pas être supprimé "
+                                       "(il sert à rattacher les relevés aux tournées)."}, status=400)
+        return super().destroy(request, *args, **kwargs)
 
 
 from .models import CorrectionSaisie

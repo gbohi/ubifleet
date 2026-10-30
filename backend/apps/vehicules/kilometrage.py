@@ -87,14 +87,15 @@ def recalculer_kilometrage(vehicule):
 
 
 def recalculer_consommations(vehicule, depuis):
-    """Recalcule km de départ et consommation des pleins du véhicule datés
-    à partir de `depuis` (chaque plein dépend du précédent). Le statut de
-    validation n'est pas modifié."""
-    from apps.carburant.models import PleinsCarburant
+    """Recalcule km de départ, consommation et anomalie des pleins du véhicule
+    datés à partir de `depuis` (chaque plein dépend du précédent)."""
+    from apps.carburant.models import PleinsCarburant, motif_anomalie
     if vehicule is None or depuis is None:
         return
     pleins = list(PleinsCarburant.objects.filter(vehicule=vehicule)
                   .order_by('date_plein', 'heure_plein', 'created_at'))
+    moyenne = vehicule.consommation_moyenne()
+    S = PleinsCarburant.StatutValidation
     precedent = None
     for p in pleins:
         if p.date_plein >= depuis:
@@ -103,7 +104,13 @@ def recalculer_consommations(vehicule, depuis):
             if precedent and p.kilometrage_releve > precedent.kilometrage_releve:
                 conso = round(float(p.volume_litres) / (p.kilometrage_releve - precedent.kilometrage_releve) * 100, 2)
             ancienne = float(p.consommation_calculee) if p.consommation_calculee is not None else None
-            if p.kilometrage_depart != depart or ancienne != conso:
-                PleinsCarburant.objects.filter(pk=p.pk).update(kilometrage_depart=depart, consommation_calculee=conso)
+            statut, motif = p.statut_validation, p.motif_anomalie
+            if statut != S.REJETE:
+                motif = motif_anomalie(vehicule, conso, moyenne)
+                statut = S.ANOMALIE if motif else S.VALIDE
+            if (p.kilometrage_depart, ancienne, p.statut_validation, p.motif_anomalie) != (depart, conso, statut, motif):
+                PleinsCarburant.objects.filter(pk=p.pk).update(
+                    kilometrage_depart=depart, consommation_calculee=conso,
+                    statut_validation=statut, motif_anomalie=motif)
         precedent = p
 

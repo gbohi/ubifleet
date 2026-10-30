@@ -1211,7 +1211,6 @@ export class ParametresComponent implements OnInit {
     code:         ['', [Validators.required, Validators.pattern(/^[a-z0-9_-]+$/)]],
     libelle:      ['', Validators.required],
     couleur:      ['gray'],
-    avec_tournee: [false],
     ordre:        [0],
     actif:        [true],
   });
@@ -1226,8 +1225,8 @@ export class ParametresComponent implements OnInit {
   ouvrirTypeMvt(t: any | null): void {
     this.typeMvtErreur.set('');
     this.typeMvtForm.reset(t
-      ? { code: t.code, libelle: t.libelle, couleur: t.couleur, avec_tournee: t.avec_tournee, ordre: t.ordre, actif: t.actif }
-      : { code: '', libelle: '', couleur: 'gray', avec_tournee: false, ordre: this.typesMouvement().length + 1, actif: true });
+      ? { code: t.code, libelle: t.libelle, couleur: t.couleur, ordre: t.ordre, actif: t.actif }
+      : { code: '', libelle: '', couleur: 'gray', ordre: this.typesMouvement().length + 1, actif: true });
     if (t) this.typeMvtForm.controls.code.disable(); else this.typeMvtForm.controls.code.enable();
     this.typeMvtEdite.set(t);
   }

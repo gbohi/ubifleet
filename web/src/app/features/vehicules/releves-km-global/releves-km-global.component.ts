@@ -8,7 +8,8 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { forkJoin } from 'rxjs';
 import { VehiculeApiService, AgenceApiService, ChauffeurApiService, TotalImportApiService } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
-import { FenetreSaisieService, messageErreurApi, heureLocale } from '../../../core/services/fenetre-saisie.service';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { ReleveFormComponent } from '../../../shared/releve-form/releve-form.component';
 import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/historique-corrections.component';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
@@ -31,7 +32,7 @@ interface ConsoKmRow {
 @Component({
   selector: 'ubi-releves-km-global',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent],
+  imports: [RouterLink, DatePipe, DecimalPipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent, ReleveFormComponent],
   templateUrl: './releves-km-global.component.html',
   styleUrls: ['./releves-km-global.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -319,24 +320,23 @@ export class RelevesKmGlobalComponent implements OnInit {
     a.click(); URL.revokeObjectURL(a.href);
   }
 
-  // ── Popup Nouveau relevé kilométrique ────────────────────────────
-  showNewModal     = signal(false);
-  nrVehicules      = signal<{ id: string; immatriculation: string; kilometrage_actuel: number }[]>([]);
-  nrVehicule       = signal('');
-  nrKm             = signal<number>(0);
-  nrDate           = signal(new Date().toISOString().split('T')[0]);
-  /** Heure saisie ; null = heure actuelle du serveur. */
-  nrHeure         = signal<string | null>(null);
-  nrHeureEffective(): string { return this.nrHeure() ?? this.fenetres.heureServeur() ?? heureLocale(); }
-  nrType           = signal<string>('releve');
-  nrChauffeur      = signal('');
-  nrTournee        = signal('');
-  nrNotes          = signal('');
-  nrPhoto          = signal<File | null>(null);
-  nrPhotoPreview   = signal<string | null>(null);
-  nrSaving         = signal(false);
-  nrError          = signal('');
-  readonly fenetres = inject(FenetreSaisieService);
+  // ── Formulaire de relevé (commun à toute l'application) ──────────
+  /** Formulaire ouvert ; `releveEdite` : relevé corrigé (null = nouveau relevé). */
+  formOuvert  = signal(false);
+  releveEdite = signal<ReleveKilometrage | null>(null);
+
+  ouvrirNouveauReleve(): void { this.ouvrirForm(null); }
+
+  ouvrirForm(r: ReleveKilometrage | null): void {
+    this.releveEdite.set(r);
+    this.formOuvert.set(true);
+  }
+
+  apresEnregistrement(): void {
+    this.formOuvert.set(false);
+    if (!this.releveEdite()) this.page.set(1);
+    this.loadReleves();
+  }
 
   // ── Corrections : suppression (motif obligatoire hors délai) et historique ──
   releveASupprimer = signal<ReleveKilometrage | null>(null);
@@ -357,159 +357,6 @@ export class RelevesKmGlobalComponent implements OnInit {
       },
     });
   }
-  nrDateErreur     = computed(() => this.fenetres.erreur('releves', this.nrDate()));
-
-  // Combobox véhicule (recherche par immatriculation)
-  nrVehiculeSearch = signal('');
-  nrVehiculeOpen   = signal(false);
-  nrVehiculeKmActuel = signal<number | null>(null);
-  nrVehiculesFiltres = computed(() => {
-    const q = this.nrVehiculeSearch().toLowerCase().trim();
-    const all = this.nrVehicules();
-    if (!q) return all.slice(0, 50);
-    return all.filter(v => v.immatriculation.toLowerCase().includes(q)).slice(0, 50);
-  });
-
-  // Combobox chauffeur (recherche par nom / matricule)
-  nrChauffeurSearch = signal('');
-  nrChauffeurOpen   = signal(false);
-  nrChauffeursFiltres = computed(() => {
-    const q = this.nrChauffeurSearch().toLowerCase().trim();
-    const all = this.chauffeurs();
-    if (!q) return all.slice(0, 50);
-    return all.filter(ch => ch.nom_complet.toLowerCase().includes(q)).slice(0, 50);
-  });
-
-  ouvrirNouveauReleve(): void {
-    this.nrVehicule.set('');
-    this.nrVehiculeSearch.set('');
-    this.nrVehiculeOpen.set(false);
-    this.nrVehiculeKmActuel.set(null);
-    this.nrChauffeurSearch.set('');
-    this.nrChauffeurOpen.set(false);
-    this.nrKm.set(0);
-    this.nrDate.set(this.fenetres.max('releves') ?? new Date().toISOString().split('T')[0]);
-    this.nrHeure.set(null);
-    this.fenetres.charger();
-    this.nrType.set('releve');
-    this.nrChauffeur.set('');
-    this.nrTournee.set('');
-    this.nrNotes.set('');
-    this.nrPhoto.set(null);
-    this.nrPhotoPreview.set(null);
-    this.nrError.set('');
-    this.nrSaving.set(false);
-    this.showNewModal.set(true);
-    // Charger la liste des véhicules au premier besoin
-    if (this.nrVehicules().length === 0) {
-      this.vehiculeApi.getAll({ page_size: 1000 }).subscribe({
-        next: (res) => this.nrVehicules.set(
-          (res.results ?? []).map((v: any) => ({
-            id: v.id,
-            immatriculation: v.immatriculation,
-            kilometrage_actuel: v.kilometrage_actuel ?? 0,
-          }))
-        ),
-        error: () => {},
-      });
-    }
-  }
-
-  fermerNouveauReleve(): void {
-    this.showNewModal.set(false);
-    this.nrSaving.set(false);
-    this.nrError.set('');
-  }
-
-  onNrVehiculeSearchInput(e: Event): void {
-    this.nrVehiculeSearch.set((e.target as HTMLInputElement).value);
-    this.nrVehiculeOpen.set(true);
-    // Invalider la sélection si le texte ne correspond plus
-    this.nrVehicule.set('');
-    this.nrVehiculeKmActuel.set(null);
-  }
-
-  selectNrVehicule(v: { id: string; immatriculation: string; kilometrage_actuel: number }): void {
-    this.nrVehicule.set(v.id);
-    this.nrVehiculeSearch.set(v.immatriculation);
-    this.nrVehiculeKmActuel.set(v.kilometrage_actuel);
-    this.nrVehiculeOpen.set(false);
-    // Le champ kilométrage reste vide — l'utilisateur saisit lui-même
-  }
-
-  onNrChauffeurSearchInput(e: Event): void {
-    this.nrChauffeurSearch.set((e.target as HTMLInputElement).value);
-    this.nrChauffeurOpen.set(true);
-    this.nrChauffeur.set('');
-  }
-
-  selectNrChauffeur(ch: { id: string; nom_complet: string }): void {
-    this.nrChauffeur.set(ch.id);
-    this.nrChauffeurSearch.set(ch.nom_complet);
-    this.nrChauffeurOpen.set(false);
-  }
-
-  clearNrChauffeur(): void {
-    this.nrChauffeur.set('');
-    this.nrChauffeurSearch.set('');
-    this.nrChauffeurOpen.set(false);
-  }
-
-  fermerCombobox(): void {
-    // Fermer les listes déroulantes au clic ailleurs
-    setTimeout(() => {
-      this.nrVehiculeOpen.set(false);
-      this.nrChauffeurOpen.set(false);
-    }, 150);
-  }
-
-  onNrPhotoChange(e: Event): void {
-    const file = (e.target as HTMLInputElement).files?.[0] ?? null;
-    this.nrPhoto.set(file);
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => this.nrPhotoPreview.set(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      this.nrPhotoPreview.set(null);
-    }
-  }
-
-  saveNouveauReleve(): void {
-    if (this.nrSaving()) return;
-    if (!this.nrVehicule()) { this.nrError.set('Veuillez sélectionner un véhicule.'); return; }
-    const km = this.nrKm();
-    if (!km || km <= 0) { this.nrError.set('Veuillez saisir un kilométrage valide.'); return; }
-    if (!this.nrDate()) { this.nrError.set('Veuillez saisir une date.'); return; }
-    if (this.nrDateErreur()) { this.nrError.set(this.nrDateErreur()!); return; }
-    if (!this.nrHeureEffective()) { this.nrError.set('Veuillez saisir une heure.'); return; }
-
-    this.nrSaving.set(true);
-    this.nrError.set('');
-    this.vehiculeApi.createReleveKm({
-      vehicule:           this.nrVehicule(),
-      kilometrage:        km,
-      date_releve:        this.nrDate(),
-      heure_releve:       this.nrHeureEffective(),
-      type_mouvement:     this.nrType() as TypeMouvement,
-      chauffeur:          this.nrChauffeur() || null,
-      tournee:            this.nrTournee() || null,
-      notes:              this.nrNotes() || '',
-      photo_tableau_bord: this.nrPhoto(),
-    } as any).subscribe({
-      next: () => {
-        this.nrSaving.set(false);
-        this.fermerNouveauReleve();
-        this.page.set(1);
-        this.loadReleves();
-      },
-      error: (err) => {
-        this.nrSaving.set(false);
-        this.nrError.set(messageErreurApi(err, "Erreur lors de l'enregistrement."));
-      },
-    });
-  }
-
   // ── Export CSV de tous les relevés de la base ────────────────────
   relevesExportLoading = signal(false);
 
@@ -527,7 +374,7 @@ export class RelevesKmGlobalComponent implements OnInit {
         const data = rows.map((r: any) => [
           r.date_releve, r.vehicule_immat, r.vehicule_designation ?? '',
           r.kilometrage, r.type_display ?? r.type_mouvement,
-          r.chauffeur_nom ?? '', r.tournee ?? '',
+          r.chauffeur_nom ?? '', r.tournee_code ? r.tournee_code + ' — ' + r.tournee_libelle : '',
           (r.notes ?? '').replace(/[\r\n;]+/g, ' '),
           r.created_by_nom ?? '', r.created_at?.split('T')[0] ?? '',
         ].join(sep)).join(eol);

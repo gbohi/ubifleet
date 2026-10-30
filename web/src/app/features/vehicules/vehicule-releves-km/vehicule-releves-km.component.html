@@ -120,7 +120,7 @@
                     </span>
                   </td>
                   <td>{{ r.chauffeur_nom || '—' }}</td>
-                      <td>{{ r.tournee || '—' }}</td>
+                      <td>{{ r.tournee_code ? r.tournee_code + ' — ' + r.tournee_libelle : '—' }}</td>
                   <td>
                     <div class="td-notes">{{ r.notes || '—' }}</div>
                   </td>
@@ -187,160 +187,10 @@
 
 </div>
 
-<!-- MODAL Nouveau relevé -->
-@if (showForm()) {
-  <div class="modal-backdrop">
-    <div class="modal-container" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <div class="modal-title">
-          <i class="fas fa-tachometer-alt"></i>
-          {{ editId() ? 'Corriger le relevé' : 'Nouveau relevé kilométrique' }}
-        </div>
-        <button class="modal-close" (click)="closeForm()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-
-      @if (error()) {
-        <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ error() }}</div>
-      }
-      <form [formGroup]="form" (ngSubmit)="saveReleve()" novalidate>
-
-        <div class="form-row-3">
-          <div class="form-group">
-            <label class="form-label">Kilométrage (km) *</label>
-            <input type="number" formControlName="kilometrage"
-                   class="form-control" step="1" min="0"
-                   [class.is-invalid]="f['kilometrage'].invalid && f['kilometrage'].touched"
-                   placeholder="Valeur du compteur" />
-            @if (f['kilometrage'].invalid && f['kilometrage'].touched) {
-              <div class="form-error">
-                <i class="fas fa-times-circle"></i> Kilométrage requis.
-              </div>
-            }
-          </div>
-          <div class="form-group">
-            <label class="form-label">Date du relevé *</label>
-            <input type="date" formControlName="date_releve" class="form-control"
-                   [attr.min]="fenetres.min('releves')" [attr.max]="fenetres.max('releves')"
-                   [class.is-invalid]="f['date_releve'].invalid && (f['date_releve'].touched || dateErreur())" />
-            @if (dateErreur(); as msg) {
-              <div class="form-error"><i class="fas fa-times-circle"></i> {{ msg }}</div>
-            } @else if (fenetres.horsDelai('releves', f['date_releve'].value)) {
-              <div class="form-hint hint-warning"><i class="fas fa-exclamation-triangle"></i> Saisie hors délai : elle sera tracée à votre nom.</div>
-            } @else if (fenetres.aide('releves')) {
-              <div class="form-hint"><i class="fas fa-calendar-check"></i> {{ fenetres.aide('releves') }}</div>
-            }
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="heure-releve">Heure du relevé {{ heureFacultative() ? '' : '*' }}</label>
-            <input id="heure-releve" type="time" formControlName="heure_releve" class="form-control"
-                   [class.is-invalid]="f['heure_releve'].invalid && f['heure_releve'].touched" />
-            @if (f['heure_releve'].invalid && f['heure_releve'].touched) {
-              <div class="form-error"><i class="fas fa-times-circle"></i> L'heure est requise.</div>
-            } @else if (heureFacultative() && !f['heure_releve'].value) {
-              <div class="form-hint">Relevé enregistré sans heure : renseignez-la si vous la connaissez.</div>
-            } @else {
-              <div class="form-hint"><i class="fas fa-clock"></i> Ordonne les relevés d'une même journée.</div>
-            }
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Type de mouvement *</label>
-          <div class="type-grid">
-            @for (t of typesMvt.actifs(); track t.code) {
-              <label class="type-option" [class.active]="f['type_mouvement'].value === t.code">
-                <input type="radio" formControlName="type_mouvement" [value]="t.code"
-                       style="display:none" />
-                <i class="fas" [class]="typeMouvementIcon(t.code)"></i>
-                <span>{{ t.libelle }}</span>
-              </label>
-            }
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Chauffeur</label>
-          <select formControlName="chauffeur" class="form-control">
-            <option value="">-- Aucun / Non précisé --</option>
-            @for (c of chauffeurs(); track c.id) {
-              <option [value]="c.id">{{ c.nom_complet }}</option>
-            }
-          </select>
-        </div>
-
-        @if (typesMvt.avecTournee(f['type_mouvement'].value)) {
-          <div class="form-group">
-            <label class="form-label">Tournée / Destination</label>
-            <input formControlName="tournee" class="form-control"
-                   placeholder="ex: Livraison Bouaké, Tournée Nord..." />
-          </div>
-        }
-
-        <div class="form-group">
-          <label class="form-label">Notes</label>
-          <textarea formControlName="notes" class="form-control" rows="2"
-                    placeholder="Observations..."></textarea>
-        </div>
-
-        <!-- Photo tableau de bord -->
-        <div class="form-group">
-          <label class="form-label">
-            <i class="fas fa-camera"></i> Photo tableau de bord
-            <span style="font-size:11px;color:var(--gray-400);font-weight:400;margin-left:6px">(optionnel)</span>
-          </label>
-          @if (photoPreview()) {
-            <div style="margin-bottom:8px;position:relative;display:inline-block">
-              <img [src]="photoPreview()!" alt="Aperçu"
-                   style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--gray-200)" />
-              <button type="button"
-                      style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:11px"
-                      (click)="photoFile.set(null); photoPreview.set(null)">
-                <i class="fas fa-times"></i>
-              </button>
-            </div>
-          }
-          <div style="border:2px dashed var(--gray-200);border-radius:8px;padding:12px;text-align:center;position:relative;background:var(--gray-50)">
-            <label for="photo-releve" style="cursor:pointer;font-size:12px;color:var(--gray-500);display:flex;align-items:center;justify-content:center;gap:8px">
-              <i class="fas fa-camera"></i>
-              {{ photoPreview() ? 'Changer la photo' : 'Sélectionner une photo' }}
-            </label>
-            <input type="file" id="photo-releve"
-                   style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%"
-                   accept="image/*" (change)="onPhotoChange($event)" />
-          </div>
-        </div>
-
-        @if (editId()) {
-          <div class="form-group">
-            <label class="form-label" for="motif-releve">Motif de la correction {{ motifRequis() ? '*' : '(facultatif)' }}</label>
-            @if (motifRequis()) {
-              <div class="form-hint hint-warning" style="margin:0 0 6px"><i class="fas fa-history"></i> Correction hors délai : le motif est obligatoire.</div>
-            }
-            <textarea id="motif-releve" class="form-control" rows="2" [value]="motifCorrection()"
-                      (input)="motifCorrection.set($any($event.target).value)"
-                      placeholder="ex. Erreur de frappe sur le kilométrage"></textarea>
-          </div>
-        }
-
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-          <button type="button" class="btn btn-outline" (click)="closeForm()">
-            Annuler
-          </button>
-          <button type="submit" class="btn btn-green" [disabled]="form.invalid || saving() || (motifRequis() && !motifCorrection().trim())">
-            @if (saving()) {
-              <i class="fas fa-circle-notch fa-spin"></i>
-            } @else {
-              <i class="fas fa-save"></i>
-            }
-            Enregistrer
-          </button>
-        </div>
-
-      </form>
-    </div>
-  </div>
+<!-- Formulaire de relevé (commun à toute l'application) -->
+@if (formOuvert()) {
+  <ubi-releve-form [vehiculeId]="id()" [releve]="releveEdite()"
+                   (enregistre)="apresEnregistrement()" (ferme)="fermerForm()" />
 }
 
 <!-- MODAL Confirmation suppression (motif obligatoire hors délai) -->

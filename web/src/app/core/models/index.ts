@@ -133,6 +133,8 @@ export interface PleinCarburant {
   station: string | null;
   station_nom: string | null;
   tournee?: number | null;
+  tournee_code?: string | null;
+  tournee_libelle?: string | null;
   date_plein: string;
   heure_plein: string | null;
   volume_litres: number;
@@ -419,7 +421,10 @@ export interface ReleveKilometrage {
   type_display: string;
   chauffeur: string | null;
   chauffeur_nom: string | null;
-  tournee: string | null;
+  chauffeur_matricule?: string | null;
+  tournee: number | null;         // référentiel Tournée ; renseignée pour le type « tournée »
+  tournee_code?: string | null;
+  tournee_libelle?: string | null;
   notes: string;
   photo_tableau_bord: string | null;
   photo_tableau_bord_url: string | null;

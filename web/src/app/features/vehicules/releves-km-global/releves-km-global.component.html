@@ -172,7 +172,7 @@
                     </span>
                   </td>
                   <td>{{ r.chauffeur_nom || '—' }}</td>
-                  <td>{{ r.tournee || '—' }}</td>
+                  <td>{{ r.tournee_code ? r.tournee_code + ' — ' + r.tournee_libelle : '—' }}</td>
                   <td>
                     <div class="td-notes">{{ r.notes || '—' }}</div>
                   </td>
@@ -196,10 +196,9 @@
                         <i class="fas fa-eye"></i>
                       </button>
                       @if (r.modifiable) {
-                        <a class="btn btn-icon" title="Corriger"
-                           [routerLink]="['/vehicules', r.vehicule, 'releves-km']" [queryParams]="{ modifier: r.id }">
+                        <button class="btn btn-icon" title="Corriger" (click)="ouvrirForm(r)">
                           <i class="fas fa-edit"></i>
-                        </a>
+                        </button>
                       } @else if (r.verrouille) {
                         <span class="icone-verrou" title="Relevé figé : sorti de la fenêtre de saisie"><i class="fas fa-lock"></i></span>
                       }
@@ -416,185 +415,9 @@
 
 </div>
 
-<!-- MODAL Nouveau relevé kilométrique -->
-@if (showNewModal()) {
-  <div class="modal-backdrop">
-    <div class="modal-container modal-releve" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <div class="modal-title">
-          <i class="fas fa-tachometer-alt" style="color:var(--green-dark)"></i>
-          Nouveau relevé kilométrique
-        </div>
-        <button class="modal-close" (click)="fermerNouveauReleve()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-
-      @if (nrError()) {
-        <div class="alert-error-inline" style="background:#fef2f2;color:var(--danger);border-left:3px solid var(--danger);padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px">
-          <i class="fas fa-exclamation-triangle"></i> {{ nrError() }}
-        </div>
-      }
-
-      <div class="releve-form">
-        <div class="form-row-3" style="gap:12px">
-          <div class="form-group" style="position:relative">
-            <label class="form-label"><i class="fas fa-car"></i> Véhicule *</label>
-            <input type="text" class="form-control form-control-lg"
-                   [value]="nrVehiculeSearch()"
-                   (input)="onNrVehiculeSearchInput($event)"
-                   (focus)="nrVehiculeOpen.set(true)"
-                   (blur)="fermerCombobox()"
-                   placeholder="Saisir l'immatriculation..."
-                   autocomplete="off" />
-            @if (nrVehiculeOpen() && nrVehiculesFiltres().length > 0) {
-              <div class="combobox-list">
-                @for (v of nrVehiculesFiltres(); track v.id) {
-                  <div class="combobox-item" (mousedown)="selectNrVehicule(v)">
-                    <strong>{{ v.immatriculation }}</strong>
-                    <span class="combobox-meta">{{ v.kilometrage_actuel | number:'1.0-0' }} km</span>
-                  </div>
-                }
-              </div>
-            }
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-road"></i> Kilométrage actuel</label>
-            <div class="km-actuel-display">
-              @if (nrVehiculeKmActuel() !== null) {
-                <i class="fas fa-tachometer-alt"></i>
-                {{ nrVehiculeKmActuel() | number:'1.0-0' }} km
-              } @else {
-                <span style="color:var(--gray-300)">— Sélectionner un véhicule —</span>
-              }
-            </div>
-          </div>
-        </div>
-
-        <div class="form-row-3" style="gap:12px">
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-tachometer-alt"></i> Kilométrage relevé (km) *</label>
-            <input type="number" class="form-control form-control-lg"
-                   [value]="nrKm() || ''" min="0" step="1"
-                   (input)="nrKm.set(+$any($event.target).value || 0)"
-                   placeholder="Saisir le kilométrage relevé" />
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-calendar-alt"></i> Date du relevé *</label>
-            <input type="date" class="form-control form-control-lg" [class.is-invalid]="nrDateErreur()"
-                   [attr.min]="fenetres.min('releves')" [attr.max]="fenetres.max('releves')"
-                   [value]="nrDate()" (input)="nrDate.set($any($event.target).value)" />
-            @if (nrDateErreur(); as msg) {
-              <div class="form-error"><i class="fas fa-times-circle"></i> {{ msg }}</div>
-            } @else if (fenetres.horsDelai('releves', nrDate())) {
-              <div class="form-hint hint-warning"><i class="fas fa-exclamation-triangle"></i> Saisie hors délai : elle sera tracée à votre nom.</div>
-            } @else if (fenetres.aide('releves')) {
-              <div class="form-hint"><i class="fas fa-calendar-check"></i> {{ fenetres.aide('releves') }}</div>
-            }
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-clock"></i> Heure du relevé *</label>
-            <input type="time" class="form-control form-control-lg" [class.is-invalid]="!nrHeureEffective()"
-                   [value]="nrHeureEffective()" (input)="nrHeure.set($any($event.target).value)" />
-            <div class="form-hint"><i class="fas fa-clock"></i> Ordonne les relevés d'une même journée.</div>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label"><i class="fas fa-exchange-alt"></i> Type de mouvement *</label>
-          <select class="form-control"
-                  [value]="nrType()" (change)="nrType.set($any($event.target).value)">
-            @for (t of typesMvt.actifs(); track t.code) {
-              <option [value]="t.code" [selected]="t.code === nrType()">{{ t.libelle }}</option>
-            }
-          </select>
-        </div>
-
-        <div class="form-row-3" style="gap:12px">
-          <div class="form-group" style="position:relative">
-            <label class="form-label"><i class="fas fa-id-badge"></i> Chauffeur</label>
-            <div style="position:relative">
-              <input type="text" class="form-control"
-                     [value]="nrChauffeurSearch()"
-                     (input)="onNrChauffeurSearchInput($event)"
-                     (focus)="nrChauffeurOpen.set(true)"
-                     (blur)="fermerCombobox()"
-                     placeholder="Rechercher un chauffeur..."
-                     autocomplete="off" />
-              @if (nrChauffeurSearch()) {
-                <button type="button" class="combobox-clear" (mousedown)="clearNrChauffeur()" title="Effacer">
-                  <i class="fas fa-times"></i>
-                </button>
-              }
-            </div>
-            @if (nrChauffeurOpen() && nrChauffeursFiltres().length > 0) {
-              <div class="combobox-list">
-                @for (ch of nrChauffeursFiltres(); track ch.id) {
-                  <div class="combobox-item" (mousedown)="selectNrChauffeur(ch)">
-                    {{ ch.nom_complet }}
-                  </div>
-                }
-              </div>
-            }
-          </div>
-          <div class="form-group">
-            <label class="form-label"><i class="fas fa-route"></i> Tournée / Destination</label>
-            <input type="text" class="form-control"
-                   [value]="nrTournee()" (input)="nrTournee.set($any($event.target).value)"
-                   placeholder="ex : Livraison Bouaké..." />
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label"><i class="fas fa-sticky-note"></i> Notes / Observations</label>
-          <textarea class="form-control" rows="2"
-                    [value]="nrNotes()" (input)="nrNotes.set($any($event.target).value)"
-                    placeholder="Observations, état du véhicule..."></textarea>
-        </div>
-
-        <!-- Photo tableau de bord -->
-        <div class="form-group">
-          <label class="form-label">
-            <i class="fas fa-camera"></i> Photo tableau de bord
-            <span style="font-size:11px;color:var(--gray-400);font-weight:400;margin-left:6px">(optionnel)</span>
-          </label>
-          @if (nrPhotoPreview()) {
-            <div style="margin-bottom:8px;position:relative;display:inline-block">
-              <img [src]="nrPhotoPreview()!" alt="Aperçu"
-                   style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--gray-200)" />
-              <button type="button"
-                      style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:11px"
-                      (click)="nrPhoto.set(null); nrPhotoPreview.set(null)">
-                <i class="fas fa-times"></i>
-              </button>
-            </div>
-          }
-          <div style="border:2px dashed var(--gray-200);border-radius:8px;padding:12px;text-align:center;position:relative;background:var(--gray-50)">
-            <label for="nr-photo" style="cursor:pointer;font-size:12px;color:var(--gray-500);display:flex;align-items:center;justify-content:center;gap:8px">
-              <i class="fas fa-camera"></i>
-              {{ nrPhotoPreview() ? 'Changer la photo' : 'Sélectionner une photo' }}
-            </label>
-            <input type="file" id="nr-photo"
-                   style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%"
-                   accept="image/*" (change)="onNrPhotoChange($event)" />
-          </div>
-        </div>
-
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-          <button type="button" class="btn btn-outline" (click)="fermerNouveauReleve()">
-            <i class="fas fa-times"></i> Annuler
-          </button>
-          <button type="button" class="btn btn-green" [disabled]="nrSaving()" (click)="saveNouveauReleve()">
-            @if (nrSaving()) {
-              <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
-            } @else {
-              <i class="fas fa-check"></i> Enregistrer le relevé
-            }
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+<!-- Formulaire de relevé (commun à toute l'application) -->
+@if (formOuvert()) {
+  <ubi-releve-form [releve]="releveEdite()" (enregistre)="apresEnregistrement()" (ferme)="formOuvert.set(false)" />
 }
 
 <!-- MODAL Détail du relevé -->
@@ -643,7 +466,7 @@
         </div>
         <div class="detail-item">
           <div class="detail-label"><i class="fas fa-route"></i> Tournée / Destination</div>
-          <div class="detail-value">{{ r.tournee || '—' }}</div>
+          <div class="detail-value">{{ r.tournee_code ? r.tournee_code + ' — ' + r.tournee_libelle : '—' }}</div>
         </div>
         <div class="detail-item">
           <div class="detail-label"><i class="fas fa-user-edit"></i> Saisi par</div>

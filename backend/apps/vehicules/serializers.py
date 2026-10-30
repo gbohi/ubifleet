@@ -103,20 +103,6 @@ class VehiculeWriteSerializer(serializers.ModelSerializer):
         return value
 
 
-class VehiculeKilometrageSerializer(serializers.Serializer):
-    """Mise à jour rapide du kilométrage."""
-    kilometrage  = serializers.IntegerField(min_value=0)
-    date_releve  = serializers.DateField()
-    heure_releve = serializers.TimeField(required=False, allow_null=True)
-
-    def validate(self, attrs):
-        from .kilometrage import controler_km, heure_par_defaut
-        attrs['heure_releve'] = attrs.get('heure_releve') or heure_par_defaut(attrs['date_releve'])
-        controler_km(self.context['vehicule'], attrs['kilometrage'], attrs['date_releve'], 'kilometrage',
-                     heure=attrs['heure_releve'])
-        return attrs
-
-
 class ReleveKilometrageSerializer(FenetreSaisieSerializerMixin, serializers.ModelSerializer):
     domaine_saisie, champ_date = RELEVES, 'date_releve'
     vehicule_immat       = serializers.CharField(source='vehicule.immatriculation', read_only=True)
@@ -124,6 +110,9 @@ class ReleveKilometrageSerializer(FenetreSaisieSerializerMixin, serializers.Mode
     type_display         = serializers.SerializerMethodField()
     type_couleur         = serializers.SerializerMethodField()
     chauffeur_nom        = serializers.SerializerMethodField()
+    chauffeur_matricule  = serializers.CharField(source='chauffeur.matricule', read_only=True, allow_null=True)
+    tournee_code         = serializers.CharField(source='tournee.code', read_only=True, allow_null=True)
+    tournee_libelle      = serializers.CharField(source='tournee.libelle', read_only=True, allow_null=True)
     created_by_nom       = serializers.SerializerMethodField()
     photo_tableau_bord_url = serializers.SerializerMethodField()
 
@@ -132,8 +121,8 @@ class ReleveKilometrageSerializer(FenetreSaisieSerializerMixin, serializers.Mode
         fields = [
             'id', 'vehicule', 'vehicule_immat', 'vehicule_designation',
             'kilometrage', 'date_releve', 'heure_releve', 'type_mouvement', 'type_display', 'type_couleur',
-            'chauffeur', 'chauffeur_nom',
-            'tournee', 'notes',
+            'chauffeur', 'chauffeur_nom', 'chauffeur_matricule',
+            'tournee', 'tournee_code', 'tournee_libelle', 'notes',
             'photo_tableau_bord', 'photo_tableau_bord_url',
             'created_by', 'created_by_nom', 'created_at',
         ] + FenetreSaisieSerializerMixin.CHAMPS_FENETRE
@@ -156,7 +145,15 @@ class ReleveKilometrageSerializer(FenetreSaisieSerializerMixin, serializers.Mode
 
     def validate(self, attrs):
         from .kilometrage import controler_km, heure_par_defaut
+        from apps.parametrage.models import TypeMouvement
         inst = self.instance
+        # Tournée : obligatoire pour le type « tournée », sans objet pour les autres
+        type_mvt = attrs.get('type_mouvement', inst.type_mouvement if inst else 'releve')
+        if type_mvt == TypeMouvement.CODE_TOURNEE:
+            if not attrs.get('tournee', inst and inst.tournee):
+                raise serializers.ValidationError({'tournee': "La tournée est obligatoire pour ce type de mouvement."})
+        else:
+            attrs['tournee'] = None
         if inst is None and not attrs.get('heure_releve'):
             attrs['heure_releve'] = heure_par_defaut(attrs.get('date_releve'))
         controler_km(attrs.get('vehicule', inst and inst.vehicule),

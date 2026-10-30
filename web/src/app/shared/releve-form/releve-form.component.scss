@@ -1,0 +1,56 @@
+// UbiFleet — Formulaire de relevé kilométrique
+.rf-modal { width: 640px; }
+.rf-form { display: flex; flex-direction: column; gap: 4px; }
+
+.rf-bandeau {
+  display: flex; gap: 24px; flex-wrap: wrap; padding: 12px 16px; margin-bottom: 14px;
+  background: linear-gradient(135deg, var(--navy), #1a3a5c); border-radius: var(--radius-lg);
+  > div { display: flex; flex-direction: column; gap: 2px; }
+}
+.rf-bandeau-label { font-size: 11px; color: rgba(255, 255, 255, .6); text-transform: uppercase; letter-spacing: .5px; }
+.rf-bandeau-val   { font-size: 15px; font-weight: 700; color: white; }
+.rf-bandeau-km    { color: var(--green-dark); font-size: 17px; i { margin-right: 6px; } }
+
+.rf-erreur {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px; margin-bottom: 14px;
+  border-radius: var(--radius-lg); border-left: 4px solid var(--danger);
+  background: var(--danger-light); color: var(--danger); font-size: 13px;
+}
+
+.rf-types {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  @media (max-width: 600px) { grid-template-columns: 1fr 1fr; }
+}
+.rf-type {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  gap: 6px; padding: 12px 8px; border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-md); cursor: pointer; font-size: 12px;
+  color: var(--gray-500); transition: all var(--transition-fast);
+  input { position: absolute; opacity: 0; pointer-events: none; }
+  i { font-size: 18px; }
+  &:hover { border-color: var(--green-dark); color: var(--navy); }
+  &:focus-within { outline: 2px solid var(--green-dark); outline-offset: 1px; }
+  &.active {
+    border-color: var(--navy); background: var(--navy-alpha); color: var(--navy); font-weight: 600;
+    i { color: var(--navy); }
+  }
+}
+
+.rf-optionnel { font-size: 11px; color: var(--gray-400); font-weight: 400; margin-left: 6px; text-transform: none; }
+.rf-apercu {
+  position: relative; display: inline-block; margin-bottom: 8px;
+  img { max-width: 100%; max-height: 140px; border-radius: 8px; border: 1px solid var(--gray-200); }
+  button {
+    position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border: none; border-radius: 50%;
+    background: rgba(0, 0, 0, .5); color: white; cursor: pointer; font-size: 11px;
+  }
+}
+.rf-photo {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px; border: 2px dashed var(--gray-200); border-radius: 8px; background: var(--gray-50);
+  font-size: 12px; color: var(--gray-500); cursor: pointer;
+  input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+  &:hover { border-color: var(--green-dark); }
+}
+.rf-motif-aide { margin: 0 0 6px; }
+.rf-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }

@@ -112,7 +112,7 @@
             <div class="p-head">
               <div>
                 <h2>Types de mouvement <span class="p-chip">{{ typesMouvement().length }}</span></h2>
-                <p>Nature d'un relevé kilométrique (sortie, retour, tournée…). L'option « tournée / destination » affiche ce champ lors de la saisie.</p>
+                <p>Nature d'un relevé kilométrique (sortie, retour, tournée…). Le type « Tournée » est réservé : il demande la tournée lors de la saisie et ne peut pas être supprimé.</p>
                 <div class="p-used-in"><span class="p-chip">Utilisé dans : Relevés km</span><span class="p-chip">Fiche véhicule</span></div>
               </div>
               <div class="p-actions">
@@ -124,25 +124,26 @@
             </div>
             <div class="p-table-wrap">
               <table class="p-table">
-                <thead><tr><th class="num p-hide-m">Ordre</th><th>Libellé</th><th class="p-hide-m">Code</th><th class="p-hide-m">Tournée / destination</th><th class="num">Relevés</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
+                <thead><tr><th class="num p-hide-m">Ordre</th><th>Libellé</th><th class="p-hide-m">Code</th><th class="num">Relevés</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
                 <tbody>
                   @for (x of filtrer(typesMouvement(), 'libelle', 'code'); track x.id) {
                     <tr [class.inactif]="!x.actif">
                       <td class="num muted p-hide-m">{{ x.ordre }}</td>
                       <td><span class="pastille-libelle"><span class="p-dot" [class]="'couleur-' + x.couleur"></span>{{ x.libelle }}</span></td>
-                      <td class="muted p-hide-m">{{ x.code }}</td>
-                      <td class="p-hide-m">{{ x.avec_tournee ? 'Oui' : '—' }}</td>
+                      <td class="muted p-hide-m">{{ x.code }}@if (x.reserve) { <span class="badge badge-info" title="Demande la tournée lors de la saisie du relevé ; ne peut pas être supprimé">Réservé</span> }</td>
                       <td class="num">{{ x.nb_utilisations ?? 0 }}</td>
                       <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.actif" [disabled]="!ecritureReferentiels()" (click)="basculerTypeMvt(x)"></button></td>
                       <td class="p-col-actions">
                         @if (ecritureReferentiels()) {
                           <button class="p-icon-btn" title="Modifier" (click)="ouvrirTypeMvt(x)"><i class="fas fa-edit"></i></button>
-                          <button class="p-icon-btn danger" title="Supprimer" (click)="supprimerTypeMvt(x)"><i class="fas fa-trash"></i></button>
+                          @if (!x.reserve) {
+                            <button class="p-icon-btn danger" title="Supprimer" (click)="supprimerTypeMvt(x)"><i class="fas fa-trash"></i></button>
+                          }
                         }
                       </td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="7" class="p-empty">Aucun type de mouvement.</td></tr>
+                    <tr><td colspan="6" class="p-empty">Aucun type de mouvement.</td></tr>
                   }
                 </tbody>
               </table>
@@ -1446,7 +1447,6 @@
           </div>
           <div class="form-group"><label class="form-label">Ordre d'affichage</label><input type="number" min="0" class="form-control" formControlName="ordre" /></div>
         </div>
-        <label class="p-check" style="margin-bottom:8px"><input type="checkbox" formControlName="avec_tournee" /> Demande une tournée / destination</label>
         <label class="p-check"><input type="checkbox" formControlName="actif" /> Actif</label>
         <div class="p-modal-actions">
           <button type="button" class="btn btn-outline" (click)="typeMvtEdite.set(undefined)">Annuler</button>

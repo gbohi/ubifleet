@@ -280,8 +280,11 @@ class ReleveKilometrage(models.Model):
     heure_releve = models.TimeField(null=True, blank=True, verbose_name='Heure du relevé')
     # Code d'un type de mouvement paramétrable (Paramètres › Types de mouvement)
     type_mouvement = models.CharField(max_length=20, default='releve')
-    tournee  = models.CharField(max_length=200, blank=True, null=True,
-                                verbose_name='Tournée / Destination')
+    # Obligatoire pour le type de mouvement « tournée », vide pour les autres
+    tournee  = models.ForeignKey(
+        'parametrage.Tournee', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='releves_kilometrage', verbose_name='Tournée'
+    )
     notes    = models.TextField(blank=True)
     chauffeur = models.ForeignKey(
         'chauffeurs.Chauffeur', on_delete=models.SET_NULL,

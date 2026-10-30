@@ -336,9 +336,6 @@ export class CarburantApiService extends ApiBaseService {
     const params = motif ? this.buildParams({ motif }) : undefined;
     return this.http.delete(`${API}/carburant/pleins/${id}/`, { params });
   }
-  validerPlein(id: string, data: { statut: string; motif?: string } = { statut: 'valide' }): Observable<any> {
-    return this.http.post(`${API}/carburant/pleins/${id}/valider/`, data);
-  }
   getAnomalies(): Observable<any> {
     return this.http.get(`${API}/carburant/pleins/anomalies/`);
   }

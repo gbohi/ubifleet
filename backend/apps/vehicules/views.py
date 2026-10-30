@@ -18,7 +18,6 @@ from .models import Vehicule, DocumentVehicule, TypeDocumentVehicule, ReleveKilo
 from .serializers import (
     VehiculeListSerializer, VehiculeDetailSerializer,
     VehiculeWriteSerializer, DocumentVehiculeSerializer,
-    VehiculeKilometrageSerializer,
     ReleveKilometrageSerializer, HistoriqueImmatriculationSerializer,
     AffectationVehiculeSerializer,
     TypeDocumentVehiculeSerializer,
@@ -132,45 +131,17 @@ class VehiculeViewSet(viewsets.ModelViewSet):
     def kilometrage(self, request, pk=None):
         """Mise à jour du kilométrage + historisation du relevé."""
         vehicule = self.get_object()
-        serializer = VehiculeKilometrageSerializer(
-            data=request.data,
-            context={'vehicule': vehicule}
-        )
-        serializer.is_valid(raise_exception=True)
-        date_releve = serializer.validated_data['date_releve']
-        hors_delai = fenetre(request.user, RELEVES).controler_date(date_releve, 'date_releve')
         old_km = vehicule.kilometrage_actuel
-        new_km = serializer.validated_data['kilometrage']
-
-        # Historiser le relevé (avec chauffeur si fourni)
-        chauffeur_id = request.data.get('chauffeur')
-        from apps.chauffeurs.models import Chauffeur as ChauffeurModel
-        chauffeur_obj = None
-        if chauffeur_id:
-            try:
-                chauffeur_obj = ChauffeurModel.objects.get(pk=chauffeur_id)
-            except ChauffeurModel.DoesNotExist:
-                pass
-
-        from apps.parametrage.models import TypeMouvement
-        type_mouvement = request.data.get('type_mouvement') or 'releve'
-        if not TypeMouvement.objects.filter(code=type_mouvement, actif=True).exists():
-            return Response({'detail': 'Type de mouvement inconnu ou désactivé.'}, status=400)
-        controler_agence(request.user, {'chauffeur': chauffeur_obj})
-
-        ReleveKilometrage.objects.create(
-            vehicule=vehicule,
-            kilometrage=new_km,
-            date_releve=date_releve,
-            heure_releve=serializer.validated_data['heure_releve'],
-            type_mouvement=type_mouvement,
-            chauffeur=chauffeur_obj,
-            tournee=request.data.get('tournee') or '',
-            notes=request.data.get('notes') or '',
-            photo_tableau_bord=request.FILES.get('photo_tableau_bord') or None,
-            created_by=request.user if request.user.is_authenticated else None,
-            **(tracer_hors_delai(request.user) if hors_delai else {}),
-        )
+        # Mêmes règles que la saisie d'un relevé (POST /vehicules/releves-km/)
+        data = {k: v for k, v in request.data.items()}
+        data['vehicule'] = str(vehicule.pk)
+        data.setdefault('type_mouvement', 'releve')
+        serializer = ReleveKilometrageSerializer(data=data, context=self.get_serializer_context())
+        serializer.is_valid(raise_exception=True)
+        controler_agence(request.user, serializer.validated_data)
+        hors_delai = fenetre(request.user, RELEVES).controler_date(
+            serializer.validated_data['date_releve'], 'date_releve')
+        serializer.save(created_by=request.user, **(tracer_hors_delai(request.user) if hors_delai else {}))
         # Compteur recalculé à partir des saisies (un relevé antérieur ne le fait pas baisser)
         recalculer_kilometrage(vehicule)
 
@@ -530,12 +501,13 @@ class ReleveKilometrageViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['vehicule', 'type_mouvement', 'date_releve', 'chauffeur']
-    search_fields    = ['vehicule__immatriculation', 'chauffeur__nom', 'chauffeur__prenom', 'tournee']
+    search_fields    = ['vehicule__immatriculation', 'chauffeur__nom', 'chauffeur__prenom',
+                        'tournee__code', 'tournee__libelle']
     ordering_fields  = ['date_releve', 'heure_releve', 'kilometrage', 'created_at']
 
     def get_queryset(self):
         return filtrer_par_agence(ReleveKilometrage.objects.select_related(
-            'vehicule', 'created_by'
+            'vehicule', 'created_by', 'chauffeur', 'tournee', 'hors_delai_par'
         ), self.request.user, 'vehicule__agence')
 
     def perform_create(self, serializer):

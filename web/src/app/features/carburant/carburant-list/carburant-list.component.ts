@@ -8,7 +8,7 @@ import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 import { DecimalPipe, DatePipe } from '@angular/common';
 import { CarburantStore } from '../../../store/carburant/carburant.store';
 import { AgenceApiService, VehiculeApiService, CarburantApiService } from '../../../core/services/api.service';
-import { Agence, PleinCarburant, StatutValidation } from '../../../core/models';
+import { Agence, PleinCarburant } from '../../../core/models';
 import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 
@@ -72,14 +72,6 @@ export class CarburantListComponent implements OnInit, OnDestroy {
   deleteConfirm = signal<PleinCarburant | null>(null);
   deleteEnCours = signal(false);
   deleteErreur  = signal('');
-
-  readonly statutChips = [
-    { label: 'Tous',       value: '' },
-    { label: 'En attente', value: 'en_attente' },
-    { label: 'Validés',    value: 'valide' },
-    { label: 'Anomalies',  value: 'anomalie' },
-    { label: 'Rejetés',    value: 'rejete' },
-  ];
 
   readonly moisList = [
     { val: '', label: 'Tous les mois' },
@@ -213,11 +205,6 @@ export class CarburantListComponent implements OnInit, OnDestroy {
     this.store.loadPleins();
   }
 
-  onStatutFilter(val: string): void {
-    this.store.setFilter('statut_validation', val);
-    this.store.loadPleins();
-  }
-
   onMoisFilter(event: Event): void {
     this.store.setFilter('mois', (event.target as HTMLSelectElement).value);
     this.store.loadPleins();
@@ -237,14 +224,6 @@ export class CarburantListComponent implements OnInit, OnDestroy {
   goToEdit(event: Event, id: string): void {
     event.stopPropagation();
     this.router.navigate(['/carburant', id, 'modifier']);
-  }
-
-  valider(event: Event, id: string): void {
-    event.stopPropagation();
-    this.carburantApi.validerPlein(id).subscribe({
-      next: () => this.store.loadPleins(),
-      error: () => {},
-    });
   }
 
   confirmDelete(event: Event, plein: PleinCarburant): void {
@@ -289,16 +268,6 @@ export class CarburantListComponent implements OnInit, OnDestroy {
     const range: number[] = [];
     for (let i = Math.max(1, cur - 2); i <= Math.min(total, cur + 2); i++) range.push(i);
     return range;
-  }
-
-  statutBadgeClass(statut: StatutValidation): string {
-    const map: Record<string, string> = {
-      normal:     'badge-green',
-      anomalie:   'badge-danger',
-      en_attente: 'badge-warning',
-      valide:     'badge-green',
-    };
-    return map[statut] ?? 'badge-gray';
   }
 
   // ── Consommation L/100 ──

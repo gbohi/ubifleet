@@ -7,7 +7,7 @@ export interface TypeMouvementRef {
   code: string;
   libelle: string;
   couleur: 'green' | 'orange' | 'blue' | 'red' | 'gray';
-  avec_tournee: boolean;
+  reserve?: boolean;     // type « tournée » : ni supprimable ni recodable
   actif: boolean;
 }
 
@@ -44,10 +44,5 @@ export class TypesMouvementService {
 
   classeBadge(code: string | null | undefined): string {
     return CLASSE_BADGE[this.trouver(code)?.couleur ?? 'gray'] ?? 'badge-gray';
-  }
-
-  /** Le type demande-t-il une tournée / destination ? */
-  avecTournee(code: string | null | undefined): boolean {
-    return !!this.trouver(code)?.avec_tournee;
   }
 }

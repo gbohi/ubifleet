@@ -16,7 +16,7 @@ import {
   ParametrageApiService
 } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
-import { FenetreSaisieService, messageErreurApi, heureLocale } from '../../../core/services/fenetre-saisie.service';
+import { ReleveFormComponent } from '../../../shared/releve-form/releve-form.component';
 import {
   Intervention, PleinCarburant, DocumentVehicule,
   StatutIntervention, ContratAssurance, HistoriqueImmatriculation,
@@ -28,7 +28,7 @@ type TabType = 'infos' | 'carburant' | 'entretiens' | 'assurance' | 'documents' 
 @Component({
   selector: 'ubi-vehicule-detail',
   standalone: true,
-  imports: [RouterLink, DecimalPipe, DatePipe, ReactiveFormsModule],
+  imports: [RouterLink, DecimalPipe, DatePipe, ReactiveFormsModule, ReleveFormComponent],
   templateUrl: './vehicule-detail.component.html',
   styleUrls: ['./vehicule-detail.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -93,8 +93,6 @@ export class VehiculeDetailComponent implements OnInit {
 
   typesDocument = signal<{ id: number; code: string; libelle: string }[]>([]);
 
-  // ── Données chauffeurs pour les modaux ──
-  chauffeurs = signal<{ id: string; nom_complet: string }[]>([]);
 
   // ── Modal changement immatriculation ──
   showImmatModal    = signal(false);
@@ -106,38 +104,25 @@ export class VehiculeDetailComponent implements OnInit {
   immatSuccess      = signal('');
   historiqueImmat   = signal<HistoriqueImmatriculation[]>([]);
 
-  // ── Modal kilométrage ──
+  // ── Formulaire de relevé kilométrique ──
   showKmModal     = signal(false);
-  kmValue         = signal<number>(0);
-  kmDate          = signal(new Date().toISOString().split('T')[0]);
-  /** Heure saisie ; null = heure actuelle du serveur. */
-  kmHeure         = signal<string | null>(null);
-  kmHeureEffective(): string { return this.kmHeure() ?? this.fenetres.heureServeur() ?? heureLocale(); }
-  kmTypeMouvement = signal<string>('releve');
+  // ── Chauffeurs (modal d'affectation) ──
+  chauffeurs = signal<{ id: string; nom_complet: string }[]>([]);
   // Types de mouvement paramétrables (Paramètres › Types de mouvement)
   typesMvt = inject(TypesMouvementService);
-  kmChauffeur     = signal('');
-  kmTournee       = signal('');
-  kmNotes         = signal('');
-  kmLoading       = signal(false);
-  kmError         = signal('');
-  readonly fenetres = inject(FenetreSaisieService);
-  kmDateErreur    = computed(() => this.fenetres.erreur('releves', this.kmDate()));
-  kmPhoto         = signal<File | null>(null);
-  kmPhotoPreview  = signal<string | null>(null);
   photoLightbox   = signal<string | null>(null);
 
   ngOnInit(): void {
     this.typesMvt.charger();
-    this.store.loadVehiculeDetail(this.id());
-    this.vehiculeApi.getTypesDocument(true).subscribe({
-      next: (list) => this.typesDocument.set(list ?? []),
-      error: () => {},
-    });
-    this.chauffeurApi.getAll({ page_size: 200, statut: 'actif' }).subscribe({
+    this.chauffeurApi.getAll({ page_size: 1000, statut: 'actif' }).subscribe({
       next: (res) => this.chauffeurs.set(
         (res.results ?? []).map((c: any) => ({ id: c.id, nom_complet: c.nom_complet }))
       ),
+      error: () => {},
+    });
+    this.store.loadVehiculeDetail(this.id());
+    this.vehiculeApi.getTypesDocument(true).subscribe({
+      next: (list) => this.typesDocument.set(list ?? []),
       error: () => {},
     });
   }
@@ -448,116 +433,17 @@ export class VehiculeDetailComponent implements OnInit {
   }
 
   // ── Kilométrage ──
-  openKmModal(): void {
-    const v = this.store.selectedVehicule();
-    this.kmValue.set(v ? v.kilometrage_actuel + 1 : 0);
-    this.kmDate.set(this.fenetres.max('releves') ?? new Date().toISOString().split('T')[0]);
-    this.kmHeure.set(null);
-    this.fenetres.charger();
-    this.kmTypeMouvement.set('releve');
-    this.kmChauffeur.set('');
-    this.kmTournee.set('');
-    this.kmNotes.set('');
-    this.kmError.set('');
-    this.kmPhoto.set(null);
-    this.kmPhotoPreview.set(null);
-    this.showKmModal.set(true);
-  }
+  openKmModal(): void { this.showKmModal.set(true); }
 
-  closeKmModal(): void {
+  /** Relevé enregistré : compteur recalculé par le serveur, historique à recharger. */
+  apresReleve(): void {
     this.showKmModal.set(false);
-    this.kmLoading.set(false);
-    this.kmError.set('');
-    this.kmPhoto.set(null);
-    this.kmPhotoPreview.set(null);
-  }
-
-  onKmPhotoChange(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
-    this.kmPhoto.set(file);
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => this.kmPhotoPreview.set(e.target?.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      this.kmPhotoPreview.set(null);
-    }
+    this.store.loadVehiculeDetail(this.id());
+    if (this.relevesKm().length || this.activeTab() === 'historique-km') this.loadRelevesKm();
   }
 
   openPhotoLightbox(url: string): void { this.photoLightbox.set(url); }
   closePhotoLightbox(): void           { this.photoLightbox.set(null); }
-
-  onKmInput(event: Event): void {
-    this.kmValue.set(parseInt((event.target as HTMLInputElement).value, 10) || 0);
-  }
-
-  onKmDateInput(event: Event): void {
-    this.kmDate.set((event.target as HTMLInputElement).value);
-  }
-
-  onKmTypeMouvement(event: Event): void {
-    this.kmTypeMouvement.set((event.target as HTMLSelectElement).value as any);
-  }
-
-  onKmChauffeur(event: Event): void {
-    this.kmChauffeur.set((event.target as HTMLSelectElement).value);
-  }
-
-  onKmTournee(event: Event): void {
-    this.kmTournee.set((event.target as HTMLInputElement).value);
-  }
-
-  onKmNotes(event: Event): void {
-    this.kmNotes.set((event.target as HTMLTextAreaElement).value);
-  }
-
-  saveKilometrage(): void {
-    const v = this.store.selectedVehicule();
-    if (!v) return;
-
-    const km = this.kmValue();
-    if (!km || km <= 0) {
-      this.kmError.set('Veuillez saisir un kilométrage valide.');
-      return;
-    }
-    if (this.kmDateErreur()) { this.kmError.set(this.kmDateErreur()!); return; }
-    if (!this.kmHeureEffective()) { this.kmError.set('Veuillez saisir une heure.'); return; }
-
-    // Avertissement si inférieur (pas bloquant - on laisse passer)
-    const type = this.kmTypeMouvement();
-    if (type === 'releve' && km < v.kilometrage_actuel) {
-      this.kmError.set(
-        `⚠️ Ce kilométrage (${km.toLocaleString('fr-FR')} km) est inférieur au kilométrage actuel (${v.kilometrage_actuel.toLocaleString('fr-FR')} km). L'enregistrement continue.`
-      );
-      // On NE fait PAS return — on laisse l'enregistrement se faire
-    }
-
-    this.kmLoading.set(true);
-    this.kmError.set('');
-    this.vehiculeApi.updateKilometrage(this.id(), {
-      kilometrage:          km,
-      date_releve:          this.kmDate(),
-      heure_releve:         this.kmHeureEffective(),
-      type_mouvement:       this.kmTypeMouvement(),
-      chauffeur:            this.kmChauffeur() || undefined,
-      tournee:              this.kmTournee() || undefined,
-      notes:                this.kmNotes() || undefined,
-      photo_tableau_bord:   this.kmPhoto() || null,
-    }).subscribe({
-      next: () => {
-        this.kmLoading.set(false);
-        this.closeKmModal();
-        this.store.loadVehiculeDetail(this.id());
-      },
-      error: (err) => {
-        this.kmLoading.set(false);
-        this.kmError.set(messageErreurApi(err, 'Erreur lors de la mise à jour.'));
-      },
-      complete: () => {
-        this.kmLoading.set(false);
-      },
-    });
-  }
 
   openImmatModal(): void {
     this.immatError.set('');

@@ -1,0 +1,156 @@
+<div class="modal-backdrop">
+  <div class="modal-container rf-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="fas fa-tachometer-alt"></i>
+        {{ edition() ? 'Corriger le relevé' : 'Nouveau relevé kilométrique' }}
+      </div>
+      <button type="button" class="modal-close" title="Fermer" (click)="ferme.emit()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="enregistrer()" novalidate class="rf-form">
+
+      @if (!vehiculeId() && !edition()) {
+        <div class="form-group">
+          <label class="form-label" for="rf-vehicule">Véhicule *</label>
+          <ubi-select-recherche formControlName="vehicule" inputId="rf-vehicule"
+                                placeholder="Rechercher une immatriculation…"
+                                [options]="vehicules()" [invalid]="invalide('vehicule')" />
+          @if (invalide('vehicule')) {
+            <div class="form-error"><i class="fas fa-times-circle"></i> Le véhicule est requis.</div>
+          }
+        </div>
+      }
+
+      @if (vehiculeInfo(); as v) {
+        <div class="rf-bandeau">
+          <div>
+            <span class="rf-bandeau-label">Véhicule</span>
+            <span class="rf-bandeau-val">{{ v.immatriculation }}</span>
+          </div>
+          <div>
+            <span class="rf-bandeau-label">Kilométrage actuel</span>
+            <span class="rf-bandeau-val rf-bandeau-km"><i class="fas fa-road"></i> {{ v.km | number:'1.0-0' }} km</span>
+          </div>
+        </div>
+      }
+
+      @if (error()) {
+        <div class="rf-erreur"><i class="fas fa-exclamation-triangle"></i> {{ error() }}</div>
+      }
+
+      <div class="form-row-3">
+        <div class="form-group">
+          <label class="form-label" for="rf-km">Kilométrage (km) *</label>
+          <input id="rf-km" type="number" formControlName="kilometrage" class="form-control"
+                 step="1" min="0" placeholder="Valeur du compteur" [class.is-invalid]="invalide('kilometrage')" />
+          @if (invalide('kilometrage')) {
+            <div class="form-error"><i class="fas fa-times-circle"></i> Kilométrage requis.</div>
+          }
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="rf-date">Date du relevé *</label>
+          <input id="rf-date" type="date" formControlName="date_releve" class="form-control"
+                 [attr.min]="fenetres.min('releves')" [attr.max]="fenetres.max('releves')"
+                 [class.is-invalid]="f.date_releve.invalid && (f.date_releve.touched || dateErreur())" />
+          @if (dateErreur(); as msg) {
+            <div class="form-error"><i class="fas fa-times-circle"></i> {{ msg }}</div>
+          } @else if (fenetres.horsDelai('releves', f.date_releve.value)) {
+            <div class="form-hint hint-warning"><i class="fas fa-exclamation-triangle"></i> Saisie hors délai : elle sera tracée à votre nom.</div>
+          } @else if (fenetres.aide('releves')) {
+            <div class="form-hint"><i class="fas fa-calendar-check"></i> {{ fenetres.aide('releves') }}</div>
+          }
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="heure-releve">Heure du relevé {{ heureFacultative() ? '' : '*' }}</label>
+          <input id="heure-releve" type="time" formControlName="heure_releve" class="form-control"
+                 [class.is-invalid]="invalide('heure_releve')" />
+          @if (invalide('heure_releve')) {
+            <div class="form-error"><i class="fas fa-times-circle"></i> L'heure est requise.</div>
+          } @else if (heureFacultative() && !f.heure_releve.value) {
+            <div class="form-hint">Relevé enregistré sans heure : renseignez-la si vous la connaissez.</div>
+          } @else {
+            <div class="form-hint"><i class="fas fa-clock"></i> Ordonne les relevés d'une même journée.</div>
+          }
+        </div>
+      </div>
+
+      <div class="form-group">
+        <span class="form-label">Type de mouvement *</span>
+        <div class="rf-types" role="radiogroup">
+          @for (t of typesMvt.actifs(); track t.code) {
+            <label class="rf-type" [class.active]="f.type_mouvement.value === t.code">
+              <input type="radio" formControlName="type_mouvement" [value]="t.code" />
+              <i class="fas" [class]="icone(t.code)"></i>
+              <span>{{ t.libelle }}</span>
+            </label>
+          }
+        </div>
+      </div>
+
+      @if (typeTournee()) {
+        <div class="form-group">
+          <label class="form-label" for="rf-tournee">Tournée *</label>
+          <ubi-select-recherche formControlName="tournee" inputId="rf-tournee"
+                                placeholder="Rechercher une tournée (code ou libellé)…"
+                                [options]="tourneesProposees()" [invalid]="invalide('tournee')" />
+          @if (invalide('tournee')) {
+            <div class="form-error"><i class="fas fa-times-circle"></i> La tournée est obligatoire pour ce type de mouvement.</div>
+          }
+        </div>
+      }
+
+      <div class="form-group">
+        <label class="form-label" for="rf-chauffeur">Chauffeur</label>
+        <ubi-select-recherche formControlName="chauffeur" inputId="rf-chauffeur"
+                              placeholder="Rechercher par matricule ou nom…" [options]="chauffeurs()" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="rf-notes">Notes</label>
+        <textarea id="rf-notes" formControlName="notes" class="form-control" rows="2"
+                  placeholder="Observations, état du véhicule…"></textarea>
+      </div>
+
+      <div class="form-group">
+        <span class="form-label"><i class="fas fa-camera"></i> Photo tableau de bord <span class="rf-optionnel">(optionnel)</span></span>
+        @if (photoPreview()) {
+          <div class="rf-apercu">
+            <img [src]="photoPreview()!" alt="Aperçu de la photo" />
+            <button type="button" title="Retirer la photo" (click)="photoFile.set(null); photoPreview.set(null)">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        } @else if (edition() && releve()!.photo_tableau_bord_url) {
+          <div class="form-hint"><i class="fas fa-image"></i> Une photo est déjà enregistrée ; en choisir une autre la remplace.</div>
+        }
+        <label class="rf-photo">
+          <i class="fas fa-camera"></i> {{ photoPreview() ? 'Changer la photo' : 'Sélectionner une photo' }}
+          <input type="file" accept="image/*" (change)="onPhotoChange($event)" />
+        </label>
+      </div>
+
+      @if (edition()) {
+        <div class="form-group">
+          <label class="form-label" for="motif-releve">Motif de la correction {{ motifRequis() ? '*' : '(facultatif)' }}</label>
+          @if (motifRequis()) {
+            <div class="form-hint hint-warning rf-motif-aide"><i class="fas fa-history"></i> Correction hors délai : le motif est obligatoire.</div>
+          }
+          <textarea id="motif-releve" class="form-control" rows="2" [value]="motifCorrection()"
+                    (input)="motifCorrection.set($any($event.target).value)"
+                    placeholder="ex. Erreur de frappe sur le kilométrage"></textarea>
+        </div>
+      }
+
+      <div class="rf-actions">
+        <button type="button" class="btn btn-outline" (click)="ferme.emit()">Annuler</button>
+        <button type="submit" class="btn btn-green" [disabled]="saving() || (motifRequis() && !motifCorrection().trim())">
+          <i class="fas" [class.fa-save]="!saving()" [class.fa-circle-notch]="saving()" [class.fa-spin]="saving()"></i>
+          Enregistrer
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

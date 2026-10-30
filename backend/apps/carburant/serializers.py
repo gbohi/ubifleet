@@ -58,6 +58,8 @@ class PleinSerializer(FenetreSaisieSerializerMixin, serializers.ModelSerializer)
             'consommation_calculee', 'statut_validation', 'motif_anomalie',
             'valide_par', 'date_validation', 'created_at', 'kilometrage_depart',
         ] + FenetreSaisieSerializerMixin.LECTURE_SEULE_FENETRE
+        # Agence déduite du véhicule si elle n'est pas transmise
+        extra_kwargs = {'agence': {'required': False}}
 
     def get_chauffeur_nom(self, obj):
         return obj.chauffeur.nom_complet if obj.chauffeur else None
@@ -71,19 +73,14 @@ class PleinSerializer(FenetreSaisieSerializerMixin, serializers.ModelSerializer)
         # Un plein ancien sans heure reste modifiable tant qu'on ne touche pas à ce champ.
         if (inst is None or 'heure_plein' in attrs) and not attrs.get('heure_plein'):
             raise serializers.ValidationError({'heure_plein': "L'heure du plein est obligatoire."})
+        if (inst is None or 'tournee' in attrs) and not attrs.get('tournee'):
+            raise serializers.ValidationError({'tournee': "La tournée est obligatoire."})
         controler_km(attrs.get('vehicule', inst and inst.vehicule),
                      attrs.get('kilometrage_releve', inst and inst.kilometrage_releve),
                      attrs.get('date_plein', inst and inst.date_plein),
                      'kilometrage_releve', exclure=inst,
                      heure=attrs.get('heure_plein', inst and inst.heure_plein))
         return attrs
-
-
-class PleinValidationSerializer(serializers.Serializer):
-    statut = serializers.ChoiceField(
-        choices=[('valide', 'Validé'), ('rejete', 'Rejeté')]
-    )
-    motif = serializers.CharField(required=False, allow_blank=True)
 
 
 class RapprochementSerializer(serializers.ModelSerializer):

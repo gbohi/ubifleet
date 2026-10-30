@@ -14,7 +14,7 @@ from django.db.models import Sum, Avg, Count, Q
 
 from .models import PleinsCarburant, DotationCarburant, Station, RapprochementCarburant, PrixCarburant
 from .serializers import (
-    PleinSerializer, PleinValidationSerializer,
+    PleinSerializer,
     DotationSerializer, StationSerializer, RapprochementSerializer, PrixCarburantSerializer,
 )
 from apps.accounts.permissions import IsFleetManager, RoleBasedPermission
@@ -46,7 +46,6 @@ class PleinFilter(FilterSet):
 class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
     """
     CRUD pleins de carburant.
-    POST /carburant/pleins/{id}/valider/   — valider ou rejeter un plein
     GET  /carburant/pleins/anomalies/      — liste des anomalies
     GET  /carburant/pleins/stats/          — statistiques carburant
     GET  /carburant/pleins/consommation/   — rapport consommation par véhicule
@@ -67,7 +66,6 @@ class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
             'update': 'gestionnaire',
             'partial_update': 'gestionnaire',
             'destroy': 'responsable_flotte',
-            'valider': 'operateur',
             'anomalies': 'operateur',
             ACTION_HORS_DELAI: 'responsable_flotte',   # droit complémentaire, cf. fenetre_saisie
     }
@@ -92,7 +90,8 @@ class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
         user = self.request.user
         data = serializer.validated_data
         controler_agence(user, data)
-        agence = agence_pour_creation(user, data.get('agence'))
+        vehicule = data.get('vehicule')
+        agence = agence_pour_creation(user, data.get('agence') or (vehicule and vehicule.agence))
         extra = {}
         if fenetre(user, CARBURANT).controler_date(data['date_plein'], 'date_plein'):
             extra.update(tracer_hors_delai(user))
@@ -106,21 +105,6 @@ class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
         plein = serializer.save(created_by=user, agence=agence, **extra)
         # Un plein antérieur à d'autres change la consommation des suivants
         self.apres_correction([plein.vehicule], [plein.date_plein])
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def valider(self, request, pk=None):
-        """Valider ou rejeter un plein."""
-        plein = self.get_object()
-        serializer = PleinValidationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        plein.statut_validation = serializer.validated_data['statut']
-        if serializer.validated_data['statut'] == 'rejete':
-            plein.motif_anomalie = serializer.validated_data.get('motif', '')
-        plein.valide_par = request.user
-        plein.date_validation = timezone.now()
-        plein.save()
-        return Response({'detail': f"Plein {plein.get_statut_validation_display()}."})
 
     @action(detail=False, methods=['get'])
     def anomalies(self, request):

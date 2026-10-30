@@ -7,7 +7,7 @@ from .models import ReleveKilometrage, HistoriqueImmatriculation, AffectationVeh
 class ReleveKilometrageAdmin(admin.ModelAdmin):
     list_display = ['vehicule', 'kilometrage', 'date_releve', 'type_mouvement', 'tournee']
     list_filter  = ['type_mouvement', 'date_releve']
-    search_fields = ['vehicule__immatriculation', 'tournee']
+    search_fields = ['vehicule__immatriculation', 'tournee__code', 'tournee__libelle']
 
 @admin.register(HistoriqueImmatriculation)
 class HistoriqueImmatriculationAdmin(admin.ModelAdmin):

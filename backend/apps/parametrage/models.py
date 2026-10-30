@@ -156,7 +156,10 @@ class ModeleVehicule(models.Model):
 
 
 class TypeMouvement(models.Model):
-    """Types de mouvement des relevés kilométriques (sortie, retour, tournée...)."""
+    """Types de mouvement des relevés kilométriques (sortie, retour, tournée...).
+    Le type `tournee` est réservé : il demande la tournée (référentiel Tournée)
+    et ne peut être ni supprimé ni recodé."""
+    CODE_TOURNEE = 'tournee'
 
     class Couleur(models.TextChoices):
         VERT   = 'green',  'Vert'
@@ -169,9 +172,6 @@ class TypeMouvement(models.Model):
                                     help_text="Identifiant technique, enregistré sur les relevés.")
     libelle      = models.CharField(max_length=100)
     couleur      = models.CharField(max_length=10, choices=Couleur.choices, default=Couleur.GRIS)
-    avec_tournee = models.BooleanField(
-        default=False, verbose_name="Demande une tournée / destination",
-        help_text="Affiche le champ tournée / destination lors de la saisie du relevé.")
     ordre        = models.PositiveSmallIntegerField(default=0)
     actif        = models.BooleanField(default=True)
     created_at   = models.DateTimeField(auto_now_add=True)

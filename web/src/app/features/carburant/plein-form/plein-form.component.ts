@@ -6,8 +6,10 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { AbstractControl, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
-import { CarburantApiService, AgenceApiService, VehiculeApiService, ChauffeurApiService, ParametrageApiService } from '../../../core/services/api.service';
-import { Agence } from '../../../core/models';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { CarburantApiService } from '../../../core/services/api.service';
+import { OptionTournee, OptionVehicule, OptionsSaisieService, tourneesDuVehicule } from '../../../core/services/options-saisie.service';
+import { OptionRecherche, SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
 import { FenetreSaisieService, messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/historique-corrections.component';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
@@ -15,7 +17,7 @@ import { SuppressionMotifComponent } from '../../../shared/corrections/suppressi
 @Component({
   selector: 'ubi-plein-form',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, DecimalPipe, DatePipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent],
+  imports: [ReactiveFormsModule, RouterLink, DecimalPipe, DatePipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent, SelectRechercheComponent],
   templateUrl: './plein-form.component.html',
   styleUrls: ['./plein-form.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,18 +28,14 @@ export class PleinFormComponent implements OnInit {
   private fb           = inject(FormBuilder);
   private router       = inject(Router);
   private carburantApi = inject(CarburantApiService);
-  private agenceApi    = inject(AgenceApiService);
-  private vehiculeApi  = inject(VehiculeApiService);
-  private chauffeurApi   = inject(ChauffeurApiService);
-  private parametrageApi = inject(ParametrageApiService);
+  private options      = inject(OptionsSaisieService);
   readonly fenetres      = inject(FenetreSaisieService);
 
   isEditMode = computed(() => !!this.id());
-  agences    = signal<Agence[]>([]);
-  vehicules  = signal<{ id: string; immatriculation: string; designation: string; agenceId: string }[]>([]);
-  chauffeurs = signal<{ id: string; nom_complet: string }[]>([]);
-  tournees   = signal<any[]>([]);
-  stations   = signal<any[]>([]);
+  vehicules  = signal<OptionVehicule[]>([]);
+  chauffeurs = signal<OptionRecherche[]>([]);
+  private tournees = signal<OptionTournee[]>([]);
+  stations   = signal<OptionRecherche[]>([]);
   /** Prix en vigueur à la date du plein pour le carburant du véhicule. */
   prixReference = signal<{ prix: number | null; date_effet: string | null; type_carburant: string } | null>(null);
   private dernierPrixAuto: number | null = null;
@@ -70,7 +68,7 @@ export class PleinFormComponent implements OnInit {
   form = this.fb.group({
     vehicule:           ['', Validators.required],
     chauffeur:          [null as string | null],
-    tournee:            [null as number | null],
+    tournee:            [null as number | null, Validators.required],
     station:            [null as string | null],
     date_plein:         [new Date().toISOString().split('T')[0],
                          [Validators.required, (c: AbstractControl) => this.fenetres.erreur('carburant', c.value) ? { fenetre: true } : null]],
@@ -79,11 +77,15 @@ export class PleinFormComponent implements OnInit {
     prix_litre:         [null as number | null],
     bon_carburant:      [''],
     kilometrage_releve: [null as number | null, Validators.required],
-    agence:             ['', Validators.required],
     notes:              [''],
   });
 
   get f() { return this.form.controls; }
+
+  private vehiculeChoisi = toSignal(this.form.controls.vehicule.valueChanges, { initialValue: '' });
+  /** Tournées de l'agence du véhicule (l'agence du plein est celle du véhicule). */
+  tourneesProposees = computed(() => tourneesDuVehicule(
+    this.tournees(), this.vehicules().find(v => v.value === this.vehiculeChoisi())?.agence));
 
   /** Plein enregistré sans heure (avant qu'elle soit obligatoire) : à compléter. */
   heureManquante = signal(false);
@@ -120,40 +122,21 @@ export class PleinFormComponent implements OnInit {
     this.fenetres.charger();
     this.dateCourante.set(this.form.controls.date_plein.value);
     this.form.controls.date_plein.valueChanges.subscribe(d => this.dateCourante.set(d));
-    this.parametrageApi.getTournees().subscribe({
-      next: (l) => this.tournees.set(l.filter((t: any) => t.actif)),
-      error: () => {},
-    });
+    this.options.tournees().subscribe({ next: l => this.tournees.set(l), error: () => {} });
+    this.options.vehicules().subscribe({ next: l => this.vehicules.set(l), error: () => {} });
+    this.options.chauffeurs().subscribe({ next: l => this.chauffeurs.set(l), error: () => {} });
     // Stations actives (de l'agence de l'utilisateur et stations communes)
     this.carburantApi.getStations({ page_size: 500 }).subscribe({
-      next: (res: any) => this.stations.set(Array.isArray(res) ? res : (res.results ?? [])),
+      next: (res: any) => this.stations.set((Array.isArray(res) ? res : (res.results ?? [])).map((st: any) => ({
+        value: st.id, label: st.nom,
+        detail: [st.ville, st.est_partenaire ? 'partenaire' : ''].filter(Boolean).join(' · ') || undefined,
+      }))),
       error: () => {},
     });
     // Prix au litre : prix en vigueur à la date du plein, recalculé quand le
     // véhicule ou la date change (sauf si l'utilisateur a saisi un autre prix)
     this.form.controls.date_plein.valueChanges.subscribe(() => this.chargerPrix());
-    this.agenceApi.getAll().subscribe({
-      next: (list) => this.agences.set(Array.isArray(list) ? list : []),
-      error: () => {},
-    });
-
-    this.vehiculeApi.getAll({ page_size: 200 }).subscribe({
-      next: (res) => {
-        const list = Array.isArray(res) ? res : (res.results ?? []);
-        this.vehicules.set(list.map(v => ({
-          id: v.id, immatriculation: v.immatriculation,
-          designation: v.designation, agenceId: v.agence,
-        })));
-      },
-      error: () => {},
-    });
-
-    this.chauffeurApi.getAll({ page_size: 200, statut: 'actif' }).subscribe({
-      next: (res) => this.chauffeurs.set(
-        res.results.map((c: any) => ({ id: c.id, nom_complet: c.nom_complet }))
-      ),
-      error: () => {},
-    });
+    this.form.controls.vehicule.valueChanges.subscribe(v => this.chargerPrix(v ?? undefined));
 
     if (this.isEditMode() && this.id()) {
       this.loading.set(true);
@@ -171,7 +154,6 @@ export class PleinFormComponent implements OnInit {
               prix_litre:         p.prix_litre,
               bon_carburant:      p.bon_carburant,
               kilometrage_releve: p.kilometrage_releve,
-              agence:             p.agence,
               notes:              p.notes ?? '',
             });
             this.heureManquante.set(!p.heure_plein);
@@ -193,13 +175,6 @@ export class PleinFormComponent implements OnInit {
         error: () => this.loading.set(false),
       });
     }
-  }
-
-  onVehiculeChange(event: Event): void {
-    const id = (event.target as HTMLSelectElement).value;
-    const v  = this.vehicules().find(x => x.id === id);
-    if (v && v.agenceId) this.form.patchValue({ agence: v.agenceId });
-    this.chargerPrix(id);
   }
 
   /** `vehiculeId` : valeur venant de l'événement (le contrôle peut ne pas être encore à jour). */
@@ -261,7 +236,12 @@ export class PleinFormComponent implements OnInit {
 
   // ── Submit ──
   onSubmit(): void {
-    if (this.form.invalid || this.saving() || this.lectureSeule()) return;
+    if (this.saving() || this.lectureSeule()) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.error.set('Complétez les champs obligatoires (marqués *).');
+      return;
+    }
     if (this.motifRequis() && !this.motifCorrection().trim()) return;
     this.saving.set(true);
     this.error.set('');

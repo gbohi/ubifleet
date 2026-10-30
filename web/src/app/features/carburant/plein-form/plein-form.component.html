@@ -12,7 +12,7 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">{{ isEditMode() ? 'Modifier le plein' : 'Saisir un plein' }}</h1>
-      <p class="page-subtitle">Enregistrer une prise de carburant</p>
+      <p class="page-subtitle">Enregistrer un plein de carburant</p>
     </div>
     <button class="btn btn-outline btn-sm" (click)="cancel()">
       <i class="fas fa-times"></i> Annuler
@@ -64,75 +64,48 @@
             <div class="section-icon"><i class="fas fa-car"></i></div>
             <div>
               <div class="section-title">Véhicule & Chauffeur</div>
-              <div class="section-sub">Véhicule et chauffeur concernés par la prise</div>
+              <div class="section-sub">Véhicule, chauffeur et tournée concernés par le plein</div>
             </div>
           </div>
           <div class="section-body">
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Véhicule *</label>
-                <select formControlName="vehicule" class="form-control"
-                        [class.is-invalid]="f['vehicule'].invalid && f['vehicule'].touched"
-                        (change)="onVehiculeChange($event)">
-                  <option value="">-- Sélectionner un véhicule --</option>
-                  @for (v of vehicules(); track v.id) {
-                    <option [value]="v.id">{{ v.immatriculation }} — {{ v.designation }}</option>
-                  }
-                </select>
+                <label class="form-label" for="pf-vehicule">Véhicule *</label>
+                <ubi-select-recherche formControlName="vehicule" inputId="pf-vehicule"
+                                      placeholder="Rechercher une immatriculation…" [options]="vehicules()"
+                                      [invalid]="f['vehicule'].invalid && f['vehicule'].touched" />
                 @if (f['vehicule'].invalid && f['vehicule'].touched) {
                   <div class="form-error">
                     <i class="fas fa-times-circle"></i> Le véhicule est requis.
                   </div>
                 }
               </div>
-
               <div class="form-group">
-                <label class="form-label">Chauffeur</label>
-                <select formControlName="chauffeur" class="form-control">
-                  <option [value]="null">-- Aucun --</option>
-                  @for (c of chauffeurs(); track c.id) {
-                    <option [value]="c.id">{{ c.nom_complet }}</option>
-                  }
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Tournée <span style="font-size:11px;color:var(--gray-400)">(optionnel)</span></label>
-                <select formControlName="tournee" class="form-control">
-                  <option [value]="null">-- Aucune --</option>
-                  @for (t of tournees(); track t.id) {
-                    <option [value]="t.id">{{ t.code }} — {{ t.libelle }}</option>
-                  }
-                </select>
+                <label class="form-label" for="pf-chauffeur">Chauffeur</label>
+                <ubi-select-recherche formControlName="chauffeur" inputId="pf-chauffeur"
+                                      placeholder="Rechercher par matricule ou nom…" [options]="chauffeurs()" />
               </div>
             </div>
 
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Station</label>
-                <select formControlName="station" class="form-control">
-                  <option [ngValue]="null">-- Non précisée --</option>
-                  @for (st of stations(); track st.id) {
-                    <option [ngValue]="st.id">{{ st.nom }}{{ st.ville ? ' — ' + st.ville : '' }}{{ st.est_partenaire ? ' (partenaire)' : '' }}</option>
-                  }
-                </select>
+                <label class="form-label" for="pf-tournee">Tournée *</label>
+                <ubi-select-recherche formControlName="tournee" inputId="pf-tournee"
+                                      placeholder="Rechercher une tournée (code ou libellé)…" [options]="tourneesProposees()"
+                                      [invalid]="f['tournee'].invalid && f['tournee'].touched" />
+                @if (f['tournee'].invalid && f['tournee'].touched) {
+                  <div class="form-error"><i class="fas fa-times-circle"></i> La tournée est requise.</div>
+                }
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="pf-station">Station</label>
+                <ubi-select-recherche formControlName="station" inputId="pf-station"
+                                      placeholder="Rechercher une station…" [options]="stations()" />
                 @if (stations().length === 0) {
                   <small style="font-size:11px;color:var(--gray-400)">
                     <i class="fas fa-info-circle"></i> Aucune station : ajoutez-en dans Paramètres › Stations.
                   </small>
                 }
-              </div>
-              <div class="form-group">
-                <label class="form-label">Agence</label>
-                <select formControlName="agence" class="form-control">
-                  <option value="">-- Rempli automatiquement depuis le véhicule --</option>
-                  @for (a of agences(); track a.id) {
-                    <option [value]="a.id">{{ a.nom }}</option>
-                  }
-                </select>
-                <small style="font-size:11px;color:var(--gray-400)">
-                  <i class="fas fa-info-circle"></i>
-                  L'agence est déduite automatiquement du véhicule sélectionné.
-                </small>
               </div>
             </div>
           </div>
@@ -323,7 +296,7 @@
           <i class="fas fa-times"></i> Annuler
         </button>
         <button type="submit" class="btn btn-green"
-                [disabled]="form.invalid || saving() || lectureSeule() || (motifRequis() && !motifCorrection().trim())">
+                [disabled]="saving() || lectureSeule() || (motifRequis() && !motifCorrection().trim())">
           @if (saving()) {
             <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
           } @else if (isEditMode()) {
