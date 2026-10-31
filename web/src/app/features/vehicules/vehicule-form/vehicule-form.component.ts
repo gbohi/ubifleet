@@ -5,13 +5,16 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
-import { VehiculeApiService, AgenceApiService, ChauffeurApiService, ParametrageApiService } from '../../../core/services/api.service';
-import { Agence, Chauffeur } from '../../../core/models';
+import { VehiculeApiService, AgenceApiService, ParametrageApiService } from '../../../core/services/api.service';
+import { Agence } from '../../../core/models';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { OptionsSaisieService } from '../../../core/services/options-saisie.service';
+import { OptionRecherche, SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
 
 @Component({
   selector: 'ubi-vehicule-form',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, SelectRechercheComponent],
   templateUrl: './vehicule-form.component.html',
   styleUrls: ['./vehicule-form.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -25,12 +28,12 @@ export class VehiculeFormComponent implements OnInit {
   private vehiculeApi     = inject(VehiculeApiService);
   private agenceApi       = inject(AgenceApiService);
   private parametrageApi  = inject(ParametrageApiService);
-  private chauffeurApi = inject(ChauffeurApiService);
 
   isEditMode = computed(() => !!this.id());
 
   agences    = signal<Agence[]>([]);
-  chauffeurs = signal<Chauffeur[]>([]);
+  chauffeurs = signal<OptionRecherche[]>([]);
+  private options = inject(OptionsSaisieService);
   loading    = signal(false);
   saving     = signal(false);
   error      = signal('');
@@ -89,7 +92,6 @@ export class VehiculeFormComponent implements OnInit {
     conso_theorique_origine:   [0],
     numero_carte_carburant:    [''],
     kilometrage_revision:            [0],
-    dotation_carburant_mensuelle:    [0, [Validators.min(0)]],
     // Dates
     date_mise_en_service: [''],
     date_acquisition:     [''],
@@ -134,10 +136,7 @@ export class VehiculeFormComponent implements OnInit {
       error: () => {},
     });
 
-    this.chauffeurApi.getAll({ page_size: 100 }).subscribe({
-      next: (res) => this.chauffeurs.set(res.results),
-      error: () => {},
-    });
+    this.options.chauffeurs().subscribe({ next: l => this.chauffeurs.set(l), error: () => {} });
 
     // Mode édition : charger les données du véhicule
     if (this.isEditMode() && this.id()) {
@@ -163,12 +162,14 @@ export class VehiculeFormComponent implements OnInit {
             conso_theorique_origine:         v.conso_theorique_origine ?? 0,
             numero_carte_carburant:          v.numero_carte_carburant ?? '',
             kilometrage_revision:             v.kilometrage_revision,
-            dotation_carburant_mensuelle: Number(v.dotation_carburant_mensuelle),
             date_mise_en_service:         v.date_mise_en_service ?? '',
             date_acquisition:             v.date_acquisition ?? '',
             valeur_acquisition:           v.valeur_acquisition ?? null,
             notes:                        v.notes,
           });
+          // Immatriculation et compteur ont leurs propres saisies (fiche du véhicule)
+          this.form.controls.immatriculation.disable();
+          this.form.controls.kilometrage_actuel.disable();
           this.loading.set(false);
         },
         error: (err) => {
@@ -193,26 +194,33 @@ export class VehiculeFormComponent implements OnInit {
   }
 
   onSubmit(): void {
-    if (this.form.invalid || this.saving()) return;
+    if (this.saving()) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.error.set('Complétez les champs obligatoires (marqués *).');
+      return;
+    }
 
     this.saving.set(true);
     this.error.set('');
     this.success.set('');
 
-    // Nettoyer les valeurs vides
-    const raw = this.form.value;
+    // Création : champs vides omis. Modification : un champ vidé est envoyé vide (null
+    // pour les listes, dates et montants) pour être effacé côté serveur.
+    const raw = this.form.value;   // sans les champs verrouillés (immatriculation, compteur)
+    const NULLABLES = ['numero_chassis', 'affectation', 'chauffeur_attitré', 'statut', 'date_mise_en_service',
+                       'date_acquisition', 'valeur_acquisition', 'marque', 'modele'];
     const payload: Record<string, any> = {};
     Object.entries(raw).forEach(([key, val]) => {
-      if (val !== '' && val !== null && val !== undefined) {
-        // valeur_acquisition : envoyer en string pour éviter
-        // la perte de précision float des grands nombres (ex: 20000000)
-        if (key === 'valeur_acquisition' && typeof val === 'number') {
-          payload[key] = String(Math.round(val));
-        } else {
-          payload[key] = val;
-        }
+      const vide = val === '' || val === null || val === undefined;
+      if (vide) {
+        if (this.isEditMode()) payload[key] = NULLABLES.includes(key) ? null : (typeof val === 'string' ? '' : val);
+        return;
       }
+      // valeur_acquisition en texte : pas de perte de précision sur les grands nombres
+      payload[key] = key === 'valeur_acquisition' && typeof val === 'number' ? String(Math.round(val)) : val;
     });
+    Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
 
     const request = this.isEditMode()
       ? this.vehiculeApi.update(this.id()!, payload)
@@ -228,12 +236,8 @@ export class VehiculeFormComponent implements OnInit {
       },
       error: (err) => {
         this.saving.set(false);
-        if (err?.error) {
-          // Afficher les erreurs de validation du backend
-          const msgs = Object.entries(err.error)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-            .join(' | ');
-          this.error.set(msgs);
+        if (err?.error && typeof err.error === 'object') {
+          this.error.set(messageErreurApi(err, 'Enregistrement impossible.'));
         } else if (err?.status === 0) {
           this.error.set('Serveur inaccessible. Vérifiez que le backend est démarré.');
         } else {

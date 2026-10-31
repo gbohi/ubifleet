@@ -73,9 +73,13 @@
                   formControlName="immatriculation"
                   class="form-control"
                   [class.is-invalid]="f['immatriculation'].invalid && f['immatriculation'].touched"
-                  placeholder="ex: CI-4521-AB"
+                  placeholder="ex: 1004 AB 01"
                   style="text-transform:uppercase"
                 />
+                @if (isEditMode()) {
+                  <div class="form-hint"><i class="fas fa-lock"></i> Pour la changer, utilisez « Changer l'immatriculation »
+                    sur la fiche du véhicule : l'ancienne est conservée dans l'historique.</div>
+                }
                 @if (f['immatriculation'].invalid && f['immatriculation'].touched) {
                   <div class="form-error">
                     <i class="fas fa-times-circle"></i>
@@ -156,7 +160,7 @@
                   [class.is-invalid]="f['annee'].invalid && f['annee'].touched"
                 >
                   @for (a of anneesDisponibles; track a) {
-                    <option [value]="a">{{ a }}</option>
+                    <option [ngValue]="a">{{ a }}</option>
                   }
                 </select>
               </div>
@@ -247,9 +251,9 @@
               <div class="form-group">
                 <label class="form-label">Statut</label>
                 <select formControlName="statut" class="form-control">
-                  <option [value]="null">-- Sélectionner --</option>
+                  <option [ngValue]="null">-- Sélectionner --</option>
                   @for (s of statutsVehicule(); track s.id) {
-                    <option [value]="s.id">{{ s.libelle }}</option>
+                    <option [ngValue]="s.id">{{ s.libelle }}</option>
                   }
                 </select>
               </div>
@@ -259,20 +263,16 @@
               <div class="form-group">
                 <label class="form-label">Affectation / Usage</label>
                 <select formControlName="affectation" class="form-control">
-                  <option [value]="null">-- Sélectionner --</option>
+                  <option [ngValue]="null">-- Sélectionner --</option>
                   @for (a of affectationsUsage(); track a.id) {
-                    <option [value]="a.id">{{ a.libelle }}</option>
+                    <option [ngValue]="a.id">{{ a.libelle }}</option>
                   }
                 </select>
               </div>
               <div class="form-group">
                 <label class="form-label">Chauffeur attitré</label>
-                <select formControlName="chauffeur_attitré" class="form-control">
-                  <option [value]="null">-- Aucun --</option>
-                  @for (c of chauffeurs(); track c.id) {
-                    <option [value]="c.id">{{ c.nom_complet }} ({{ c.matricule }})</option>
-                  }
-                </select>
+                <ubi-select-recherche formControlName="chauffeur_attitré" placeholder="Rechercher par matricule ou nom…"
+                                      [options]="chauffeurs()" />
               </div>
             </div>
           </div>
@@ -284,14 +284,14 @@
             <div class="section-icon"><i class="fas fa-tachometer-alt"></i></div>
             <div>
               <div class="section-title">Données techniques</div>
-              <div class="section-sub">Kilométrage et dotation carburant</div>
+              <div class="section-sub">Kilométrage, consommation de référence et carte carburant</div>
             </div>
           </div>
 
           <div class="section-body">
             <div class="form-row-3">
               <div class="form-group">
-                <label class="form-label">Kilométrage actuel (km)</label>
+                <label class="form-label">{{ isEditMode() ? 'Kilométrage actuel (km)' : "Kilométrage à l'entrée dans le parc (km)" }}</label>
                 <input
                   type="number"
                   formControlName="kilometrage_actuel"
@@ -299,6 +299,10 @@
                   min="0"
                   placeholder="0"
                 />
+                @if (isEditMode()) {
+                  <div class="form-hint"><i class="fas fa-lock"></i> Mis à jour par les relevés et les prises de carburant
+                    (« MAJ kilométrage » sur la fiche).</div>
+                }
               </div>
               <div class="form-group">
                 <label class="form-label">Consommation théorique de référence (L/100km)</label>
@@ -325,17 +329,6 @@
                   class="form-control"
                   min="0"
                   placeholder="0 = non défini"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Dotation carburant (L/mois)</label>
-                <input
-                  type="number"
-                  formControlName="dotation_carburant_mensuelle"
-                  class="form-control"
-                  min="0"
-                  step="0.5"
-                  placeholder="0"
                 />
               </div>
             </div>
@@ -409,7 +402,7 @@
         <button
           type="submit"
           class="btn btn-green"
-          [disabled]="form.invalid || saving()"
+          [disabled]="saving()"
         >
           @if (saving()) {
             <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...

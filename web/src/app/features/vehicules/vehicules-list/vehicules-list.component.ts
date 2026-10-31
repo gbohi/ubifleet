@@ -115,10 +115,13 @@ export class VehiculesListComponent implements OnInit {
     this.deleteConfirm.set(null);
   }
 
+  deleteErreur = signal('');
+
   doDelete(id: string): void {
+    this.deleteErreur.set('');
     this.vehiculeApi.delete(id).subscribe({
       next: () => { this.store.removeVehicule(id); this.deleteConfirm.set(null); },
-      error: () => this.deleteConfirm.set(null),
+      error: (err) => this.deleteErreur.set(err?.error?.detail ?? "L'archivage a échoué."),
     });
   }
 
@@ -165,22 +168,24 @@ export class VehiculesListComponent implements OnInit {
   exportExcel(): void {
     if (this.exportLoading()) return;
     this.exportLoading.set(true);
-    // Récupérer TOUS les véhicules de la base (pas seulement la page courante)
-    this.vehiculeApi.getAll({ page_size: 10000 }).subscribe({
-      next: (res) => {
+    // Tous les véhicules, par pages de 1000 (taille maximale acceptée par le serveur)
+    const lignes: Vehicule[] = [];
+    const page = (n: number) => this.vehiculeApi.getAll({ page: n, page_size: 1000 }).subscribe({
+      next: (res: any) => {
+        lignes.push(...(res.results ?? []));
+        if (res.next) { page(n + 1); return; }
         this.exportLoading.set(false);
-        const rows = res.results ?? [];
-        if (!rows.length) return;
-        this.genererCsv(rows);
+        if (lignes.length) this.genererCsv(lignes);
       },
       error: () => this.exportLoading.set(false),
     });
+    page(1);
   }
 
   private genererCsv(rows: Vehicule[]): void {
     const sep = ';'; const eol = '\r\n';
     const hdrs = ['Immatriculation','Marque','Modèle','Année','Type','Carburant',
-                  'Statut','Agence','Km actuel','Km révision','Mise en service'].join(sep);
+                  'Statut','Agence','Km actuel','Km révision','Conso référence L/100','Carte carburant','Mise en service'].join(sep);
     const data = rows.map((v: Vehicule) => [
       v.immatriculation,
       v.marque_libelle ?? '',
@@ -192,6 +197,8 @@ export class VehiculesListComponent implements OnInit {
       v.agence_detail?.nom ?? '',
       v.kilometrage_actuel ?? 0,
       v.kilometrage_revision ?? '',
+      v.conso_theorique_origine ?? '',
+      v.numero_carte_carburant ?? '',
       v.date_mise_en_service ?? '',
     ].join(sep)).join(eol);
     const csv = '\uFEFF' + hdrs + eol + data;

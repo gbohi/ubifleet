@@ -220,9 +220,9 @@
                 <div class="vc-stat-sep"></div>
                 <div class="vc-stat">
                   <div class="vc-stat-val">
-                    {{ vehicule.dotation_carburant_mensuelle | number:'1.0-0' }}
+                    {{ vehicule.conso_theorique_origine ? (vehicule.conso_theorique_origine | number:'1.0-1') : '—' }}
                   </div>
-                  <div class="vc-stat-lbl">L/mois</div>
+                  <div class="vc-stat-lbl">Réf. L/100</div>
                 </div>
               </div>
 
@@ -256,10 +256,10 @@
                 </button>
                 <button
                   class="btn btn-icon btn-icon-danger"
-                  title="Supprimer"
+                  title="Archiver"
                   (click)="confirmDelete($event, vehicule.id)"
                 >
-                  <i class="fas fa-trash"></i>
+                  <i class="fas fa-archive"></i>
                 </button>
               </div>
             </div>
@@ -347,10 +347,10 @@
                     </button>
                     <button
                       class="btn btn-icon btn-icon-danger"
-                      title="Supprimer"
+                      title="Archiver"
                       (click)="confirmDelete($event, v.id)"
                     >
-                      <i class="fas fa-trash"></i>
+                      <i class="fas fa-archive"></i>
                     </button>
                   </div>
                 </td>
@@ -407,16 +407,19 @@
   <div class="modal-backdrop">
     <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <div class="modal-title">Confirmer la suppression</div>
+        <div class="modal-title">Archiver le véhicule</div>
       </div>
-      <p style="color:var(--gray-600);font-size:14px;margin-bottom:24px">
-        Êtes-vous sûr de vouloir archiver ce véhicule ?
-        Cette action est irréversible.
+      <p style="color:var(--gray-600);font-size:14px;margin-bottom:16px">
+        Le véhicule sort du parc (statut « Vendu / Réformé ») et n'apparaît plus dans les listes ni les saisies.
+        Son historique (relevés, prises de carburant, dépenses) est conservé.
       </p>
+      @if (deleteErreur()) {
+        <p style="color:var(--danger);font-size:13px;margin-bottom:12px"><i class="fas fa-exclamation-triangle"></i> {{ deleteErreur() }}</p>
+      }
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-outline" (click)="cancelDelete()">Annuler</button>
         <button class="btn btn-danger" (click)="doDelete(deleteConfirm()!)">
-          <i class="fas fa-trash"></i> Supprimer
+          <i class="fas fa-archive"></i> Archiver
         </button>
       </div>
     </div>

@@ -25,7 +25,7 @@ from .serializers import (
 from apps.accounts.permissions import IsFleetManager, IsAgenceUser, RoleBasedPermission
 from apps.parametrage.corrections import SaisieCorrigeableMixin
 from apps.parametrage.fenetre_saisie import ACTION_HORS_DELAI, RELEVES, fenetre, tracer_hors_delai
-from apps.vehicules.kilometrage import recalculer_kilometrage, heure_par_defaut
+from apps.vehicules.kilometrage import recalculer_kilometrage
 from apps.core.agences import (
     agence_effective, agence_pour_creation, controler_agence,
     filtrer_par_agence, filtrer_transactions_total,
@@ -84,7 +84,7 @@ class VehiculeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Vehicule.objects.select_related(
-            'agence', 'chauffeur_attitré', 'created_by'
+            'agence', 'chauffeur_attitré', 'created_by', 'marque', 'modele', 'statut', 'affectation'
         ).filter(is_active=True)
         return filtrer_par_agence(qs, self.request.user)
 
@@ -105,16 +105,8 @@ class VehiculeViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         user = self.request.user
         controler_agence(user, serializer.validated_data)
-        km_avant = serializer.instance.kilometrage_actuel
-        vehicule = serializer.save()
-        # Compteur relevé depuis la fiche : historisé, sinon perdu au prochain recalcul
-        if vehicule.kilometrage_actuel > km_avant:
-            ReleveKilometrage.objects.create(
-                vehicule=vehicule, kilometrage=vehicule.kilometrage_actuel,
-                date_releve=timezone.localdate(), heure_releve=heure_par_defaut(timezone.localdate()),
-                type_mouvement='releve',
-                notes='Kilométrage mis à jour depuis la fiche véhicule.', created_by=user,
-            )
+        # Le compteur ne change pas ici (cf. VehiculeWriteSerializer) : il passe par un relevé
+        serializer.save()
 
     def destroy(self, request, *args, **kwargs):
         """Soft delete."""

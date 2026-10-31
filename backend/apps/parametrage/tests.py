@@ -637,11 +637,13 @@ class CorrectionSaisieTests(UtilisateursMixin, APITestCase):
         res = self.client.get('/api/v1/parametrage/corrections/').data
         self.assertEqual(len(res.get('results', res)), 0)
 
-    def test_fiche_vehicule_historise_le_compteur(self):
+    def test_compteur_hors_formulaire_vehicule(self):
+        # Le compteur passe par un relevé (contrôles de date et de compteur), pas par le formulaire
         self.client.force_authenticate(self.responsable_flotte)
-        resp = self.client.patch(f'/api/v1/vehicules/{self.vehicule.id}/', {'kilometrage_actuel': 15000}, format='json')
+        url = f'/api/v1/vehicules/{self.vehicule.id}/'
+        resp = self.client.patch(url, {'kilometrage_actuel': 15000}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('relevé', str(resp.data['kilometrage_actuel']))
+        # Renvoyer la valeur actuelle (formulaire complet) reste accepté
+        resp = self.client.patch(url, {'kilometrage_actuel': self.km(), 'couleur': 'Blanc'}, format='json')
         self.assertEqual(resp.status_code, 200, resp.data)
-        r = self.releve(self.operateur, 0, 15100)
-        self.client.force_authenticate(self.operateur)
-        self.client.delete(f"/api/v1/vehicules/releves-km/{r.data['id']}/")
-        self.assertEqual(self.km(), 15000)                      # pas de retour à 10 000

@@ -109,16 +109,54 @@ class VehiculeWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicule
         exclude = ['created_at', 'updated_at', 'created_by', 'kilometrage_initial']
+        # Archivage par DELETE (statut « vendu ») ; immatriculation et compteur ont leurs propres saisies
+        read_only_fields = ['is_active']
 
     def validate_immatriculation(self, value):
-        return value.upper().strip()
+        from apps.carburant.analyses import normaliser_immat
+        value = ' '.join(value.upper().split())
+        if self.instance and value != self.instance.immatriculation:
+            raise serializers.ValidationError(
+                "L'immatriculation se change depuis la fiche du véhicule (« Changer l'immatriculation »), "
+                "pour garder l'historique.")
+        # « 1004AB01 » et « 1004 AB 01 » désignent le même véhicule
+        cle = normaliser_immat(value)
+        autres = Vehicule.objects.exclude(pk=self.instance.pk if self.instance else None)
+        for v in autres.only('immatriculation'):
+            if normaliser_immat(v.immatriculation) == cle:
+                raise serializers.ValidationError(
+                    f"Une immatriculation équivalente existe déjà : {v.immatriculation}"
+                    + ("" if v.is_active else " (véhicule archivé)") + ".")
+        return value
+
+    def validate_numero_chassis(self, value):
+        # Vide = non renseigné (NULL) : plusieurs véhicules peuvent ne pas avoir de VIN
+        value = (value or '').strip().upper()
+        return value or None
+
+    def validate_annee(self, value):
+        import datetime
+        maxi = datetime.date.today().year + 1
+        if not 1950 <= value <= maxi:
+            raise serializers.ValidationError(f"L'année doit être comprise entre 1950 et {maxi}.")
+        return value
 
     def validate_kilometrage_actuel(self, value):
-        if self.instance and value < self.instance.kilometrage_actuel:
+        if self.instance and value != self.instance.kilometrage_actuel:
             raise serializers.ValidationError(
-                "Le kilométrage ne peut pas diminuer."
-            )
+                "Le kilométrage se met à jour par un relevé kilométrique (bouton « MAJ kilométrage » "
+                "de la fiche), avec les contrôles de date et de compteur.")
         return value
+
+    def validate(self, attrs):
+        marque = attrs.get('marque', self.instance.marque if self.instance else None)
+        modele = attrs.get('modele', self.instance.modele if self.instance else None)
+        if modele and marque and modele.marque_id != marque.pk:
+            raise serializers.ValidationError({'modele': f"Le modèle « {modele.libelle} » n'appartient pas à la marque "
+                                                         f"« {marque.libelle} »."})
+        if modele and not marque:
+            attrs['marque'] = modele.marque
+        return attrs
 
 
 class ReleveKilometrageSerializer(FenetreSaisieSerializerMixin, serializers.ModelSerializer):
