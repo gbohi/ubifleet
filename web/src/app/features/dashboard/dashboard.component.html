@@ -253,27 +253,24 @@
       </div>
     </div>
 
-    <!-- Top consommation véhicules -->
+    <!-- Écart de consommation : véhicules au-dessus de leur référence -->
     <div class="card info-card">
       <div class="card-header">
         <div>
-          <div class="card-title">Top consommation</div>
-          <div class="card-subtitle">Véhicules les plus consommateurs — {{ dashStore.periodLabel() }}</div>
+          <div class="card-title">Écart de consommation</div>
+          <div class="card-subtitle">Conso du mois comparée à la référence du véhicule — {{ dashStore.periodLabel() }}</div>
         </div>
+        <a routerLink="/carburant" class="card-link">Détail</a>
       </div>
       <div class="card-body">
         <div class="chart-wrapper-bar">
-          @if (dashStore.topConsommation().length > 0) {
-            <canvas
-              baseChart
-              [data]="barChartData"
-              [options]="barChartOptions"
-              type="bar"
-            ></canvas>
+          @if (dashStore.topEcartConso().length > 0) {
+            <canvas baseChart [data]="barChartData" [options]="barChartOptions" type="bar"></canvas>
           } @else {
             <div class="chart-empty">
               <i class="fas fa-gas-pump"></i>
-              <p>Aucune donnée de consommation pour cette période</p>
+              <p>Aucune consommation comparable ce mois-ci (il faut au moins deux prises par véhicule et sa
+                consommation théorique de référence sur la fiche véhicule).</p>
             </div>
           }
         </div>

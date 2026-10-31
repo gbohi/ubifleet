@@ -97,6 +97,20 @@ def consommation_vehicules(prises):
     return lignes
 
 
+def conso_ponderee(lignes):
+    """Conso globale de lignes de consommation_vehicules : litres des
+    intervalles ÷ km × 100 (pondérée par les km, pas une moyenne de moyennes)."""
+    km = sum(l['km_parcourus'] or 0 for l in lignes if l['conso_moyenne'] is not None)
+    litres = sum(l['conso_moyenne'] * l['km_parcourus'] / 100 for l in lignes if l['conso_moyenne'] is not None)
+    return _r(litres / km * 100) if km else None
+
+
+def classement_ecarts(lignes, n=10):
+    """Véhicules qui consomment le plus au-dessus de leur référence."""
+    avec = [l for l in lignes if l['ecart_pct'] is not None]
+    return sorted(avec, key=lambda l: -l['ecart_pct'])[:n]
+
+
 # ── Évolution mensuelle par agence ────────────────────────────────────
 
 def evolution_agences(prises, tournees_effectuees, debut, fin):

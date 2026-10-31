@@ -197,31 +197,20 @@ export class DashboardComponent implements OnInit {
     }
   };
 
-  // ── Chart: Top consommation (Bar horizontal) ──
+  // ── Chart : écart de consommation à la référence (barres horizontales, %) ──
   get barChartData(): ChartData<'bar'> {
-    const top = this.dashStore.topConsommation().slice(0, 6);
-    // Données de démo si vide
-    const data = top.length > 0 ? top : this.demoBarData;
+    const top = this.dashStore.topEcartConso().slice(0, 6);
     return {
-      labels: data.map((v: any) => v.vehicule__immatriculation ?? v.label),
+      labels: top.map((v: any) => v.vehicule__immatriculation),
       datasets: [{
-        label: 'Litres',
-        data: data.map((v: any) => v.litres ?? v.value),
-        backgroundColor: '#5bd988',
+        label: 'Écart à la référence (%)',
+        data: top.map((v: any) => v.ecart_pct),
+        backgroundColor: top.map((v: any) => v.ecart_pct > 10 ? '#ef4444' : v.ecart_pct > 0 ? '#f59e0b' : '#5bd988'),
         borderRadius: 6,
         borderSkipped: false,
       }]
     };
   }
-
-  private demoBarData = [
-    { label: 'CI-4521-AB', value: 340 },
-    { label: 'CI-2234-BC', value: 298 },
-    { label: 'CI-7890-AC', value: 245 },
-    { label: 'CI-0087-ZZ', value: 210 },
-    { label: 'CI-5566-GH', value: 189 },
-    { label: 'CI-3345-DE', value: 178 },
-  ];
 
   barChartOptions: ChartConfiguration<'bar'>['options'] = {
     responsive: true,
@@ -235,7 +224,10 @@ export class DashboardComponent implements OnInit {
         bodyColor: 'rgba(255,255,255,0.7)',
         padding: 12,
         callbacks: {
-          label: (ctx) => ` ${ctx.parsed.x ?? 0} L`
+          label: (ctx) => {
+            const v: any = this.dashStore.topEcartConso()[ctx.dataIndex];
+            return v ? ` ${v.ecart_pct > 0 ? '+' : ''}${v.ecart_pct} % — ${v.conso} L/100 (réf. ${v.reference})` : '';
+          }
         }
       }
     },

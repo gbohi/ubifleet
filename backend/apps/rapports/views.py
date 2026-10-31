@@ -56,13 +56,22 @@ class DashboardDGView(APIView):
             date_plein__year=annee,
             **agence_filter
         )
+        from apps.carburant.analyses import classement_ecarts, consommation_vehicules, conso_ponderee
         carburant = pleins.aggregate(
             volume=Sum('volume_litres'),
             montant=Sum('montant_fcfa'),
             nb_pleins=Count('id'),
-            conso_moy=Avg('consommation_calculee')
         )
+        # Conso pondérée par les km (méthode plein à plein) et véhicules au-dessus de leur référence
+        conso_lignes = consommation_vehicules(list(pleins.select_related(
+            'vehicule__agence', 'vehicule__marque', 'vehicule__modele')))
+        carburant['conso_moy'] = conso_ponderee(conso_lignes)
         carburant['anomalies'] = pleins.filter(statut_validation='anomalie').count()
+        top_ecart_conso = [{
+            'vehicule__immatriculation': l['immatriculation'], 'vehicule__marque': l['marque'],
+            'vehicule__modele': l['modele'], 'conso': l['conso_moyenne'], 'reference': l['conso_reference'],
+            'ecart_pct': l['ecart_pct'], 'litres': l['litres'],
+        } for l in classement_ecarts(conso_lignes)]
 
         # Entretiens du mois
         interventions = Intervention.objects.filter(
@@ -149,6 +158,7 @@ class DashboardDGView(APIView):
             'alertes': alertes,
             'cout_mensuel': cout_mensuel,
             'top_consommation': top_conso,
+            'top_ecart_conso': top_ecart_conso,
             'repartition_couts': repartition_couts,
             'assurances_critiques': assurances_critiques,
         })
@@ -170,18 +180,27 @@ class RapportCarburantView(APIView):
         if agence_id:
             qs = qs.filter(agence_id=agence_id)
 
+        from apps.carburant.analyses import consommation_vehicules, conso_ponderee
         par_vehicule = list(
             qs.values(
-                'vehicule__immatriculation', 'vehicule__marque__libelle',
+                'vehicule__id', 'vehicule__immatriculation', 'vehicule__marque__libelle',
                 'vehicule__modele__libelle', 'vehicule__type_carburant',
                 'agence__nom'
             ).annotate(
                 total_litres=Sum('volume_litres'),
                 total_fcfa=Sum('montant_fcfa'),
                 nb_pleins=Count('id'),
-                conso_moy=Avg('consommation_calculee')
             ).order_by('-total_litres')
         )
+        # Conso pondérée par les km (méthode plein à plein), référence et écart par véhicule
+        conso_lignes = consommation_vehicules(list(qs.select_related(
+            'vehicule__agence', 'vehicule__marque', 'vehicule__modele')))
+        par_id = {l['vehicule_id']: l for l in conso_lignes}
+        for v in par_vehicule:
+            l = par_id.get(str(v.pop('vehicule__id')), {})
+            v['conso_moy'] = l.get('conso_moyenne')
+            v['conso_reference'] = l.get('conso_reference')
+            v['ecart_pct'] = l.get('ecart_pct')
 
         par_station = list(
             qs.filter(station__isnull=False)
@@ -201,9 +220,9 @@ class RapportCarburantView(APIView):
         global_agg = qs.aggregate(
             total_litres=Sum('volume_litres'),
             total_fcfa=Sum('montant_fcfa'),
-            conso_moy=Avg('consommation_calculee'),
             nb_pleins=Count('id')
         )
+        global_agg['conso_moy'] = conso_ponderee(conso_lignes)
 
         return Response({
             'periode': {'mois': mois, 'annee': annee},

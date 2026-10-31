@@ -380,6 +380,7 @@ export interface DashboardData {
   alertes: { total: number; critiques: number; hautes: number };
   cout_mensuel: { mois: number; annee: number; total: number }[];
   top_consommation: any[];
+  top_ecart_conso?: { vehicule__immatriculation: string; vehicule__marque: string; vehicule__modele: string; conso: number; reference: number; ecart_pct: number; litres: number }[];
   repartition_couts: { categorie: string; label: string; montant: number }[];
   assurances_critiques: number;
 }

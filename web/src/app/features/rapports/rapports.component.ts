@@ -330,10 +330,11 @@ export class RapportsComponent implements OnInit, OnDestroy {
     if (!d) return;
     const sep = ';'; const eol = '\r\n';
     const hdrs = ['Immatriculation','Marque','Modèle','Agence','Volume (L)',
-                  'Montant (FCFA)','Nb prises de carburant','Conso moy (L/100km)'].join(sep);
+                  'Montant (FCFA)','Nb prises de carburant','Conso moy (L/100km)','Conso de référence','Écart %'].join(sep);
     const rows = (d.par_vehicule ?? []).map((r: any) =>
-      [r.vehicule__immatriculation, r.vehicule__marque, r.vehicule__modele,
-       r.agence__nom ?? '', r.total_litres, r.total_fcfa, r.nb_pleins, r.conso_moy ?? ''].join(sep)
+      [r.vehicule__immatriculation, r.vehicule__marque__libelle, r.vehicule__modele__libelle,
+       r.agence__nom ?? '', r.total_litres, r.total_fcfa, r.nb_pleins, r.conso_moy ?? '',
+       r.conso_reference ?? '', r.ecart_pct ?? ''].join(sep)
     ).join(eol);
     this.downloadCsv('\uFEFF' + hdrs + eol + rows,
       `carburant_${this.filtreMois()}_${this.filtreAnnee()}.csv`);

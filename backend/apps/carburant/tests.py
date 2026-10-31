@@ -489,6 +489,21 @@ class AnalysesCarburantTests(UtilisateursMixin, APITestCase):
         self.assertEqual((l['conso_declaree'], l['conso_reference'], l['ecart_reference_pct']), (5.0, 10.0, 15.0))
         self.assertEqual(l['ecart_declaree_pct'], 130.0)
 
+    def test_tableau_de_bord_conso_ponderee(self):
+        # 100 km à 30 L/100 puis 900 km à 10 L/100 : moyenne pondérée 12, pas (30 + 10) / 2 = 20
+        self.prise(0, (8, 0), 10000, 40)
+        self.prise(1, (8, 0), 10100, 30)
+        self.prise(2, (8, 0), 11000, 90)
+        self.client.force_authenticate(self.responsable_flotte)
+        r = self.client.get('/api/v1/rapports/dashboard/', {'mois': 5, 'annee': 2026})
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['carburant']['conso_moy'], 12.0)
+        self.assertEqual(r.data['top_ecart_conso'][0]['ecart_pct'], 20.0)       # référence 10
+        r = self.client.get('/api/v1/rapports/carburant/', {'mois': 5, 'annee': 2026})
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['global']['conso_moy'], 12.0)
+        self.assertEqual((r.data['par_vehicule'][0]['conso_moy'], r.data['par_vehicule'][0]['ecart_pct']), (12.0, 20.0))
+
     def test_compteur_interpole(self):
         from .analyses import compteur_a
         t = lambda h: datetime.datetime(2026, 5, 1, h)

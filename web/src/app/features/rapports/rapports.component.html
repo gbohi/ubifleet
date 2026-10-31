@@ -153,7 +153,7 @@
         @if (d.top_consommation.length > 0) {
           <div class="card">
             <div class="card-header">
-              <div class="card-title"><i class="fas fa-gas-pump"></i> Top 10 consommateurs — {{ nomMois(d.periode.mois) }}</div>
+              <div class="card-title"><i class="fas fa-gas-pump"></i> Top 10 des volumes — {{ nomMois(d.periode.mois) }}</div>
             </div>
             <div class="table-container">
               <table class="ubi-table">
@@ -162,7 +162,7 @@
                   @for (v of d.top_consommation; track $index) {
                     <tr>
                       <td><span class="immat-badge">{{ v.vehicule__immatriculation }}</span></td>
-                      <td style="font-size:12px">{{ v.vehicule__marque }} {{ v.vehicule__modele }}</td>
+                      <td style="font-size:12px">{{ v.vehicule__marque__libelle }} {{ v.vehicule__modele__libelle }}</td>
                       <td style="text-align:right;font-weight:700">{{ dispatcheur(v.litres) | number:'1.2-2' }}</td>
                       <td style="text-align:right">{{ dispatcheur(v.montant) | number:'1.0-0' }}</td>
                     </tr>
@@ -207,12 +207,12 @@
           <div class="card-header"><div class="card-title">Consommation par véhicule</div></div>
           <div class="table-container">
             <table class="ubi-table">
-              <thead><tr><th>Immatriculation</th><th>Agence</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Montant</th><th style="text-align:center">Nb prises</th><th style="text-align:center">Conso moy</th></tr></thead>
+              <thead><tr><th>Immatriculation</th><th>Agence</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Montant</th><th style="text-align:center">Nb prises</th><th style="text-align:center">Conso moy</th><th style="text-align:center">Référence</th><th style="text-align:center">Écart</th></tr></thead>
               <tbody>
                 @for (v of d.par_vehicule; track $index) {
                   <tr>
                     <td><span class="immat-badge">{{ v.vehicule__immatriculation }}</span>
-                      <div style="font-size:11px;color:var(--gray-400)">{{ v.vehicule__marque }} {{ v.vehicule__modele }}</div></td>
+                      <div style="font-size:11px;color:var(--gray-400)">{{ v.vehicule__marque__libelle }} {{ v.vehicule__modele__libelle }}</div></td>
                     <td style="font-size:12px">{{ v.agence__nom ?? '—' }}</td>
                     <td style="text-align:right;font-weight:700">{{ dispatcheur(v.total_litres) | number:'1.2-2' }} L</td>
                     <td style="text-align:right">{{ dispatcheur(v.total_fcfa) | number:'1.0-0' }}</td>
@@ -221,6 +221,10 @@
                       @if (v.conso_moy) { <span class="badge badge-navy">{{ dispatcheur(v.conso_moy) | number:'1.1-1' }} L/100</span> }
                       @else { — }
                     </td>
+                    <td style="text-align:center">{{ v.conso_reference ?? '—' }}</td>
+                    <td style="text-align:center" [style.color]="(v.ecart_pct ?? 0) > 10 ? 'var(--danger)' : null"
+                        [style.font-weight]="(v.ecart_pct ?? 0) > 10 ? 700 : null">
+                      {{ v.ecart_pct === null || v.ecart_pct === undefined ? '—' : (v.ecart_pct > 0 ? '+' : '') + v.ecart_pct + ' %' }}</td>
                   </tr>
                 }
               </tbody>

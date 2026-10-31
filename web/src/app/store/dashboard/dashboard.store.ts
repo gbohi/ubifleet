@@ -69,6 +69,8 @@ export const DashboardStore = signalStore(
     // Données graphiques
     coutMensuelChart:  computed(() => store.data()?.cout_mensuel          ?? []),
     topConsommation:   computed(() => store.data()?.top_consommation       ?? []),
+    /** Véhicules qui consomment le plus au-dessus de leur référence (conso pondérée par les km). */
+    topEcartConso:     computed(() => store.data()?.top_ecart_conso        ?? []),
     repartitionCouts:  computed(() => store.data()?.repartition_couts      ?? []),
 
     // Libellé période
