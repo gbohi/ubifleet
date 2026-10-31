@@ -230,7 +230,7 @@
                 <tr><td class="info-label">Agence</td>
                     <td class="info-value">{{ v.agence_detail ? v.agence_detail.nom : '—' }}</td></tr>
                 <tr><td class="info-label">Affectation</td>
-                    <td class="info-value">{{ v.affectation || '—' }}</td></tr>
+                    <td class="info-value">{{ v.affectation_libelle || '—' }}</td></tr>
                 <tr><td class="info-label">Chauffeur attitré</td>
                     <td class="info-value">{{ v.chauffeur_nom || 'Non assigné' }}</td></tr>
                 <tr><td class="info-label">Statut</td>
@@ -255,6 +255,23 @@
                     </td></tr>
               </table>
             </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-header"><div class="card-title">Données techniques & carburant</div></div>
+          <div class="card-body">
+            <table class="info-table">
+              <tr><td class="info-label">Kilométrage actuel</td>
+                  <td class="info-value">{{ v.kilometrage_actuel | number:'1.0-0' }} km</td></tr>
+              <tr><td class="info-label">Prochain entretien</td>
+                  <td class="info-value">{{ v.kilometrage_revision ? (v.kilometrage_revision | number:'1.0-0') + ' km' : 'non planifié' }}</td></tr>
+              <tr><td class="info-label">Consommation de référence</td>
+                  <td class="info-value">{{ (v.conso_theorique_origine * 1) ? (v.conso_theorique_origine | number:'1.0-1') + ' L/100 km' : 'non renseignée' }}</td></tr>
+              <tr><td class="info-label">Dotation carburant</td>
+                  <td class="info-value">{{ v.dotation_carburant_mensuelle | number:'1.0-0' }} L/mois</td></tr>
+              <tr><td class="info-label">Carte carburant (Total)</td>
+                  <td class="info-value">{{ v.numero_carte_carburant || '—' }}</td></tr>
+            </table>
           </div>
         </div>
         @if (v.notes) {
@@ -299,13 +316,13 @@
                     <th>Km relevé</th>
                     <th>Conso.</th>
                     <th>Bon</th>
-                    <th>Statut</th>
+                    <th>Type / tournée</th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (p of pleins(); track p.id) {
-                    <tr>
-                      <td>{{ p.date_plein | date:'dd/MM/yyyy' }}</td>
+                    <tr (click)="ouvrirPrise(p.id)" style="cursor:pointer" title="Ouvrir la prise de carburant">
+                      <td>{{ p.date_plein | date:'dd/MM/yyyy' }}@if (p.heure_plein) { <span class="text-muted">{{ p.heure_plein.substring(0, 5) }}</span> }</td>
                       <td><strong>{{ p.volume_litres | number:'1.1-1' }}</strong></td>
                       <td>
                         @if (p.prix_litre !== null) {
@@ -316,15 +333,15 @@
                       <td>{{ p.kilometrage_releve | number:'1.0-0' }} km</td>
                       <td>
                         @if (p.consommation_calculee !== null) {
-                          {{ p.consommation_calculee | number:'1.1-1' }} L/100
+                          <span [style.color]="p.statut_validation === 'anomalie' ? 'var(--danger)' : null"
+                                [title]="p.motif_anomalie || ''">
+                            {{ p.consommation_calculee | number:'1.1-1' }} L/100
+                            @if (p.statut_validation === 'anomalie') { <i class="fas fa-exclamation-triangle"></i> }
+                          </span>
                         } @else { — }
                       </td>
                       <td>{{ p.bon_carburant || '—' }}</td>
-                      <td>
-                        <span class="badge" [class]="statutValidationClass(p.statut_validation)">
-                          {{ p.statut_display }}
-                        </span>
-                      </td>
+                      <td>{{ p.tournee_code || p.type_display || '—' }}</td>
                     </tr>
                   }
                 </tbody>
@@ -402,7 +419,7 @@
                         } @else { — }
                       </td>
                       <td>
-                        <span class="badge" [class]="interventionStatutClass(i.statut)">
+                        <span class="badge" [class]="prioriteClass(i.priorite)">
                           {{ i.priorite_display }}
                         </span>
                       </td>
@@ -743,6 +760,90 @@
       </div>
     }
 
+
+    <!-- ── Onglet Statut ── -->
+    @if (activeTab() === 'statut') {
+      <div class="tab-section">
+        <div class="section-header">
+          <div class="section-title">
+            <i class="fas fa-circle"></i> Statut du véhicule
+          </div>
+          <button class="btn btn-green btn-sm" (click)="ouvrirChangerStatut()">
+            <i class="fas fa-exchange-alt"></i> Changer le statut
+          </button>
+        </div>
+
+        <!-- Statut actuel -->
+        @if (store.selectedVehicule(); as v) {
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-body" style="display:flex;align-items:center;gap:16px;padding:16px">
+              <div style="font-size:13px;color:var(--gray-400)">Statut actuel</div>
+              @if (v.statut_display) {
+                <span class="badge" [class]="couleurStatut(v.statut_couleur)"
+                      style="font-size:14px;padding:6px 16px">
+                  {{ v.statut_display }}
+                </span>
+              } @else {
+                <span style="color:var(--gray-300);font-size:13px">Non défini</span>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Historique -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><i class="fas fa-history"></i> Historique des statuts</div>
+          </div>
+          @if (historiqueStatutsLoad()) {
+            <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
+          } @else if (historiqueStatuts().length === 0) {
+            <div class="empty-state">
+              <i class="fas fa-history"></i>
+              <p>Aucun changement de statut enregistré.</p>
+            </div>
+          } @else {
+            <div class="table-container">
+              <table class="ubi-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Ancien statut</th>
+                    <th>Nouveau statut</th>
+                    <th>Motif</th>
+                    <th>Par</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (h of historiqueStatuts(); track h.id) {
+                    <tr>
+                      <td style="white-space:nowrap">{{ h.date_changement | date:'dd/MM/yyyy' }}</td>
+                      <td>
+                        @if (h.ancien_statut_libelle) {
+                          <span class="badge" [class]="couleurStatut(h.ancien_statut_couleur ?? 'gray')">
+                            {{ h.ancien_statut_libelle }}
+                          </span>
+                        } @else { <span style="color:var(--gray-300)">—</span> }
+                      </td>
+                      <td>
+                        @if (h.nouveau_statut_libelle) {
+                          <span class="badge" [class]="couleurStatut(h.nouveau_statut_couleur ?? 'gray')">
+                            {{ h.nouveau_statut_libelle }}
+                          </span>
+                        } @else { <span style="color:var(--gray-300)">—</span> }
+                      </td>
+                      <td style="font-size:12px;color:var(--gray-500)">{{ h.motif || '—' }}</td>
+                      <td style="font-size:12px;color:var(--gray-400)">{{ h.created_by_nom || '—' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
   }
 </div>
 
@@ -1025,13 +1126,8 @@
       <form [formGroup]="affectForm" (ngSubmit)="saveAffectation()" novalidate>
         <div class="form-group">
           <label class="form-label">Chauffeur *</label>
-          <select formControlName="chauffeur" class="form-control"
-                  [class.is-invalid]="aff['chauffeur'].invalid && aff['chauffeur'].touched">
-            <option value="">-- Sélectionner un chauffeur --</option>
-            @for (c of chauffeurs(); track c.id) {
-              <option [value]="c.id">{{ c.nom_complet }}</option>
-            }
-          </select>
+          <ubi-select-recherche formControlName="chauffeur" placeholder="Rechercher par matricule ou nom…"
+                                [options]="chauffeurs()" [invalid]="aff['chauffeur'].invalid && aff['chauffeur'].touched" />
           @if (aff['chauffeur'].invalid && aff['chauffeur'].touched) {
             <div class="form-error">
               <i class="fas fa-times-circle"></i> Le chauffeur est requis.
@@ -1096,88 +1192,6 @@
   </div>
 }
 
-@if (activeTab() === 'statut') {
-  <div class="tab-section">
-    <div class="section-header">
-      <div class="section-title">
-        <i class="fas fa-circle"></i> Statut du véhicule
-      </div>
-      <button class="btn btn-green btn-sm" (click)="ouvrirChangerStatut()">
-        <i class="fas fa-exchange-alt"></i> Changer le statut
-      </button>
-    </div>
-
-    <!-- Statut actuel -->
-    @if (store.selectedVehicule(); as v) {
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-body" style="display:flex;align-items:center;gap:16px;padding:16px">
-          <div style="font-size:13px;color:var(--gray-400)">Statut actuel</div>
-          @if (v.statut_display) {
-            <span class="badge" [class]="couleurStatut(v.statut_couleur)"
-                  style="font-size:14px;padding:6px 16px">
-              {{ v.statut_display }}
-            </span>
-          } @else {
-            <span style="color:var(--gray-300);font-size:13px">Non défini</span>
-          }
-        </div>
-      </div>
-    }
-
-    <!-- Historique -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><i class="fas fa-history"></i> Historique des statuts</div>
-      </div>
-      @if (historiqueStatutsLoad()) {
-        <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
-      } @else if (historiqueStatuts().length === 0) {
-        <div class="empty-state">
-          <i class="fas fa-history"></i>
-          <p>Aucun changement de statut enregistré.</p>
-        </div>
-      } @else {
-        <div class="table-container">
-          <table class="ubi-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Ancien statut</th>
-                <th>Nouveau statut</th>
-                <th>Motif</th>
-                <th>Par</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (h of historiqueStatuts(); track h.id) {
-                <tr>
-                  <td style="white-space:nowrap">{{ h.date_changement | date:'dd/MM/yyyy' }}</td>
-                  <td>
-                    @if (h.ancien_statut_libelle) {
-                      <span class="badge" [class]="couleurStatut(h.ancien_statut_couleur ?? 'gray')">
-                        {{ h.ancien_statut_libelle }}
-                      </span>
-                    } @else { <span style="color:var(--gray-300)">—</span> }
-                  </td>
-                  <td>
-                    @if (h.nouveau_statut_libelle) {
-                      <span class="badge" [class]="couleurStatut(h.nouveau_statut_couleur ?? 'gray')">
-                        {{ h.nouveau_statut_libelle }}
-                      </span>
-                    } @else { <span style="color:var(--gray-300)">—</span> }
-                  </td>
-                  <td style="font-size:12px;color:var(--gray-500)">{{ h.motif || '—' }}</td>
-                  <td style="font-size:12px;color:var(--gray-400)">{{ h.created_by_nom || '—' }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
-    </div>
-  </div>
-}
-
 <!-- Modale : Changer le statut -->
 @if (showChangerStatutModal()) {
   <div class="modal-backdrop">
@@ -1191,13 +1205,17 @@
           <i class="fas fa-times"></i>
         </button>
       </div>
+      @if (statutErreur()) {
+        <div class="alert-inline-error" style="color:var(--danger);font-size:13px;margin-bottom:12px">
+          <i class="fas fa-exclamation-triangle"></i> {{ statutErreur() }}</div>
+      }
       <form [formGroup]="changerStatutForm" novalidate>
         <div class="form-group">
           <label class="form-label">Nouveau statut *</label>
           <select formControlName="nouveau_statut" class="form-control">
-            <option [value]="null">-- Sélectionner --</option>
+            <option [ngValue]="null">-- Sélectionner --</option>
             @for (s of statutsDisponibles(); track s.id) {
-              <option [value]="s.id">{{ s.libelle }}</option>
+              <option [ngValue]="s.id">{{ s.libelle }}</option>
             }
           </select>
         </div>

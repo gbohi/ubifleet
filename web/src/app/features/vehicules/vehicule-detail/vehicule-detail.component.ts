@@ -12,11 +12,13 @@ import {
   EntretienApiService,
   CarburantApiService,
   SinistreApiService,
-  ChauffeurApiService,
   ParametrageApiService
 } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { ReleveFormComponent } from '../../../shared/releve-form/releve-form.component';
+import { OptionsSaisieService } from '../../../core/services/options-saisie.service';
+import { OptionRecherche, SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import {
   Intervention, PleinCarburant, DocumentVehicule,
   StatutIntervention, ContratAssurance, HistoriqueImmatriculation,
@@ -28,7 +30,7 @@ type TabType = 'infos' | 'carburant' | 'entretiens' | 'assurance' | 'documents' 
 @Component({
   selector: 'ubi-vehicule-detail',
   standalone: true,
-  imports: [RouterLink, DecimalPipe, DatePipe, ReactiveFormsModule, ReleveFormComponent],
+  imports: [RouterLink, DecimalPipe, DatePipe, ReactiveFormsModule, ReleveFormComponent, SelectRechercheComponent],
   templateUrl: './vehicule-detail.component.html',
   styleUrls: ['./vehicule-detail.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,7 +46,6 @@ export class VehiculeDetailComponent implements OnInit {
   private entretienApi  = inject(EntretienApiService);
   private carburantApi  = inject(CarburantApiService);
   private sinistreApi   = inject(SinistreApiService);
-  private chauffeurApi  = inject(ChauffeurApiService);
 
   activeTab = signal<TabType>('infos');
 
@@ -107,19 +108,15 @@ export class VehiculeDetailComponent implements OnInit {
   // ── Formulaire de relevé kilométrique ──
   showKmModal     = signal(false);
   // ── Chauffeurs (modal d'affectation) ──
-  chauffeurs = signal<{ id: string; nom_complet: string }[]>([]);
+  chauffeurs = signal<OptionRecherche[]>([]);
+  private options = inject(OptionsSaisieService);
   // Types de mouvement paramétrables (Paramètres › Types de mouvement)
   typesMvt = inject(TypesMouvementService);
   photoLightbox   = signal<string | null>(null);
 
   ngOnInit(): void {
     this.typesMvt.charger();
-    this.chauffeurApi.getAll({ page_size: 1000, statut: 'actif' }).subscribe({
-      next: (res) => this.chauffeurs.set(
-        (res.results ?? []).map((c: any) => ({ id: c.id, nom_complet: c.nom_complet }))
-      ),
-      error: () => {},
-    });
+    this.options.chauffeurs().subscribe({ next: l => this.chauffeurs.set(l), error: () => {} });
     this.store.loadVehiculeDetail(this.id());
     this.vehiculeApi.getTypesDocument(true).subscribe({
       next: (list) => this.typesDocument.set(list ?? []),
@@ -233,8 +230,9 @@ export class VehiculeDetailComponent implements OnInit {
       chauffeur:  raw.chauffeur,
       date_debut: raw.date_debut,
     };
-    if (raw.date_fin)  payload['date_fin'] = raw.date_fin;
-    if (raw.notes)     payload['notes']    = raw.notes;
+    // En modification, une date de fin vidée rouvre l'affectation
+    if (raw.date_fin || this.editAffectId()) payload['date_fin'] = raw.date_fin || null;
+    payload['notes'] = raw.notes ?? '';
 
     const req = this.editAffectId()
       ? this.vehiculeApi.updateAffectation(this.editAffectId()!, payload)
@@ -246,10 +244,11 @@ export class VehiculeDetailComponent implements OnInit {
         this.affectSuccess.set(this.editAffectId() ? 'Affectation modifiée.' : 'Affectation créée.');
         this.closeAffectForm();
         this.loadAffectations();
+        this.store.loadVehiculeDetail(this.id());   // chauffeur attitré = affectation en cours
       },
       error: (err) => {
         this.affectSaving.set(false);
-        this.affectError.set(err?.error?.detail ?? "Erreur lors de l'enregistrement.");
+        this.affectError.set(messageErreurApi(err, "Erreur lors de l'enregistrement."));
       },
     });
   }
@@ -259,7 +258,7 @@ export class VehiculeDetailComponent implements OnInit {
 
   doDeleteAffect(id: string): void {
     this.vehiculeApi.deleteAffectation(id).subscribe({
-      next: () => { this.deleteAffectId.set(null); this.loadAffectations(); },
+      next: () => { this.deleteAffectId.set(null); this.loadAffectations(); this.store.loadVehiculeDetail(this.id()); },
       error: () => this.deleteAffectId.set(null),
     });
   }
@@ -520,13 +519,14 @@ export class VehiculeDetailComponent implements OnInit {
     return map[statut] ?? 'badge-gray';
   }
 
-  statutValidationClass(statut: string): string {
+  prioriteClass(priorite: string): string {
     const map: Record<string, string> = {
-      normal: 'badge-green', anomalie: 'badge-danger',
-      en_attente: 'badge-warning', valide: 'badge-green',
+      urgente: 'badge-danger', haute: 'badge-warning', normale: 'badge-navy', basse: 'badge-gray',
     };
-    return map[statut] ?? 'badge-gray';
+    return map[priorite] ?? 'badge-gray';
   }
+
+  ouvrirPrise(id: string): void { this.router.navigate(['/carburant', id, 'modifier']); }
 
   // ── Onglet Statut ──────────────────────────────────────────────
   historiqueStatuts      = signal<any[]>([]);
@@ -569,39 +569,26 @@ export class VehiculeDetailComponent implements OnInit {
     this.showChangerStatutModal.set(false);
   }
 
+  statutErreur = signal('');
+
   sauvegarderChangementStatut(): void {
     if (this.changerStatutForm.invalid) return;
     const id = this.id();
     if (!id) return;
-    const vehicule       = this.store.selectedVehicule();
-    const nouveauStatut  = this.changerStatutForm.value.nouveau_statut;
-    const ancienStatut   = vehicule?.statut ?? null;
-
-    // 1. Mettre à jour le statut du véhicule
-    this.vehiculeApi.update(id, { statut: nouveauStatut }).subscribe({
+    this.statutErreur.set('');
+    // Le serveur enregistre l'historique et met à jour le véhicule dans la même transaction
+    this.vehiculeApi.createHistoriqueStatut(id, {
+      vehicule:        id,
+      nouveau_statut:  this.changerStatutForm.value.nouveau_statut,
+      motif:           this.changerStatutForm.value.motif || '',
+      date_changement: this.changerStatutForm.value.date_changement,
+    }).subscribe({
       next: () => {
-        // 2. Créer l'entrée dans l'historique
-        const data = {
-          vehicule:        id,
-          ancien_statut:   ancienStatut,
-          nouveau_statut:  nouveauStatut,
-          motif:           this.changerStatutForm.value.motif || '',
-          date_changement: this.changerStatutForm.value.date_changement,
-        };
-        this.vehiculeApi.createHistoriqueStatut(id, data).subscribe({
-          next: () => {
-            this.fermerChangerStatut();
-            this.loadHistoriqueStatuts();
-            this.store.loadVehiculeDetail(id);
-          },
-          error: () => {
-            // Historique échoue mais statut mis à jour — recharger quand même
-            this.fermerChangerStatut();
-            this.store.loadVehiculeDetail(id);
-          },
-        });
+        this.fermerChangerStatut();
+        this.loadHistoriqueStatuts();
+        this.store.loadVehiculeDetail(id);
       },
-      error: () => {},
+      error: (err) => this.statutErreur.set(messageErreurApi(err, 'Changement de statut impossible.')),
     });
   }
 

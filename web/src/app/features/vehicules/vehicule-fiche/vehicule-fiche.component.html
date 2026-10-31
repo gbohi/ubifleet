@@ -118,7 +118,7 @@
           </div>
           <div class="fiche-info-block">
             <div class="fiche-info-label">Consommation de référence</div>
-            <div class="fiche-info-value">{{ vehicule().conso_theorique_origine ? (vehicule().conso_theorique_origine | number:'1.0-1') + ' L/100 km' : '—' }}</div>
+            <div class="fiche-info-value">{{ (vehicule().conso_theorique_origine * 1) ? (vehicule().conso_theorique_origine | number:'1.0-1') + ' L/100 km' : '—' }}</div>
           </div>
           <div class="fiche-info-block">
             <div class="fiche-info-label">Dotation carburant</div>

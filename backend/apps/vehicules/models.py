@@ -379,12 +379,27 @@ class AffectationVehicule(models.Model):
     @property
     def est_active(self):
         from datetime import date
-        return self.date_fin is None or self.date_fin >= date.today()
+        return self.date_debut <= date.today() and (self.date_fin is None or self.date_fin >= date.today())
 
     def __str__(self):
         return (f"{self.vehicule.immatriculation} → "
                 f"{self.chauffeur.nom} {self.chauffeur.prenom} "
                 f"(dès {self.date_debut})")
+
+
+def synchroniser_chauffeur_attitre(vehicule):
+    """Chauffeur attitré = chauffeur de l'affectation en cours (onglet
+    Chauffeurs de la fiche véhicule), aucun s'il n'y en a pas."""
+    from datetime import date
+    from django.db.models import Q
+    jour = date.today()
+    en_cours = (AffectationVehicule.objects
+                .filter(vehicule=vehicule, date_debut__lte=jour)
+                .filter(Q(date_fin__isnull=True) | Q(date_fin__gte=jour))
+                .order_by('-date_debut').first())
+    chauffeur_id = en_cours.chauffeur_id if en_cours else None
+    if vehicule.chauffeur_attitré_id != chauffeur_id:
+        Vehicule.objects.filter(pk=vehicule.pk).update(chauffeur_attitré_id=chauffeur_id)
 
 
 class HistoriqueStatutVehicule(models.Model):

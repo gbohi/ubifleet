@@ -256,6 +256,9 @@
                     <option [ngValue]="s.id">{{ s.libelle }}</option>
                   }
                 </select>
+                @if (isEditMode()) {
+                  <div class="form-hint"><i class="fas fa-lock"></i> Se change dans l'onglet « Statut » de la fiche (« Changer le statut »), avec l'historique.</div>
+                }
               </div>
             </div>
 
@@ -273,6 +276,10 @@
                 <label class="form-label">Chauffeur attitré</label>
                 <ubi-select-recherche formControlName="chauffeur_attitré" placeholder="Rechercher par matricule ou nom…"
                                       [options]="chauffeurs()" />
+                <div class="form-hint">
+                  @if (isEditMode()) { <i class="fas fa-lock"></i> Se gère dans l'onglet « Chauffeurs » de la fiche (affectations datées). }
+                  @else { Crée la première affectation du véhicule (onglet « Chauffeurs »). }
+                </div>
               </div>
             </div>
           </div>

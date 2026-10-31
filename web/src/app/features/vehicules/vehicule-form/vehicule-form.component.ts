@@ -177,6 +177,9 @@ export class VehiculeFormComponent implements OnInit {
           // Immatriculation et compteur ont leurs propres saisies (fiche du véhicule)
           this.form.controls.immatriculation.disable();
           this.form.controls.kilometrage_actuel.disable();
+          // Statut et chauffeur : onglets « Statut » et « Chauffeurs » de la fiche (historisés)
+          this.form.controls.statut.disable();
+          this.form.controls.chauffeur_attitré.disable();
           this.loading.set(false);
         },
         error: (err) => {

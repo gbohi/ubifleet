@@ -92,3 +92,42 @@ class VehiculeSaisieTests(UtilisateursMixin, APITestCase):
         self.client.patch(f'/api/v1/parametrage/types-vehicule/{t.id}/', {'actif': False}, format='json')
         self.assertEqual(self.creer(immatriculation='1002 AB 01', type_vehicule='tricycle').status_code, 400)
         self.assertEqual(self.creer(immatriculation='1003 AB 01', type_vehicule='inconnu').status_code, 400)
+
+    def test_statut_change_par_l_historique(self):
+        from apps.parametrage.models import StatutVehicule
+        panne, _ = StatutVehicule.objects.get_or_create(code='en_panne', defaults={'libelle': 'En panne'})
+        v = self.creer().data['id']
+        self.assertEqual(self.client.patch(f'/api/v1/vehicules/{v}/', {'statut': panne.id}, format='json').status_code, 400)
+        r = self.client.post(f'/api/v1/vehicules/{v}/historique-statuts/',
+                             {'vehicule': v, 'nouveau_statut': panne.id, 'date_changement': '2026-10-01', 'motif': 'Moteur'},
+                             format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(Vehicule.objects.get(pk=v).statut, panne)
+        self.assertEqual(r.data['ancien_statut_libelle'], 'En service')
+
+    def test_chauffeur_attitre_suit_les_affectations(self):
+        from apps.chauffeurs.models import Chauffeur
+        c1 = Chauffeur.objects.create(matricule='A1', nom='Un', prenom='C', agence=self.agence_a)
+        c2 = Chauffeur.objects.create(matricule='A2', nom='Deux', prenom='C', agence=self.agence_a)
+        v = self.creer(chauffeur_attitré=str(c1.id)).data['id']
+        aff = self.client.get('/api/v1/vehicules/affectations/', {'vehicule': v}).data
+        aff = aff.get('results', aff)
+        self.assertEqual(len(aff), 1)                                     # affectation créée avec le véhicule
+        # Chevauchement refusé ; après la fin de la 1re, la 2e devient le chauffeur attitré
+        r = self.client.post('/api/v1/vehicules/affectations/', {'vehicule': v, 'chauffeur': str(c2.id),
+                             'date_debut': '2026-01-01'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        import datetime
+        hier = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+        self.client.patch(f"/api/v1/vehicules/affectations/{aff[0]['id']}/",
+                          {'date_debut': hier, 'date_fin': hier}, format='json')
+        r = self.client.post('/api/v1/vehicules/affectations/', {'vehicule': v, 'chauffeur': str(c2.id),
+                             'date_debut': datetime.date.today().isoformat()}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(Vehicule.objects.get(pk=v).chauffeur_attitré, c2)
+        self.assertEqual(self.client.patch(f'/api/v1/vehicules/{v}/', {'chauffeur_attitré': str(c1.id)},
+                                           format='json').status_code, 400)
+        # Archivage : affectation terminée, statut « vendu » historisé
+        self.client.force_authenticate(self.super_admin)
+        self.client.delete(f'/api/v1/vehicules/{v}/')
+        self.assertIsNone(Vehicule.objects.get(pk=v).chauffeur_attitré)

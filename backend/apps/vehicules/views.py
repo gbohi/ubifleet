@@ -11,6 +11,7 @@ from datetime import date, timedelta
 
 from django.shortcuts import get_object_or_404
 
+from django.db import transaction
 from django.utils import timezone
 from django.db.models import Count, Avg, Sum, Q
 
@@ -133,8 +134,13 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         if not serializer.validated_data.get('statut'):
             from apps.parametrage.models import StatutVehicule
             serializer.validated_data['statut'] = StatutVehicule.objects.filter(code='en_service').first()
-        serializer.save(created_by=user, kilometrage_initial=km,
-                        agence=agence_pour_creation(user, serializer.validated_data.get('agence')))
+        vehicule = serializer.save(created_by=user, kilometrage_initial=km,
+                                   agence=agence_pour_creation(user, serializer.validated_data.get('agence')))
+        # Chauffeur attitré choisi à la création : première affectation (onglet Chauffeurs)
+        if vehicule.chauffeur_attitré_id:
+            AffectationVehicule.objects.create(
+                vehicule=vehicule, chauffeur_id=vehicule.chauffeur_attitré_id, date_debut=timezone.localdate(),
+                notes='Chauffeur attitré à la création du véhicule.', created_by=user)
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -144,13 +150,23 @@ class VehiculeViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         """Soft delete."""
-        vehicule = self.get_object()
-        vehicule.is_active = False
         from apps.parametrage.models import StatutVehicule as SV
-        statut_vendu = SV.objects.filter(code='vendu').first()
-        if statut_vendu:
-            vehicule.statut = statut_vendu
-        vehicule.save()
+        from .models import HistoriqueStatutVehicule
+        vehicule = self.get_object()
+        jour = timezone.localdate()
+        with transaction.atomic():
+            statut_vendu = SV.objects.filter(code='vendu').first()
+            if statut_vendu and vehicule.statut_id != statut_vendu.pk:
+                HistoriqueStatutVehicule.objects.create(
+                    vehicule=vehicule, ancien_statut=vehicule.statut, nouveau_statut=statut_vendu,
+                    date_changement=jour, motif='Véhicule archivé (sorti du parc).', created_by=request.user)
+                vehicule.statut = statut_vendu
+            # Les affectations en cours se terminent
+            AffectationVehicule.objects.filter(vehicule=vehicule).filter(
+                Q(date_fin__isnull=True) | Q(date_fin__gt=jour)).update(date_fin=jour)
+            vehicule.chauffeur_attitré = None
+            vehicule.is_active = False
+            vehicule.save()
         return Response({'detail': 'Véhicule archivé.'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
@@ -793,13 +809,26 @@ class AffectationVehiculeViewSet(viewsets.ModelViewSet):
             'vehicule', 'chauffeur', 'created_by'
         ), self.request.user, 'vehicule__agence')
 
+    # Le chauffeur attitré du véhicule suit l'affectation en cours
     def perform_create(self, serializer):
+        from .models import synchroniser_chauffeur_attitre
         controler_agence(self.request.user, serializer.validated_data)
-        serializer.save(created_by=self.request.user)
+        a = serializer.save(created_by=self.request.user)
+        synchroniser_chauffeur_attitre(a.vehicule)
 
     def perform_update(self, serializer):
+        from .models import synchroniser_chauffeur_attitre
         controler_agence(self.request.user, serializer.validated_data)
-        serializer.save()
+        avant = serializer.instance.vehicule
+        a = serializer.save()
+        for v in {avant.pk: avant, a.vehicule.pk: a.vehicule}.values():
+            synchroniser_chauffeur_attitre(v)
+
+    def perform_destroy(self, instance):
+        from .models import synchroniser_chauffeur_attitre
+        vehicule = instance.vehicule
+        instance.delete()
+        synchroniser_chauffeur_attitre(vehicule)
 
 
 class HistoriqueStatutVehiculeViewSet(viewsets.ModelViewSet):
@@ -830,9 +859,17 @@ class HistoriqueStatutVehiculeViewSet(viewsets.ModelViewSet):
             qs = qs.filter(vehicule__id=vehicule_id)
         return filtrer_par_agence(qs, self.request.user, 'vehicule__agence')
 
+    @transaction.atomic
     def perform_create(self, serializer):
+        """Changement de statut : l'ancien statut est celui du véhicule, et le
+        véhicule prend le nouveau dans la même transaction."""
         controler_agence(self.request.user, serializer.validated_data)
-        serializer.save(created_by=self.request.user)
+        vehicule = serializer.validated_data['vehicule']
+        if serializer.validated_data.get('nouveau_statut') == vehicule.statut:
+            from rest_framework import serializers as drf_s
+            raise drf_s.ValidationError({'nouveau_statut': "C'est déjà le statut du véhicule."})
+        h = serializer.save(created_by=self.request.user, ancien_statut=vehicule.statut)
+        Vehicule.objects.filter(pk=vehicule.pk).update(statut=h.nouveau_statut)
 
     def perform_update(self, serializer):
         controler_agence(self.request.user, serializer.validated_data)

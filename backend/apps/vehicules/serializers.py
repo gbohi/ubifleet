@@ -161,6 +161,19 @@ class VehiculeWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"L'année doit être comprise entre 1950 et {maxi}.")
         return value
 
+    def validate_statut(self, value):
+        if self.instance and value != self.instance.statut:
+            raise serializers.ValidationError(
+                "Le statut se change depuis l'onglet « Statut » de la fiche (« Changer le statut »), "
+                "pour garder l'historique.")
+        return value
+
+    def validate_chauffeur_attitré(self, value):
+        if self.instance and value != self.instance.chauffeur_attitré:
+            raise serializers.ValidationError(
+                "Le chauffeur attitré se gère dans l'onglet « Chauffeurs » de la fiche (affectations datées).")
+        return value
+
     def validate_kilometrage_actuel(self, value):
         if self.instance and value != self.instance.kilometrage_actuel:
             raise serializers.ValidationError(
@@ -304,6 +317,27 @@ class AffectationVehiculeSerializer(serializers.ModelSerializer):
 
     def get_chauffeur_nom(self, obj):
         return f"{obj.chauffeur.prenom} {obj.chauffeur.nom}".strip()
+
+    def validate(self, attrs):
+        """Pas deux affectations du même véhicule sur des périodes qui se chevauchent."""
+        from django.db.models import Q
+        inst = self.instance
+        vehicule = attrs.get('vehicule', inst and inst.vehicule)
+        debut = attrs.get('date_debut', inst and inst.date_debut)
+        fin = attrs.get('date_fin', inst.date_fin if inst else None)
+        if debut and fin and fin < debut:
+            raise serializers.ValidationError({'date_fin': "La date de fin précède la date de début."})
+        autres = AffectationVehicule.objects.filter(vehicule=vehicule).exclude(pk=inst.pk if inst else None)
+        chevauche = autres.filter(Q(date_fin__isnull=True) | Q(date_fin__gte=debut))
+        if fin:
+            chevauche = chevauche.filter(date_debut__lte=fin)
+        a = chevauche.select_related('chauffeur').first()
+        if a:
+            raise serializers.ValidationError({'date_debut': (
+                f"Ce véhicule est déjà affecté à {a.chauffeur.prenom} {a.chauffeur.nom} sur cette période "
+                f"(depuis le {a.date_debut:%d/%m/%Y}{f' jusqu’au {a.date_fin:%d/%m/%Y}' if a.date_fin else ''}). "
+                "Terminez d'abord cette affectation (date de fin).")})
+        return attrs
 
     def get_created_by_nom(self, obj):
         if obj.created_by:
