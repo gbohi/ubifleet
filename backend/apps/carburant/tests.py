@@ -497,3 +497,52 @@ class AnalysesCarburantTests(UtilisateursMixin, APITestCase):
         self.assertEqual(compteur_a(saisies, t(20)), 1100)
         self.assertEqual(compteur_a(saisies, t(6)), 1000)
         self.assertIsNone(compteur_a([], t(6)))
+
+
+class DepensesDesPrisesTests(UtilisateursMixin, APITestCase):
+    """Chaque prise de carburant a sa dépense « Carburant » dans le budget."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.v = Vehicule.objects.create(immatriculation='DP-1', agence=cls.agence_a, annee=2020,
+                                        type_carburant='diesel', kilometrage_actuel=1000, kilometrage_initial=1000)
+
+    def depenses(self):
+        from apps.budget.models import DepenseVehicule
+        return DepenseVehicule.objects.filter(ref_objet_type='prise_carburant')
+
+    def test_creee_modifiee_supprimee_avec_la_prise(self):
+        p = PleinsCarburant.objects.create(vehicule=self.v, agence=self.agence_a, date_plein=datetime.date(2026, 5, 4),
+                                           heure_plein=datetime.time(8), volume_litres=40, montant_fcfa=27000,
+                                           kilometrage_releve=1200, bon_carburant='B-12')
+        d = self.depenses().get()
+        self.assertEqual((d.categorie, float(d.montant), d.vehicule, d.agence, d.numero_facture),
+                         ('carburant', 27000.0, self.v, self.agence_a, 'B-12'))
+        p.montant_fcfa = 28000
+        p.save()
+        self.assertEqual(float(self.depenses().get().montant), 28000.0)
+        p.delete()
+        self.assertFalse(self.depenses().exists())
+
+    def test_realise_du_budget(self):
+        from apps.budget.models import BudgetAnnuel
+        PleinsCarburant.objects.create(vehicule=self.v, agence=self.agence_a, date_plein=datetime.date(2026, 5, 4),
+                                       heure_plein=datetime.time(8), volume_litres=40, montant_fcfa=27000,
+                                       kilometrage_releve=1200)
+        b = BudgetAnnuel.objects.create(agence=self.agence_a, annee=2026, budget_carburant=1000000)
+        self.client.force_authenticate(self.responsable_flotte)
+        r = self.client.get(f'/api/v1/budget/budgets/{b.id}/')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['realise'].get('carburant'), 27000.0)
+
+    def test_depense_automatique_non_modifiable(self):
+        PleinsCarburant.objects.create(vehicule=self.v, agence=self.agence_a, date_plein=datetime.date(2026, 5, 4),
+                                       heure_plein=datetime.time(8), volume_litres=40, montant_fcfa=27000,
+                                       kilometrage_releve=1200)
+        d = self.depenses().get()
+        self.client.force_authenticate(self.super_admin)
+        r = self.client.patch(f'/api/v1/budget/depenses/{d.id}/', {'montant': 1}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.client.delete(f'/api/v1/budget/depenses/{d.id}/').status_code, 400)
+        self.assertTrue(self.client.get(f'/api/v1/budget/depenses/{d.id}/').data['automatique'])

@@ -2,6 +2,7 @@
 
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from apps.accounts.permissions import RoleBasedPermission
@@ -155,6 +156,17 @@ class DepenseViewSet(viewsets.ModelViewSet):
             agence=agence_pour_creation(user, serializer.validated_data.get('agence'))
         )
 
+    def _refuser_si_automatique(self, depense):
+        from apps.carburant.depenses import REF_PRISE
+        if depense.ref_objet_type == REF_PRISE:
+            raise ValidationError({'detail': "Cette dépense provient d'une prise de carburant : "
+                                             "modifiez ou supprimez la prise dans Carburant."})
+
     def perform_update(self, serializer):
+        self._refuser_si_automatique(serializer.instance)
         controler_agence(self.request.user, serializer.validated_data)
         serializer.save()
+
+    def perform_destroy(self, instance):
+        self._refuser_si_automatique(instance)
+        instance.delete()

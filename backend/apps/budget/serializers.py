@@ -38,9 +38,16 @@ class DepenseSerializer(serializers.ModelSerializer):
             'id', 'vehicule', 'vehicule_immat', 'agence', 'agence_nom',
             'categorie', 'categorie_display', 'date_depense', 'montant',
             'description', 'fournisseur', 'numero_facture',
-            'fichier_justificatif', 'created_at'
+            'fichier_justificatif', 'created_at', 'automatique', 'ref_objet_id'
         ]
-        read_only_fields = ['created_at']
+        read_only_fields = ['created_at', 'ref_objet_id']
+
+    automatique = serializers.SerializerMethodField()
+
+    def get_automatique(self, obj):
+        """Dépense générée par une prise de carburant : elle se modifie par la prise."""
+        from apps.carburant.depenses import REF_PRISE
+        return obj.ref_objet_type == REF_PRISE
 
     def get_vehicule_immat(self, obj):
         return obj.vehicule.immatriculation if obj.vehicule else None

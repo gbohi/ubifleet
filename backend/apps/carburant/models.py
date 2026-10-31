@@ -255,6 +255,9 @@ class PleinsCarburant(UbiFleetBaseModel):
             self.vehicule.save(update_fields=['kilometrage_actuel'])
 
         super().save(*args, **kwargs)
+        # Dépense « Carburant » du budget (cf. depenses.py)
+        from .depenses import synchroniser_depense
+        synchroniser_depense(self)
 
 
 class RapprochementCarburant(UbiFleetBaseModel):
@@ -330,3 +333,14 @@ class PrixCarburant(models.Model):
         return (cls.objects
                 .filter(type_carburant=type_carburant, date_effet__lte=date)
                 .order_by('-date_effet').first())
+
+
+from django.db.models.signals import post_delete  # noqa: E402
+from django.dispatch import receiver  # noqa: E402
+
+
+@receiver(post_delete, sender=PleinsCarburant)
+def _supprimer_depense_de_la_prise(sender, instance, **kwargs):
+    """La dépense « Carburant » disparaît avec sa prise (suppression directe ou en cascade)."""
+    from .depenses import supprimer_depense
+    supprimer_depense(instance.pk)

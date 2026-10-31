@@ -330,6 +330,9 @@ export interface Depense {
   description: string;
   fournisseur: string;
   numero_facture: string;
+  /** Dépense reportée depuis une prise de carburant (modifiable seulement par la prise). */
+  automatique?: boolean;
+  ref_objet_id?: string | null;
 }
 
 // ── Alertes ──

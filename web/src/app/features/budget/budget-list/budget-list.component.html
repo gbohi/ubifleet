@@ -251,7 +251,8 @@
                     </td>
                     <td>{{ d.vehicule_immat || '—' }}</td>
                     <td>
-                      <div class="td-desc">{{ d.description }}</div>
+                      <div class="td-desc">{{ d.description }}
+                        @if (d.automatique) { <span class="badge badge-info" title="Reportée automatiquement depuis la prise de carburant">Auto</span> }</div>
                     </td>
                     <td>{{ d.fournisseur || '—' }}</td>
                     <td>{{ d.numero_facture || '—' }}</td>
@@ -262,14 +263,21 @@
                                 (click)="ouvrirFacture(d)">
                           <i class="fas fa-file-invoice"></i>
                         </button>
-                        <button class="btn btn-icon" title="Modifier"
-                                (click)="openDepenseModal(d)">
-                          <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-icon btn-icon-danger" title="Supprimer"
-                                (click)="confirmDeleteDepense(d.id)">
-                          <i class="fas fa-trash"></i>
-                        </button>
+                        @if (d.automatique) {
+                          <a class="btn btn-icon" title="Dépense issue d'une prise de carburant : elle se modifie par la prise"
+                             [routerLink]="['/carburant', d.ref_objet_id, 'modifier']">
+                            <i class="fas fa-gas-pump"></i>
+                          </a>
+                        } @else {
+                          <button class="btn btn-icon" title="Modifier"
+                                  (click)="openDepenseModal(d)">
+                            <i class="fas fa-edit"></i>
+                          </button>
+                          <button class="btn btn-icon btn-icon-danger" title="Supprimer"
+                                  (click)="confirmDeleteDepense(d.id)">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        }
                       </div>
                     </td>
                   </tr>
@@ -532,6 +540,10 @@
                 <option [value]="c.value">{{ c.label }}</option>
               }
             </select>
+            @if (df.categorie.value === 'carburant') {
+              <div class="form-hint"><i class="fas fa-info-circle"></i> Les prises de carburant sont reportées
+                automatiquement : ne saisissez ici que les autres achats de carburant (bidon, autre fournisseur…).</div>
+            }
           </div>
         </div>
 
