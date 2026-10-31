@@ -33,9 +33,17 @@ class DocumentVehiculeSerializer(serializers.ModelSerializer):
         ]
 
 
+class AgenceResumeSerializer(serializers.Serializer):
+    """Agence d'un véhicule (sans le nombre de véhicules de l'agence, une requête par ligne)."""
+    id = serializers.UUIDField(read_only=True)
+    nom = serializers.CharField(read_only=True)
+    code = serializers.CharField(read_only=True)
+    ville = serializers.CharField(read_only=True)
+
+
 class VehiculeListSerializer(serializers.ModelSerializer):
     """Sérialiseur léger pour liste."""
-    agence_detail = AgenceSerializer(source='agence', read_only=True)
+    agence_detail = AgenceResumeSerializer(source='agence', read_only=True)
     statut_display  = serializers.CharField(source='statut.libelle',  read_only=True, allow_null=True)
     marque_libelle  = serializers.CharField(source='marque.libelle',  read_only=True, allow_null=True)
     modele_libelle  = serializers.CharField(source='modele.libelle',  read_only=True, allow_null=True)
@@ -67,6 +75,10 @@ class VehiculeListSerializer(serializers.ModelSerializer):
         ]
 
     def get_consommation_moyenne(self, obj):
+        # Liste : valeurs calculées en lot par la vue (cf. consommations_moyennes)
+        lot = self.context.get('consommations')
+        if lot is not None:
+            return lot.get(obj.pk)
         return obj.consommation_moyenne()
 
     def get_chauffeur_nom(self, obj):

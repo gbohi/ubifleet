@@ -47,11 +47,19 @@ export class VehiculesListComponent implements OnInit {
     { label: 'Essence',    value: 'essence' },
     { label: 'Hybride',    value: 'hybride' },
     { label: 'Électrique', value: 'electrique' },
+    { label: 'GPL',        value: 'gpl' },
   ];
+
+  /** Affectations / usages (référentiel paramétrable). */
+  affectations = signal<any[]>([]);
 
   ngOnInit(): void {
     this.parametrageApi.getStatutsVehicule().subscribe({
       next: (l) => this.statutsDisponibles.set(l.filter((s: any) => s.actif)),
+      error: () => {},
+    });
+    this.parametrageApi.getAffectations().subscribe({
+      next: (l) => this.affectations.set(l.filter((a: any) => a.actif)),
       error: () => {},
     });
     this.store.loadVehicules();
@@ -65,7 +73,7 @@ export class VehiculesListComponent implements OnInit {
   onSearch(event: Event): void {
     const val = (event.target as HTMLInputElement).value;
     this.store.setFilter('search', val);
-    this.store.loadVehicules();
+    this.rafraichir();
   }
 
   onStatutFilter(statut: string): void {
@@ -75,22 +83,42 @@ export class VehiculesListComponent implements OnInit {
 
   onAgenceFilter(event: Event): void {
     this.store.setFilter('agence', (event.target as HTMLSelectElement).value);
-    this.store.loadVehicules();
+    this.rafraichir();
   }
 
   onTypeFilter(event: Event): void {
     this.store.setFilter('type_vehicule', (event.target as HTMLSelectElement).value);
-    this.store.loadVehicules();
+    this.rafraichir();
   }
 
   onCarburantFilter(event: Event): void {
     this.store.setFilter('type_carburant', (event.target as HTMLSelectElement).value);
+    this.rafraichir();
+  }
+
+  onAffectationFilter(valeur: string): void {
+    this.store.setFilter('affectation', valeur);
+    this.rafraichir();
+  }
+
+  onRevisionDue(): void {
+    this.store.setFilter('revision_due', this.store.filters().revision_due ? '' : 'true');
     this.store.loadVehicules();
   }
 
   resetFilters(): void {
     this.store.resetFilters();
+    this.rafraichir();
+  }
+
+  /** Liste et statistiques (les statistiques suivent les filtres, sauf le statut). */
+  private rafraichir(): void {
     this.store.loadVehicules();
+    this.store.loadStats();
+  }
+
+  couleurPastille(couleur: string): string {
+    return ({ green: 'green', orange: 'orange', red: 'red', blue: 'blue' } as Record<string, string>)[couleur] ?? 'gray';
   }
 
   goToDetail(id: string): void {

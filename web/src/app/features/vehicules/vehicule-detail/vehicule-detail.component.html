@@ -128,6 +128,13 @@
           }
         </div>
       </div>
+      <div class="kpi-mini">
+        <div class="kpi-mini-icon warning"><i class="fas fa-tint"></i></div>
+        <div>
+          <div class="kpi-mini-val">{{ v.dotation_carburant_mensuelle | number:'1.0-0' }} L</div>
+          <div class="kpi-mini-lbl">Dotation mensuelle</div>
+        </div>
+      </div>
       @if (v.kilometrage_revision > 0) {
         <div class="kpi-mini">
           <div class="kpi-mini-icon" [class]="v.revision_due ? 'danger' : 'green'">

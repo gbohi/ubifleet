@@ -92,6 +92,7 @@ export class VehiculeFormComponent implements OnInit {
     conso_theorique_origine:   [0],
     numero_carte_carburant:    [''],
     kilometrage_revision:            [0],
+    dotation_carburant_mensuelle:    [0, [Validators.min(0)]],
     // Dates
     date_mise_en_service: [''],
     date_acquisition:     [''],
@@ -102,7 +103,14 @@ export class VehiculeFormComponent implements OnInit {
 
   ngOnInit(): void {
     this.parametrageApi.getStatutsVehicule().subscribe({
-      next: (l) => this.statutsVehicule.set(l.filter((s: any) => s.actif)),
+      next: (l) => {
+        this.statutsVehicule.set(l.filter((s: any) => s.actif));
+        // Création : « En service » proposé par défaut (statut lu dans Paramètres › Statuts)
+        if (!this.isEditMode() && !this.form.value.statut) {
+          const enService = l.find((s: any) => s.code === 'en_service');
+          if (enService) this.form.patchValue({ statut: enService.id });
+        }
+      },
       error: () => {},
     });
     this.parametrageApi.getAffectations().subscribe({
@@ -162,6 +170,7 @@ export class VehiculeFormComponent implements OnInit {
             conso_theorique_origine:         v.conso_theorique_origine ?? 0,
             numero_carte_carburant:          v.numero_carte_carburant ?? '',
             kilometrage_revision:             v.kilometrage_revision,
+            dotation_carburant_mensuelle: Number(v.dotation_carburant_mensuelle),
             date_mise_en_service:         v.date_mise_en_service ?? '',
             date_acquisition:             v.date_acquisition ?? '',
             valeur_acquisition:           v.valeur_acquisition ?? null,

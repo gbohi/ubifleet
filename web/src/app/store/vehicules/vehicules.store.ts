@@ -28,6 +28,8 @@ interface VehiculesState {
     statut:         string;
     type_carburant: string;
     type_vehicule:  string;
+    affectation:    string;
+    revision_due:   string;   // 'true' : révisions dues seulement
   };
   stats: any | null;
 }
@@ -45,6 +47,8 @@ const initialState: VehiculesState = {
     statut:         '',
     type_carburant: '',
     type_vehicule:  '',
+    affectation:    '',
+    revision_due:   '',
   },
   stats: null,
 };
@@ -63,21 +67,10 @@ export const VehiculesStore = signalStore(
 
     totalVehicules: computed(() => store.pagination().total),
 
-    vehiculesEnService: computed(() =>
-      store.vehicules().filter(v => v.statut_couleur === 'green')
-    ),
-    vehiculesEnRevision: computed(() =>
-      store.vehicules().filter(v => v.statut_couleur === 'orange')
-    ),
-    vehiculesImmobilises: computed(() =>
-      store.vehicules().filter(v => v.statut_couleur === 'red')
-    ),
-    vehiculesRevisionDue: computed(() =>
-      store.vehicules().filter(v => v.revision_due)
-    ),
     hasActiveFilters: computed(() => {
       const f = store.filters();
-      return !!(f.search || f.agence || f.statut || f.type_carburant || f.type_vehicule);
+      return !!(f.search || f.agence || f.statut || f.type_carburant || f.type_vehicule
+                || f.affectation || f.revision_due);
     }),
   })),
 
@@ -105,6 +98,9 @@ export const VehiculesStore = signalStore(
             if (f.statut)         params['statut']         = f.statut;
             if (f.type_carburant) params['type_carburant'] = f.type_carburant;
             if (f.type_vehicule)  params['type_vehicule']  = f.type_vehicule;
+            if (f.affectation)    params['affectation']    = f.affectation;
+            if (f.statut === '__aucun') { delete params['statut']; params['sans_statut'] = 'true'; }
+            if (f.revision_due)   params['revision_due']   = 'true';
 
             return api.getAll(params).pipe(
               tapResponse({
@@ -148,17 +144,24 @@ export const VehiculesStore = signalStore(
         )
       ),
 
-      // Charger les statistiques du parc
+      // Statistiques de tout le parc (filtres de la liste, sauf le statut)
       loadStats: rxMethod<void>(
         pipe(
-          switchMap(() =>
-            api.getStats().pipe(
+          switchMap(() => {
+            const f = store.filters();
+            const params: Record<string, any> = {};
+            if (f.search)         params['search']         = f.search;
+            if (f.agence)         params['agence']         = f.agence;
+            if (f.type_carburant) params['type_carburant'] = f.type_carburant;
+            if (f.type_vehicule)  params['type_vehicule']  = f.type_vehicule;
+            if (f.affectation)    params['affectation']    = f.affectation;
+            return api.getStats(params).pipe(
               tapResponse({
                 next:  (stats) => patchState(store, { stats }),
                 error: ()      => { /* silencieux */ },
               })
-            )
-          )
+            );
+          })
         )
       ),
 

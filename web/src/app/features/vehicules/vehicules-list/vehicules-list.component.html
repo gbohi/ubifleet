@@ -6,9 +6,8 @@
     <div>
       <h1 class="page-title">Parc Automobile</h1>
       <p class="page-subtitle">
-        {{ store.totalVehicules() }} véhicule(s) &bull;
-        {{ store.vehiculesEnService().length }} en service &bull;
-        {{ store.vehiculesRevisionDue().length }} révision(s) due(s)
+        {{ store.totalVehicules() }} véhicule(s) affiché(s) sur {{ store.stats()?.total ?? store.totalVehicules() }} &bull;
+        {{ store.stats()?.revision_due ?? 0 }} révision(s) due(s)
       </p>
     </div>
     <div class="header-actions">
@@ -45,30 +44,32 @@
   </div>
 
   <!-- ── STATS RAPIDES ── -->
-  <div class="quick-stats">
-    <div class="qs-item">
-      <span class="qs-dot green"></span>
-      <span class="qs-val">{{ store.vehiculesEnService().length }}</span>
-      <span class="qs-lbl">En service</span>
-    </div>
+  <div class="quick-stats" title="Tout le parc (avec les filtres de la liste, hors statut) — cliquer pour filtrer">
+    @for (st of store.stats()?.par_statut ?? []; track st.code; let premier = $first) {
+      @if (!premier) { <div class="qs-sep"></div> }
+      <button type="button" class="qs-item" [class.actif]="store.filters().statut === st.code"
+              (click)="onStatutFilter(store.filters().statut === st.code ? '' : st.code)">
+        <span class="qs-dot" [class]="couleurPastille(st.couleur)"></span>
+        <span class="qs-val">{{ st.nb }}</span>
+        <span class="qs-lbl">{{ st.libelle }}</span>
+      </button>
+    }
+    @if (store.stats()?.sans_statut) {
+      <div class="qs-sep"></div>
+      <button type="button" class="qs-item" [class.actif]="store.filters().statut === '__aucun'"
+              (click)="onStatutFilter(store.filters().statut === '__aucun' ? '' : '__aucun')">
+        <span class="qs-dot gray"></span>
+        <span class="qs-val">{{ store.stats()?.sans_statut }}</span>
+        <span class="qs-lbl">Sans statut</span>
+      </button>
+    }
     <div class="qs-sep"></div>
-    <div class="qs-item">
-      <span class="qs-dot orange"></span>
-      <span class="qs-val">{{ store.vehiculesEnRevision().length }}</span>
-      <span class="qs-lbl">En révision</span>
-    </div>
-    <div class="qs-sep"></div>
-    <div class="qs-item">
-      <span class="qs-dot red"></span>
-      <span class="qs-val">{{ store.vehiculesImmobilises().length }}</span>
-      <span class="qs-lbl">Immobilisés</span>
-    </div>
-    <div class="qs-sep"></div>
-    <div class="qs-item">
+    <button type="button" class="qs-item" [class.actif]="store.filters().revision_due"
+            (click)="onRevisionDue()">
       <span class="qs-dot warning"></span>
-      <span class="qs-val">{{ store.vehiculesRevisionDue().length }}</span>
+      <span class="qs-val">{{ store.stats()?.revision_due ?? 0 }}</span>
       <span class="qs-lbl">Révision due</span>
-    </div>
+    </button>
   </div>
 
   <!-- ── FILTRES ── -->
@@ -79,6 +80,7 @@
       <input
         type="text"
         placeholder="Immatriculation, marque, modèle..."
+        [value]="store.filters().search"
         (input)="onSearch($event)"
       />
       @if (store.hasActiveFilters()) {
@@ -89,7 +91,7 @@
     </div>
 
     <!-- Agence -->
-    <select class="form-control filter-select" (change)="onAgenceFilter($event)">
+    <select class="form-control filter-select" [value]="store.filters().agence" (change)="onAgenceFilter($event)">
       <option value="">Toutes les agences</option>
       @for (agence of agences(); track agence.id) {
         <option [value]="agence.id">{{ agence.nom }}</option>
@@ -97,14 +99,14 @@
     </select>
 
     <!-- Type véhicule -->
-    <select class="form-control filter-select" (change)="onTypeFilter($event)">
+    <select class="form-control filter-select" [value]="store.filters().type_vehicule" (change)="onTypeFilter($event)">
       @for (t of typesVehicule; track t.value) {
         <option [value]="t.value">{{ t.label }}</option>
       }
     </select>
 
     <!-- Carburant -->
-    <select class="form-control filter-select" (change)="onCarburantFilter($event)">
+    <select class="form-control filter-select" [value]="store.filters().type_carburant" (change)="onCarburantFilter($event)">
       @for (c of typesCarburant; track c.value) {
         <option [value]="c.value">{{ c.label }}</option>
       }
@@ -117,6 +119,16 @@
       <option value="">Tous les statuts</option>
       @for (s of statutsDisponibles(); track s.id) {
         <option [value]="s.code">{{ s.libelle }}</option>
+      }
+      <option value="__aucun">Sans statut</option>
+    </select>
+
+    <!-- Affectation / usage (Paramètres › Affectations / usages) -->
+    <select class="form-control filter-select" [value]="store.filters().affectation"
+            (change)="onAffectationFilter($any($event.target).value)">
+      <option value="">Toutes les affectations</option>
+      @for (a of affectations(); track a.id) {
+        <option [value]="a.id">{{ a.libelle }}</option>
       }
     </select>
   </div>
@@ -193,6 +205,9 @@
                 {{ vehicule.annee }} &bull; {{ vehicule.type_carburant_display }}
                 &bull; {{ vehicule.type_vehicule_display }}
               </div>
+              @if (vehicule.affectation_libelle) {
+                <div class="vc-meta" title="Affectation / usage"><i class="fas fa-briefcase"></i> {{ vehicule.affectation_libelle }}</div>
+              }
 
               @if (vehicule.agence_detail) {
                 <span class="agency-pill">{{ vehicule.agence_detail.code }}</span>
@@ -220,9 +235,9 @@
                 <div class="vc-stat-sep"></div>
                 <div class="vc-stat">
                   <div class="vc-stat-val">
-                    {{ vehicule.conso_theorique_origine ? (vehicule.conso_theorique_origine | number:'1.0-1') : '—' }}
+                    {{ vehicule.dotation_carburant_mensuelle | number:'1.0-0' }}
                   </div>
-                  <div class="vc-stat-lbl">Réf. L/100</div>
+                  <div class="vc-stat-lbl">L/mois</div>
                 </div>
               </div>
 
@@ -279,6 +294,7 @@
               <th>Immatriculation</th>
               <th>Désignation</th>
               <th>Type</th>
+              <th>Affectation</th>
               <th>Agence</th>
               <th>Kilométrage</th>
               <th>Conso.</th>
@@ -290,7 +306,7 @@
           <tbody>
             @if (store.vehicules().length === 0) {
               <tr>
-                <td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400)">
+                <td colspan="10" style="text-align:center;padding:40px;color:var(--gray-400)">
                   <i class="fas fa-car" style="font-size:24px;display:block;margin-bottom:8px"></i>
                   Aucun véhicule trouvé
                 </td>
@@ -306,6 +322,7 @@
                   <div class="td-sub">{{ v.annee }} &bull; {{ v.type_carburant_display }}</div>
                 </td>
                 <td>{{ v.type_vehicule_display }}</td>
+                <td>{{ v.affectation_libelle ?? '—' }}</td>
                 <td>
                   @if (v.agence_detail) {
                     <span class="agency-pill">{{ v.agence_detail.code }}</span>

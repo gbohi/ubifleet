@@ -60,3 +60,17 @@ class VehiculeSaisieTests(UtilisateursMixin, APITestCase):
         self.assertEqual(self.client.patch(url, {'immatriculation': '9999 ZZ 01'}, format='json').status_code, 400)
         self.client.patch(url, {'is_active': False}, format='json')
         self.assertTrue(Vehicule.objects.get(pk=v).is_active)
+
+    def test_statistiques_de_tout_le_parc(self):
+        from apps.parametrage.models import StatutVehicule
+        en_service, _ = StatutVehicule.objects.get_or_create(code='en_service', defaults={'libelle': 'En service', 'couleur': 'green'})
+        panne, _ = StatutVehicule.objects.get_or_create(code='en_panne', defaults={'libelle': 'En panne', 'couleur': 'red'})
+        for i in range(25):
+            self.creer(immatriculation=f'{2000 + i} CD 01')          # statut « En service » par défaut
+        Vehicule.objects.filter(immatriculation='2000 CD 01').update(statut=panne)
+        r = self.client.get('/api/v1/vehicules/stats/')
+        par = {s['code']: s['nb'] for s in r.data['par_statut']}
+        self.assertEqual((r.data['total'], par['en_service'], par['en_panne']), (25, 24, 1))
+        # La liste est paginée, les statistiques non
+        self.assertEqual(len(self.client.get('/api/v1/vehicules/', {'page_size': 10}).data['results']), 10)
+        self.assertEqual(self.client.get('/api/v1/vehicules/', {'statut': 'en_panne'}).data['count'], 1)

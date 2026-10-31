@@ -73,7 +73,7 @@ export interface Vehicule {
   agence: string;
   agence_detail: Agence;
   affectation: number | null;
-  affectation_libelle: string;
+  affectation_libelle: string | null;
   chauffeur_attitré: string | null;
   chauffeur_nom: string | null;
   kilometrage_actuel: number;

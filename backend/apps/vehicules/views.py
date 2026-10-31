@@ -40,10 +40,12 @@ class VehiculeFilter(FilterSet):
     annee_min = df.NumberFilter(field_name='annee', lookup_expr='gte')
     annee_max = df.NumberFilter(field_name='annee', lookup_expr='lte')
     revision_due = df.BooleanFilter(method='filter_revision_due')
+    affectation = df.NumberFilter(field_name='affectation')
+    sans_statut = df.BooleanFilter(field_name='statut', lookup_expr='isnull')
 
     class Meta:
         model = Vehicule
-        fields = ['agence', 'statut', 'type_carburant', 'type_vehicule', 'is_active']
+        fields = ['agence', 'statut', 'type_carburant', 'type_vehicule', 'affectation', 'is_active']
 
     def filter_revision_due(self, queryset, name, value):
         if value:
@@ -52,6 +54,24 @@ class VehiculeFilter(FilterSet):
                 kilometrage_actuel__gte=F('kilometrage_revision')
             )
         return queryset
+
+
+def consommations_moyennes(ids):
+    """{vehicule_id: conso L/100 sur tout l'historique} (même calcul que
+    Vehicule.consommation_moyenne) en une requête pour plusieurs véhicules."""
+    from apps.carburant.models import PleinsCarburant
+    par_vehicule = {}
+    for vid, d, h, km, litres in PleinsCarburant.objects.filter(vehicule_id__in=ids) \
+            .order_by('vehicule_id', 'date_plein', 'heure_plein') \
+            .values_list('vehicule_id', 'date_plein', 'heure_plein', 'kilometrage_releve', 'volume_litres'):
+        par_vehicule.setdefault(vid, []).append((km, litres))
+    resultat = {}
+    for vid, prises in par_vehicule.items():
+        if len(prises) < 2 or prises[-1][0] - prises[0][0] <= 0:
+            resultat[vid] = None
+            continue
+        resultat[vid] = round(float(sum(l for _, l in prises[1:])) / (prises[-1][0] - prises[0][0]) * 100, 2)
+    return resultat
 
 
 class VehiculeViewSet(viewsets.ModelViewSet):
@@ -88,6 +108,17 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         ).filter(is_active=True)
         return filtrer_par_agence(qs, self.request.user)
 
+    def list(self, request, *args, **kwargs):
+        """Liste paginée ; la consommation moyenne des véhicules de la page est
+        calculée en une seule requête (au lieu d'une par véhicule)."""
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        objets = page if page is not None else list(queryset)
+        contexte = {**self.get_serializer_context(),
+                    'consommations': consommations_moyennes([v.pk for v in objets])}
+        serializer = self.get_serializer_class()(objets, many=True, context=contexte)
+        return self.get_paginated_response(serializer.data) if page is not None else Response(serializer.data)
+
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
             return VehiculeWriteSerializer
@@ -99,6 +130,9 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         user = self.request.user
         controler_agence(user, serializer.validated_data)
         km = serializer.validated_data.get('kilometrage_actuel', 0)
+        if not serializer.validated_data.get('statut'):
+            from apps.parametrage.models import StatutVehicule
+            serializer.validated_data['statut'] = StatutVehicule.objects.filter(code='en_service').first()
         serializer.save(created_by=user, kilometrage_initial=km,
                         agence=agence_pour_creation(user, serializer.validated_data.get('agence')))
 
@@ -229,17 +263,32 @@ class VehiculeViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        """Statistiques globales du parc."""
-        qs = self.get_queryset()
+        """Statistiques de tout le parc (pas d'une page), avec les filtres de la
+        liste sauf le statut : un compteur par statut de la table des statuts
+        (Paramètres), véhicules sans statut, révisions dues."""
+        from apps.parametrage.models import StatutVehicule
+        params = request.query_params.copy()
+        params.pop('statut', None)
+        params.pop('sans_statut', None)
+        qs = VehiculeFilter(params, queryset=self.get_queryset()).qs
+        if params.get('search'):
+            terme = params['search']
+            qs = qs.filter(Q(immatriculation__icontains=terme) | Q(marque__libelle__icontains=terme)
+                           | Q(modele__libelle__icontains=terme) | Q(numero_chassis__icontains=terme))
+        compte = dict(qs.order_by().values_list('statut_id').annotate(n=Count('id')))
+        statuts = [{'code': st.code, 'libelle': st.libelle, 'couleur': st.couleur, 'nb': compte.get(st.pk, 0)}
+                   for st in StatutVehicule.objects.filter(actif=True).order_by('libelle')
+                   if st.code != 'vendu' or compte.get(st.pk)]
         data = {
             'total': qs.count(),
-            'par_statut': {item['statut__code'] or 'inconnu': item['count'] for item in qs.values('statut__code').annotate(count=Count('id'))},
+            'par_statut': statuts,
+            'sans_statut': compte.get(None, 0),
             'par_agence': list(
                 qs.values('agence__nom', 'agence__code')
                   .annotate(count=Count('id'))
                   .order_by('agence__nom')
             ),
-            'par_type': dict(qs.values_list('type_vehicule').annotate(count=Count('id'))),
+            'par_type': dict(qs.order_by().values_list('type_vehicule').annotate(count=Count('id'))),
             'revision_due': qs.filter(
                 kilometrage_revision__gt=0,
                 kilometrage_actuel__gte=F('kilometrage_revision')

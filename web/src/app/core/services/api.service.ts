@@ -297,8 +297,8 @@ export class VehiculeApiService extends ApiBaseService {
   getHistorique(id: string): Observable<any> {
     return this.http.get(`${API}/vehicules/${id}/historique/`);
   }
-  getStats(): Observable<any> {
-    return this.http.get(`${API}/vehicules/stats/`);
+  getStats(params?: Record<string, any>): Observable<any> {
+    return this.http.get(`${API}/vehicules/stats/`, { params: params ? this.buildParams(params) : undefined });
   }
   getAssurancesExpirant(): Observable<Vehicule[]> {
     return this.http.get<Vehicule[]>(`${API}/vehicules/assurances_expirant/`);
