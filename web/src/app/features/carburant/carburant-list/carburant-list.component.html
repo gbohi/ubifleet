@@ -69,6 +69,10 @@
             (click)="activeTab.set('consommation')">
       <i class="fas fa-tachometer-alt"></i> Consommation
     </button>
+    <button class="tab" [class.active]="activeTab() === 'chauffeurs'"
+            (click)="activeTab.set('chauffeurs')">
+      <i class="fas fa-id-badge"></i> Chauffeurs
+    </button>
     <button class="tab" [class.active]="activeTab() === 'evolution'"
             (click)="activeTab.set('evolution')">
       <i class="fas fa-chart-line"></i> Évolution par agence
@@ -356,6 +360,7 @@
 
   <!-- ── ANALYSES ── -->
   @if (activeTab() === 'consommation') { <ubi-consommation-vehicules [agences]="agences()" /> }
+  @if (activeTab() === 'chauffeurs') { <ubi-classement-chauffeurs [agences]="agences()" /> }
   @if (activeTab() === 'evolution') { <ubi-evolution-agences [agences]="agences()" /> }
   @if (activeTab() === 'rapprochement') { <ubi-rapprochement-total [agences]="agences()" /> }
 

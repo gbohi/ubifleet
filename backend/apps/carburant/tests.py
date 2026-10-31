@@ -529,6 +529,26 @@ class AnalysesCarburantTests(UtilisateursMixin, APITestCase):
                             {'vehicule': str(self.v.id), 'date_debut': '2026-05-01', 'date_fin': '2026-05-31'})
         self.assertEqual([p['km'] for p in r.data['points']], [10000, 10300, 11100])
 
+    def test_cout_km_chauffeurs_fiches(self):
+        self.prise(0, (8, 0), 10000, 50)
+        self.prise(1, (8, 0), 10500, 55)
+        self.prise(2, (8, 0), 11000, 65)
+        self.client.force_authenticate(self.responsable_flotte)
+        # Coût carburant au km : (55 + 65) × 675 / 1000 km
+        l = self.get('consommation').data['resultats'][0]
+        self.assertEqual(l['cout_km'], 81.0)
+        # Classement des chauffeurs : conso 12 vs référence 10 → +20 %
+        r = self.get('chauffeurs')
+        self.assertEqual(r.status_code, 200, r.data)
+        c = r.data['resultats'][0]
+        self.assertEqual((c['chauffeur'], c['conso_moyenne'], c['conso_reference'], c['ecart_pct']),
+                         ('C1 — Moussa KONE', 12.0, 10.0, 20.0))
+        # Utilisation du parc : coût total au km (dépenses carburant reportées depuis les prises)
+        u = self.client.get('/api/v1/vehicules/utilisation/', {'date_debut': '2026-05-01', 'date_fin': '2026-05-31'}).data
+        v = next(x for x in u['resultats'] if x['immatriculation'] == '56317 WW 01')
+        self.assertEqual((v['km_parcourus'], v['depenses'], v['cout_km']), (1000, 114750, 114.8))
+        self.assertEqual(u['par_agence'][0]['cout_km'], 114.8)
+
     def test_compteur_interpole(self):
         from .analyses import compteur_a
         t = lambda h: datetime.datetime(2026, 5, 1, h)

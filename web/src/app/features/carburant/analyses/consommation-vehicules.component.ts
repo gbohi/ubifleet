@@ -45,6 +45,7 @@ import { FiltresAnalyse, FiltresAnalyseComponent, exporterCsv } from './filtres-
             <th class="num triable" (click)="trier('km_parcourus')">Km</th>
             <th class="num triable" (click)="trier('litres')">Litres</th>
             <th class="num triable" (click)="trier('montant')">Montant</th>
+            <th class="num triable" (click)="trier('cout_km')" title="Coût carburant au km (montant des prises ÷ km)">Coût / km</th>
             <th class="num triable" (click)="trier('conso_moyenne')">Conso moy. L/100</th>
             <th class="num">Référence</th>
             <th class="num triable" (click)="trier('ecart_pct')">Écart</th>
@@ -62,6 +63,7 @@ import { FiltresAnalyse, FiltresAnalyseComponent, exporterCsv } from './filtres-
                 <td class="num">{{ l.km_parcourus === null ? '—' : (l.km_parcourus | number:'1.0-0') }}</td>
                 <td class="num">{{ l.litres | number:'1.0-2' }}</td>
                 <td class="num">{{ l.montant | number:'1.0-0' }}</td>
+                <td class="num">{{ l.cout_km === null ? '—' : (l.cout_km | number:'1.0-1') + ' F' }}</td>
                 <td class="num fort">
                   @if (l.historique_insuffisant) { <span class="muted" title="Il faut au moins deux prises du véhicule pour calculer une consommation">historique insuffisant</span> }
                   @else { {{ l.conso_moyenne ?? '—' }} }
@@ -139,9 +141,9 @@ export class ConsommationVehiculesComponent {
   exporter(): void {
     exporterCsv(`consommation_${this.filtres?.date_debut}_${this.filtres?.date_fin}.csv`,
       ['Véhicule', 'Marque', 'Modèle', 'Type', 'Prises', 'Km', 'Litres', 'Montant (FCFA)', 'Conso moyenne L/100',
-       'Conso de référence', 'Écart L/100', 'Écart %', 'Dernière conso', 'Date dernière prise', 'Anomalies', 'Part hors tournée %'],
+       'Conso de référence', 'Écart L/100', 'Écart %', 'Coût carburant / km', 'Dernière conso', 'Date dernière prise', 'Anomalies', 'Part hors tournée %'],
       this.triees().map(l => [l.immatriculation, l.marque, l.modele, l.type_vehicule, l.nb_prises, l.km_parcourus, l.litres,
-        l.montant, l.conso_moyenne, l.conso_reference, l.ecart_100, l.ecart_pct, l.derniere_conso, l.derniere_date,
+        l.montant, l.conso_moyenne, l.conso_reference, l.ecart_100, l.ecart_pct, l.cout_km, l.derniere_conso, l.derniere_date,
         l.nb_anomalies, l.part_hors_tournee]));
   }
 }

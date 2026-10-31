@@ -93,6 +93,10 @@ export interface Vehicule {
 }
 
 export interface VehiculeDetail extends Vehicule {
+  indicateurs_carburant?: {
+    periode_jours: number; conso_3_mois: number | null; km_3_mois: number | null; conso_reference: number | null;
+    ecart_pct: number | null; cout_km: number | null; nb_prises: number; nb_anomalies: number;
+  };
   numero_chassis: string;
   date_acquisition: string | null;
   valeur_acquisition: number | null;

@@ -225,6 +225,18 @@ class PleinViewSet(SaisieCorrigeableMixin, viewsets.ModelViewSet):
         return Response({'periode': {'debut': debut, 'fin': fin}, 'nb_vehicules': len(lignes), 'resultats': lignes})
 
     @action(detail=False, methods=['get'])
+    def chauffeurs(self, request):
+        """
+        Classement des chauffeurs sur la période : conso de leurs prises (plein à
+        plein) comparée à la référence des véhicules conduits, anomalies.
+        Paramètres : date_debut, date_fin (requis), agence, vehicule, chauffeur, type_mouvement.
+        """
+        debut, fin = self._periode()
+        prises = list(self._prises_analyse(debut, fin).select_related('chauffeur'))
+        lignes = analyses.classement_chauffeurs(prises)
+        return Response({'periode': {'debut': debut, 'fin': fin}, 'resultats': lignes})
+
+    @action(detail=False, methods=['get'])
     def evolution_agences(self, request):
         """
         Évolution mensuelle par agence (mois vides à 0) : litres, montant,

@@ -125,9 +125,10 @@ export class UtilisationParcComponent implements OnInit, OnDestroy {
     exporterCsv(`utilisation_parc_${this.filtres?.date_debut}_${this.filtres?.date_fin}.csv`,
       ['Véhicule', 'Marque', 'Modèle', 'Agence', 'Km début', 'Km fin', 'Km parcourus', "Jours d'utilisation",
        'Km par jour roulé', 'Saisies', 'Dernière saisie', 'Km dernière saisie', 'Jours sans saisie', 'Sauts suspects',
-       'Km avant révision', 'Révision estimée le'],
+       'Dépenses (FCFA)', 'Coût / km', 'Coût carburant / km', 'Km avant révision', 'Révision estimée le'],
       this.lignes().map((l: any) => [l.immatriculation, l.marque, l.modele, l.agence_nom, l.km_debut, l.km_fin,
         l.km_parcourus, l.jours_utilisation, l.km_par_jour_roule, l.nb_saisies, (l.derniere_saisie ?? '').slice(0, 10),
-        l.derniere_saisie_km, l.jours_sans_saisie, l.nb_sauts, l.km_avant_revision, l.date_revision_estimee]));
+        l.derniere_saisie_km, l.jours_sans_saisie, l.nb_sauts, l.depenses, l.cout_km, l.cout_carburant_km,
+        l.km_avant_revision, l.date_revision_estimee]));
   }
 }

@@ -81,6 +81,14 @@ class ChauffeurViewSet(viewsets.ModelViewSet):
             total_litres=Sum('volume_litres'),
             total_montant=Sum('montant_fcfa')
         )
+        # Consommation sur les véhicules conduits (12 derniers mois), vs leur référence
+        import datetime
+        from django.utils import timezone
+        from apps.carburant.analyses import classement_chauffeurs
+        prises = list(PleinsCarburant.objects.filter(
+            chauffeur=chauffeur, date_plein__gte=timezone.localdate() - datetime.timedelta(days=365))
+            .select_related('vehicule', 'chauffeur'))
+        conso = classement_chauffeurs(prises)
         sinistres = Sinistre.objects.filter(chauffeur=chauffeur).values(
             'numero_dossier', 'type_sinistre', 'date_sinistre', 'statut'
         )
@@ -88,6 +96,7 @@ class ChauffeurViewSet(viewsets.ModelViewSet):
         return Response({
             'chauffeur': self.get_serializer(chauffeur).data,
             'pleins': pleins_stats,
+            'consommation_12_mois': conso[0] if conso else None,
             'sinistres': list(sinistres),
             'nb_sinistres': sinistres.count(),
         })

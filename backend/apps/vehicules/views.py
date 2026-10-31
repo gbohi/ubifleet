@@ -653,9 +653,19 @@ class UtilisationParcView(viewsets.ViewSet):
         from .utilisation import saisies_des_vehicules, utilisation
         debut, fin = self._periode(request)
         vehicules = self._vehicules(request)
+        from apps.budget.models import DepenseVehicule
         saisies = saisies_des_vehicules([v.pk for v in vehicules], fin + timedelta(days=60))
+        # Dépenses de la période (carburant compris, reporté depuis les prises) : coût au km
+        depenses = {}
+        for row in DepenseVehicule.objects.filter(
+                vehicule_id__in=[v.pk for v in vehicules], date_depense__range=(debut, fin)) \
+                .order_by().values('vehicule_id', 'categorie').annotate(t=Sum('montant')):
+            d = depenses.setdefault(row['vehicule_id'], {'total': 0.0, 'carburant': 0.0})
+            d['total'] += float(row['t'] or 0)
+            if row['categorie'] == DepenseVehicule.Categorie.CARBURANT:
+                d['carburant'] += float(row['t'] or 0)
         return Response({'periode': {'debut': debut, 'fin': fin},
-                         **utilisation(vehicules, saisies, debut, fin, timezone.localdate())})
+                         **utilisation(vehicules, saisies, debut, fin, timezone.localdate(), depenses)})
 
     def courbe(self, request):
         from .utilisation import saisies_des_vehicules

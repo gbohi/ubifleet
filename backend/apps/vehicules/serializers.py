@@ -78,13 +78,31 @@ class VehiculeListSerializer(serializers.ModelSerializer):
 class VehiculeDetailSerializer(VehiculeListSerializer):
     """Sérialiseur complet avec documents."""
     documents = DocumentVehiculeSerializer(many=True, read_only=True)
+    indicateurs_carburant = serializers.SerializerMethodField()
 
     class Meta(VehiculeListSerializer.Meta):
         fields = VehiculeListSerializer.Meta.fields + [
             'numero_chassis', 'couleur', 'nombre_places',
             'affectation', 'date_acquisition', 'valeur_acquisition',
-            'carte_grise', 'notes', 'documents', 'updated_at'
+            'carte_grise', 'notes', 'documents', 'updated_at', 'indicateurs_carburant',
         ]
+
+    def get_indicateurs_carburant(self, obj):
+        """Conso des 3 derniers mois (plein à plein) vs référence, coût carburant au km."""
+        import datetime
+        from django.utils import timezone
+        from apps.carburant.analyses import consommation_vehicules
+        depuis = timezone.localdate() - datetime.timedelta(days=90)
+        prises = list(obj.pleins.filter(date_plein__gte=depuis).select_related('vehicule__agence'))
+        lignes = consommation_vehicules(prises)
+        l = lignes[0] if lignes else {}
+        return {
+            'periode_jours': 90,
+            'conso_3_mois': l.get('conso_moyenne'), 'km_3_mois': l.get('km_parcourus'),
+            'conso_reference': float(obj.conso_theorique_origine or 0) or None,
+            'ecart_pct': l.get('ecart_pct'), 'cout_km': l.get('cout_km'),
+            'nb_prises': l.get('nb_prises', 0), 'nb_anomalies': l.get('nb_anomalies', 0),
+        }
 
 
 class VehiculeWriteSerializer(serializers.ModelSerializer):

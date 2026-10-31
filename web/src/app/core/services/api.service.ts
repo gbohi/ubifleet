@@ -383,6 +383,9 @@ export class CarburantApiService extends ApiBaseService {
     return this.http.post<any>(`${API}/carburant/tournees/${id}/annuler/`, data);
   }
 
+  getClassementChauffeurs(params: Record<string, any>): Observable<any> {
+    return this.http.get<any>(`${API}/carburant/pleins/chauffeurs/`, { params: this.buildParams(params) });
+  }
   getRapprochementTotal(params: Record<string, any>): Observable<any> {
     const p = this.buildParams(params);
     return this.http.get<any>(`${API}/carburant/pleins/rapprochement_total/`, { params: p });

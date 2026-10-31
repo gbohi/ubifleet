@@ -10,6 +10,7 @@ import { Agence, PleinCarburant } from '../../../core/models';
 import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { SuiviTourneesComponent } from '../suivi-tournees/suivi-tournees.component';
 import { ConsommationVehiculesComponent } from '../analyses/consommation-vehicules.component';
+import { ClassementChauffeursComponent } from '../analyses/classement-chauffeurs.component';
 import { EvolutionAgencesComponent } from '../analyses/evolution-agences.component';
 import { RapprochementTotalComponent } from '../analyses/rapprochement-total.component';
 import { OptionVehicule, OptionsSaisieService } from '../../../core/services/options-saisie.service';
@@ -17,13 +18,13 @@ import { OptionRecherche, SelectRechercheComponent } from '../../../shared/selec
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
 
-type CarburantTab = 'pleins' | 'anomalies' | 'suivi' | 'consommation' | 'evolution' | 'rapprochement';
+type CarburantTab = 'pleins' | 'anomalies' | 'suivi' | 'consommation' | 'chauffeurs' | 'evolution' | 'rapprochement';
 
 @Component({
   selector: 'ubi-carburant-list',
   standalone: true,
   imports: [RouterLink, DecimalPipe, DatePipe, SuppressionMotifComponent, SuiviTourneesComponent,
-            ConsommationVehiculesComponent, EvolutionAgencesComponent, RapprochementTotalComponent, SelectRechercheComponent],
+            ConsommationVehiculesComponent, ClassementChauffeursComponent, EvolutionAgencesComponent, RapprochementTotalComponent, SelectRechercheComponent],
   templateUrl: './carburant-list.component.html',
   styleUrls: ['./carburant-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

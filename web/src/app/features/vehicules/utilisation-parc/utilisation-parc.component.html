@@ -17,7 +17,8 @@
 @if (donnees(); as d) {
   <div class="an-kpis">
     <div class="an-kpi"><span class="an-kpi-lbl">Km parcourus</span><span class="an-kpi-val">{{ d.synthese.km_total | number:'1.0-0' }} km</span>
-      <span class="an-kpi-sub">{{ d.synthese.nb_actifs }} véhicule(s) ont roulé sur {{ d.synthese.nb_vehicules }}</span></div>
+      <span class="an-kpi-sub">{{ d.synthese.nb_actifs }} véhicule(s) ont roulé sur {{ d.synthese.nb_vehicules }}
+        @if (d.synthese.cout_km_parc !== null) { · coût {{ d.synthese.cout_km_parc | number:'1.0-1' }} F/km }</span></div>
     <div class="an-kpi" [class.attention]="d.synthese.nb_inactifs > 0"><span class="an-kpi-lbl">Sans kilomètre</span>
       <span class="an-kpi-val">{{ d.synthese.nb_inactifs }}</span><span class="an-kpi-sub">véhicule(s) immobile(s) ou non suivi(s)</span></div>
     <div class="an-kpi" [class.attention]="d.synthese.nb_sans_saisie_recente > 0"><span class="an-kpi-lbl">Sans saisie récente</span>
@@ -27,6 +28,15 @@
       <span class="an-kpi-val">{{ d.synthese.nb_sauts }}</span>
       <span class="an-kpi-sub">plus de {{ d.seuils.saut_km_jour }} km par jour · {{ d.synthese.nb_revision_depassee }} révision(s) dépassée(s)</span></div>
   </div>
+
+  @if (d.par_agence.length > 1) {
+    <div class="up-agences">
+      @for (a of d.par_agence; track a.agence) {
+        <span class="up-agence"><strong>{{ a.agence }}</strong> {{ a.km | number:'1.0-0' }} km ·
+          {{ a.cout_km === null ? '—' : (a.cout_km | number:'1.0-1') + ' F/km' }}</span>
+      }
+    </div>
+  }
 
   <div class="an-onglets" role="tablist">
     <button [class.active]="vue() === 'tous'" (click)="vue.set('tous')">Tous <span class="an-nb">{{ d.resultats.length }}</span></button>
@@ -45,6 +55,7 @@
           <th class="num triable" (click)="trier('km_par_jour_roule')">Km / jour roulé</th>
           <th class="triable" (click)="trier('jours_sans_saisie')">Dernière saisie</th>
           <th class="num triable" (click)="trier('nb_sauts')">Sauts suspects</th>
+          <th class="num triable" (click)="trier('cout_km')" title="Toutes les dépenses du véhicule sur la période (carburant compris) ÷ km parcourus">Coût / km</th>
           <th class="num triable" (click)="trier('km_avant_revision')">Révision</th>
         </tr></thead>
         <tbody>
@@ -64,6 +75,11 @@
                 } @else { aucune saisie }
               </td>
               <td class="num" [class.ecart-pos]="l.nb_sauts > 0">{{ l.nb_sauts || '—' }}</td>
+              <td class="num nowrap">
+                @if (l.cout_km !== null) { {{ l.cout_km | number:'1.0-1' }} F
+                  @if (l.cout_carburant_km !== null) { <div class="muted petit">carburant {{ l.cout_carburant_km | number:'1.0-1' }} F</div> }
+                } @else { — }
+              </td>
               <td class="num nowrap" [class.ecart-pos]="revisionDepassee(l)">
                 @if (l.km_avant_revision === null) { <span class="muted petit">non planifiée</span> }
                 @else if (revisionDepassee(l)) { dépassée de {{ -l.km_avant_revision | number:'1.0-0' }} km }

@@ -4,3 +4,5 @@
 .up-courbe { position: relative; height: 300px; margin-bottom: 8px; }
 .up-pastille { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 2px 0 6px;
   &.bleu { background: #3b82f6; } &.vert { background: #5bd988; } &.rouge { background: #ef4444; } }
+.up-agences { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 6px; }
+.up-agence { font-size: 12px; padding: 5px 10px; border-radius: 14px; background: white; border: 1px solid var(--gray-200); color: var(--gray-600); }

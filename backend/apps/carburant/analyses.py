@@ -73,6 +73,7 @@ def consommation_vehicules(prises):
         intervalles = [(float(p.volume_litres), _km(p)) for p in liste if _km(p)]
         km = sum(k for _, k in intervalles)
         conso = sum(l for l, _ in intervalles) / km * 100 if km else None
+        montant_intervalles = sum(float(p.montant_fcfa or 0) for p in liste if _km(p))
         ref = float(v.conso_theorique_origine or 0) or None
         hors = sum(float(p.volume_litres) for p in liste if p.type_mouvement != 'tournee')
         derniere = liste[-1]
@@ -82,6 +83,7 @@ def consommation_vehicules(prises):
             'type_vehicule': v.get_type_vehicule_display(), 'agence_nom': v.agence.nom if v.agence else None,
             'nb_prises': len(liste), 'nb_intervalles': len(intervalles),
             'km_parcourus': km or None, 'litres': _r(litres), 'montant': _r(montant),
+            'cout_km': _r(montant_intervalles / km) if km else None,
             'conso_moyenne': _r(conso), 'conso_reference': _r(ref),
             'ecart_100': _r(conso - ref) if conso is not None and ref else None,
             'ecart_pct': _r((conso / ref - 1) * 100, 1) if conso is not None and ref else None,
@@ -94,6 +96,42 @@ def consommation_vehicules(prises):
             'historique_insuffisant': not intervalles,
         })
     lignes.sort(key=lambda l: (l['ecart_pct'] is None, -(l['ecart_pct'] or 0), l['immatriculation']))
+    return lignes
+
+
+def classement_chauffeurs(prises):
+    """Une ligne par chauffeur : intervalles (plein à plein) de ses prises,
+    consommation comparée à la référence pondérée des véhicules conduits."""
+    groupes = defaultdict(list)
+    for p in prises:
+        groupes[p.chauffeur_id].append(p)
+    lignes = []
+    for cid, liste in groupes.items():
+        c = liste[0].chauffeur
+        litres_int = km = ref_km = km_ref = 0.0
+        for p in liste:
+            k = _km(p)
+            if not k:
+                continue
+            litres_int += float(p.volume_litres)
+            km += k
+            ref = float(p.vehicule.conso_theorique_origine or 0)
+            if ref:
+                ref_km += ref * k
+                km_ref += k
+        conso = litres_int / km * 100 if km else None
+        ref = ref_km / km_ref if km_ref else None
+        lignes.append({
+            'chauffeur_id': str(cid) if cid else None,
+            'chauffeur': (f"{c.matricule} — {c.nom_complet}" if c.matricule else c.nom_complet) if c else 'Sans chauffeur',
+            'nb_prises': len(liste), 'nb_vehicules': len({p.vehicule_id for p in liste}),
+            'litres': _r(sum(float(p.volume_litres) for p in liste)),
+            'montant': _r(sum(float(p.montant_fcfa or 0) for p in liste)),
+            'km_parcourus': int(km) or None, 'conso_moyenne': _r(conso), 'conso_reference': _r(ref),
+            'ecart_pct': _r((conso / ref - 1) * 100, 1) if conso is not None and ref else None,
+            'nb_anomalies': sum(1 for p in liste if p.statut_validation == 'anomalie'),
+        })
+    lignes.sort(key=lambda l: (l['chauffeur_id'] is None, l['ecart_pct'] is None, -(l['ecart_pct'] or 0)))
     return lignes
 
 

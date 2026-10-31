@@ -42,7 +42,9 @@ def _r(x, n=0):
     return round(x, n) if x is not None else None
 
 
-def utilisation(vehicules, saisies, debut, fin, aujourdhui=None):
+def utilisation(vehicules, saisies, debut, fin, aujourdhui=None, depenses=None):
+    """`depenses` : {vehicule_id: {'total': FCFA, 'carburant': FCFA}} sur la période."""
+    depenses = depenses or {}
     aujourdhui = aujourdhui or date.today()
     jours_max, saut_km_jour = seuils()
     debut_dt, fin_dt = datetime.combine(debut, dtime.min), datetime.combine(fin, dtime.max)
@@ -96,9 +98,21 @@ def utilisation(vehicules, saisies, debut, fin, aujourdhui=None):
             'sauts': sauts, 'nb_sauts': len(sauts),
             'km_revision': v.kilometrage_revision or None, 'km_avant_revision': restant,
             'date_revision_estimee': date_revision,
+            'depenses': _r(depenses.get(v.pk, {}).get('total')),
+            'cout_km': _r(depenses[v.pk]['total'] / km, 1) if km and depenses.get(v.pk, {}).get('total') else None,
+            'cout_carburant_km': _r(depenses[v.pk]['carburant'] / km, 1)
+                                 if km and depenses.get(v.pk, {}).get('carburant') else None,
         })
     lignes.sort(key=lambda l: (-(l['nb_sauts']), not l['sans_saisie_recente'], -(l['km_parcourus'] or 0)))
     actifs = [l for l in lignes if l['km_parcourus']]
+    # Coût au km par agence (véhicules ayant roulé)
+    par_agence = {}
+    for l in actifs:
+        a = par_agence.setdefault(l['agence_nom'] or '—', {'agence': l['agence_nom'] or '—', 'km': 0, 'depenses': 0})
+        a['km'] += l['km_parcourus']
+        a['depenses'] += l['depenses'] or 0
+    for a in par_agence.values():
+        a['cout_km'] = _r(a['depenses'] / a['km'], 1) if a['km'] and a['depenses'] else None
     return {
         'resultats': lignes,
         'synthese': {
@@ -107,6 +121,10 @@ def utilisation(vehicules, saisies, debut, fin, aujourdhui=None):
             'nb_sans_saisie_recente': sum(1 for l in lignes if l['sans_saisie_recente']),
             'nb_sauts': sum(l['nb_sauts'] for l in lignes),
             'nb_revision_depassee': sum(1 for l in lignes if (l['km_avant_revision'] or 1) <= 0),
+            'cout_km_parc': _r(sum(a['depenses'] for a in par_agence.values())
+                               / sum(a['km'] for a in par_agence.values()), 1)
+                            if sum(a['km'] for a in par_agence.values()) and sum(a['depenses'] for a in par_agence.values()) else None,
         },
+        'par_agence': sorted(par_agence.values(), key=lambda a: a['agence']),
         'seuils': {'jours_sans_saisie': jours_max, 'saut_km_jour': saut_km_jour},
     }

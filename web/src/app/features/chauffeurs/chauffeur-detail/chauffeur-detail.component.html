@@ -120,6 +120,20 @@
           </div>
         </div>
 
+        @if (historique().consommation_12_mois; as c) {
+          <div class="kpi-card" title="Consommation des prises de ce chauffeur sur 12 mois, comparée à la référence des véhicules conduits">
+            <div class="kpi-icon" [class]="(c.ecart_pct ?? 0) > 10 ? 'danger' : 'green'">
+              <i class="fas fa-tachometer-alt"></i>
+            </div>
+            <div>
+              <div class="kpi-val">{{ c.conso_moyenne ?? '—' }} L/100
+                @if (c.ecart_pct !== null) { <span style="font-size:12px">({{ c.ecart_pct > 0 ? '+' : '' }}{{ c.ecart_pct }} %)</span> }</div>
+              <div class="kpi-lbl">Conso 12 mois{{ c.conso_reference ? ' · réf. ' + c.conso_reference : '' }}
+                · {{ c.nb_anomalies }} anomalie(s)</div>
+            </div>
+          </div>
+        }
+
         <div class="kpi-card">
           <div class="kpi-icon" [class]="historique().nb_sinistres > 0 ? 'danger' : 'green'">
             <i class="fas fa-car-crash"></i>

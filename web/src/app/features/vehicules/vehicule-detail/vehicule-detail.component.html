@@ -105,12 +105,27 @@
       <div class="kpi-mini">
         <div class="kpi-mini-icon green"><i class="fas fa-gas-pump"></i></div>
         <div>
-          <div class="kpi-mini-val">
-            @if (v.consommation_moyenne !== null) {
-              {{ v.consommation_moyenne | number:'1.1-1' }} L/100km
-            } @else { — L/100km }
-          </div>
-          <div class="kpi-mini-lbl">Consommation moy.</div>
+          @if (v.indicateurs_carburant && v.indicateurs_carburant.conso_3_mois != null) {
+            <div class="kpi-mini-val">
+              {{ v.indicateurs_carburant.conso_3_mois | number:'1.1-1' }} L/100km
+              @if (v.indicateurs_carburant.ecart_pct != null) {
+                <span class="badge" style="font-size:10px"
+                      [class.badge-danger]="v.indicateurs_carburant.ecart_pct > 10"
+                      [class.badge-green]="v.indicateurs_carburant.ecart_pct <= 10"
+                      title="Écart à la consommation théorique de référence">
+                  {{ v.indicateurs_carburant.ecart_pct > 0 ? '+' : '' }}{{ v.indicateurs_carburant.ecart_pct }} %</span>
+              }
+            </div>
+            <div class="kpi-mini-lbl" [title]="'Moyenne historique : ' + (v.consommation_moyenne ?? '—') + ' L/100 km'">
+              Conso 3 derniers mois{{ v.indicateurs_carburant.conso_reference ? ' · réf. ' + v.indicateurs_carburant.conso_reference : '' }}
+              @if (v.indicateurs_carburant.cout_km != null) { · {{ v.indicateurs_carburant.cout_km | number:'1.0-1' }} F/km }
+            </div>
+          } @else {
+            <div class="kpi-mini-val">
+              @if (v.consommation_moyenne !== null) { {{ v.consommation_moyenne | number:'1.1-1' }} L/100km } @else { — L/100km }
+            </div>
+            <div class="kpi-mini-lbl">Consommation moy. (historique)</div>
+          }
         </div>
       </div>
       <div class="kpi-mini">
