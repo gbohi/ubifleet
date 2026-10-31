@@ -22,15 +22,6 @@ class Vehicule(UbiFleetBaseModel):
         ELECTRIQUE = 'electrique', 'Électrique'
         GPL = 'gpl', 'GPL'
 
-    class TypeVehicule(models.TextChoices):
-        BERLINE = 'berline', 'Berline'
-        SUV = 'suv', 'SUV / 4×4'
-        MINIBUS = 'minibus', 'Minibus'
-        CAMIONNETTE = 'camionnette', 'Camionnette / Fourgonnette'
-        PICKUP = 'pickup', 'Pick-up'
-        CAMION = 'camion', 'Camion'
-        MOTO = 'moto', 'Moto'
-
     # Identification
     immatriculation = models.CharField(
         max_length=20, unique=True,
@@ -66,10 +57,8 @@ class Vehicule(UbiFleetBaseModel):
     couleur = models.CharField(max_length=50, blank=True)
 
     # Classification
-    type_vehicule = models.CharField(
-        max_length=20, choices=TypeVehicule.choices,
-        default=TypeVehicule.BERLINE
-    )
+    # Code d'un type de véhicule (Paramètres › Types de véhicule)
+    type_vehicule = models.CharField(max_length=20, default='berline', verbose_name="Type de véhicule")
     type_carburant = models.CharField(
         max_length=15, choices=TypeCarburant.choices,
         default=TypeCarburant.DIESEL
@@ -166,6 +155,10 @@ class Vehicule(UbiFleetBaseModel):
         verbose_name = "Véhicule"
         verbose_name_plural = "Véhicules"
         ordering = ['immatriculation']
+
+    def get_type_vehicule_display(self):
+        from apps.parametrage.models import libelles_types_vehicule
+        return libelles_types_vehicule().get(self.type_vehicule, self.type_vehicule)
 
     @property
     def marque_str(self):

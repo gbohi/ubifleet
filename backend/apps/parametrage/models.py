@@ -81,6 +81,44 @@ class Tournee(models.Model):
         return f"{self.code} — {self.libelle}"
 
 
+class TypeVehicule(models.Model):
+    """Types de véhicule (berline, pick-up, camion…), référentiel paramétrable.
+    Le véhicule enregistre le code (Vehicule.type_vehicule)."""
+    code    = models.SlugField(max_length=20, unique=True,
+                               help_text="Identifiant technique, enregistré sur les véhicules.")
+    libelle = models.CharField(max_length=100)
+    ordre   = models.PositiveSmallIntegerField(default=0)
+    actif   = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = "Type de véhicule"
+        verbose_name_plural = "Types de véhicule"
+        ordering            = ['ordre', 'libelle']
+
+    def __str__(self):
+        return self.libelle
+
+
+_LIBELLES_TYPES_VEHICULE = {}
+
+
+def libelles_types_vehicule():
+    """{code: libellé} des types de véhicule (en cache, vidé à chaque modification)."""
+    if not _LIBELLES_TYPES_VEHICULE:
+        _LIBELLES_TYPES_VEHICULE.update(dict(TypeVehicule.objects.values_list('code', 'libelle')))
+    return _LIBELLES_TYPES_VEHICULE
+
+
+def _vider_cache_types_vehicule(**kwargs):
+    _LIBELLES_TYPES_VEHICULE.clear()
+
+
+models.signals.post_save.connect(_vider_cache_types_vehicule, sender=TypeVehicule)
+models.signals.post_delete.connect(_vider_cache_types_vehicule, sender=TypeVehicule)
+
+
 class AffectationUsage(models.Model):
     """Types d'affectation / usage des véhicules."""
     code     = models.CharField(max_length=20, unique=True)

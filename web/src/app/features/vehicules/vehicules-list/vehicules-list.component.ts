@@ -30,16 +30,8 @@ export class VehiculesListComponent implements OnInit {
 
   statutsDisponibles = signal<any[]>([]);
 
-  typesVehicule = [
-    { label: 'Tous types',  value: '' },
-    { label: 'Berline',     value: 'berline' },
-    { label: 'SUV / 4×4',  value: 'suv' },
-    { label: 'Minibus',     value: 'minibus' },
-    { label: 'Camionnette', value: 'camionnette' },
-    { label: 'Pick-up',     value: 'pickup' },
-    { label: 'Camion',      value: 'camion' },
-    { label: 'Moto',        value: 'moto' },
-  ];
+  /** Types de véhicule (Paramètres › Types de véhicule). */
+  typesVehicule = signal<{ value: string; label: string }[]>([{ label: 'Tous types', value: '' }]);
 
   typesCarburant = [
     { label: 'Tous',       value: '' },
@@ -56,6 +48,11 @@ export class VehiculesListComponent implements OnInit {
   ngOnInit(): void {
     this.parametrageApi.getStatutsVehicule().subscribe({
       next: (l) => this.statutsDisponibles.set(l.filter((s: any) => s.actif)),
+      error: () => {},
+    });
+    this.parametrageApi.getTypesVehicule().subscribe({
+      next: (l) => this.typesVehicule.set([{ label: 'Tous types', value: '' },
+                                           ...l.map(t => ({ label: t.libelle, value: t.code }))]),
       error: () => {},
     });
     this.parametrageApi.getAffectations().subscribe({

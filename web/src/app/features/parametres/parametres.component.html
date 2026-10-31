@@ -276,6 +276,14 @@
           </section>
         }
 
+        <!-- ════ TYPES DE VÉHICULE ════ -->
+        @case ('types_vehicule') {
+          <ubi-referentiel-simple ressource="types-vehicule" titre="Types de véhicule"
+            description="Catégorie du véhicule (berline, pick-up, camion…). Un type utilisé par des véhicules ne peut pas être supprimé : désactivez-le pour ne plus le proposer."
+            [utiliseDans]="['Véhicules', 'Suivi tournées', 'Rapports']" libelleNouveau="Nouveau type" colonneUtilisations="Véhicules"
+            [ecriture]="ecritureReferentiels()" (compte)="nbTypesVehicule.set($event)" />
+        }
+
         <!-- ════ AFFECTATIONS / USAGES ════ -->
         @case ('affectations') {
           <section class="p-panel">

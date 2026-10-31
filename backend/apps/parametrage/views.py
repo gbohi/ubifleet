@@ -410,8 +410,47 @@ class TourneeViewSet(ReferentielPermissionMixin, viewsets.ModelViewSet):
         })
 
 
-from .models import AffectationUsage, StatutVehicule, MarqueVehicule, ModeleVehicule
+from .models import AffectationUsage, StatutVehicule, MarqueVehicule, ModeleVehicule, TypeVehicule
 from rest_framework import serializers as drf_s2
+
+
+class TypeVehiculeSerializer(drf_s2.ModelSerializer):
+    nb_utilisations = NbUtilisationsField()
+
+    class Meta:
+        model  = TypeVehicule
+        fields = ['id', 'code', 'libelle', 'ordre', 'actif', 'nb_utilisations']
+
+    def validate_code(self, value):
+        if self.instance and self.instance.code != value:
+            raise drf_s2.ValidationError(
+                "Le code ne peut pas être modifié : il est enregistré sur les véhicules.")
+        return value
+
+
+def _vehicules_par_type():
+    from apps.vehicules.models import Vehicule
+    return (Vehicule.objects.filter(type_vehicule=OuterRef('code'), is_active=True)
+            .order_by().values('type_vehicule').annotate(n=_Count('id')).values('n'))
+
+
+class TypeVehiculeViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin, viewsets.ModelViewSet):
+    """Types de véhicule (Paramètres) ; un type utilisé ne se supprime pas (le désactiver)."""
+    serializer_class = TypeVehiculeSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        from django.db.models.functions import Coalesce
+        qs = TypeVehicule.objects.annotate(nb_utilisations=Coalesce(
+            Subquery(_vehicules_par_type(), output_field=IntegerField()), 0))
+        actif = self.request.query_params.get('actif')
+        if actif is not None:
+            qs = qs.filter(actif=(actif.lower() == 'true'))
+        return qs
+
+    def utilisations(self, obj):
+        from apps.vehicules.models import Vehicule
+        return [(Vehicule.objects.filter(type_vehicule=obj.code).count(), 'véhicule(s)')]
 
 
 class AffectationUsageSerializer(drf_s2.ModelSerializer):

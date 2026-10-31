@@ -50,7 +50,7 @@ export interface Agence {
 // ── Véhicule ──
 export type StatutVehicule = 'en_service' | 'en_revision' | 'immobilise' | 'vendu' | 'en_panne' | string;
 export type TypeCarburant  = 'diesel' | 'essence' | 'hybride' | 'electrique' | 'gpl';
-export type TypeVehicule   = 'berline' | 'suv' | 'minibus' | 'camionnette' | 'pickup' | 'camion' | 'moto';
+export type TypeVehicule   = string;   // code d'un type de véhicule (Paramètres › Types de véhicule)
 
 export interface Vehicule {
   id: string;

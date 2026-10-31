@@ -74,3 +74,21 @@ class VehiculeSaisieTests(UtilisateursMixin, APITestCase):
         # La liste est paginée, les statistiques non
         self.assertEqual(len(self.client.get('/api/v1/vehicules/', {'page_size': 10}).data['results']), 10)
         self.assertEqual(self.client.get('/api/v1/vehicules/', {'statut': 'en_panne'}).data['count'], 1)
+
+    def test_types_de_vehicule_parametrables(self):
+        from apps.parametrage.models import TypeVehicule
+        self.client.force_authenticate(self.super_admin)
+        r = self.client.post('/api/v1/parametrage/types-vehicule/', {'code': 'tricycle', 'libelle': 'Tricycle'}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        v = self.creer(type_vehicule='tricycle').data
+        self.assertEqual(v['type_vehicule'], 'tricycle')
+        liste = self.client.get('/api/v1/vehicules/').data['results']
+        self.assertEqual(liste[0]['type_vehicule_display'], 'Tricycle')
+        # Utilisé : suppression refusée, code non modifiable ; désactivé : plus proposé
+        t = TypeVehicule.objects.get(code='tricycle')
+        self.assertEqual(self.client.delete(f'/api/v1/parametrage/types-vehicule/{t.id}/').status_code, 400)
+        self.assertEqual(self.client.patch(f'/api/v1/parametrage/types-vehicule/{t.id}/', {'code': 'trike'},
+                                           format='json').status_code, 400)
+        self.client.patch(f'/api/v1/parametrage/types-vehicule/{t.id}/', {'actif': False}, format='json')
+        self.assertEqual(self.creer(immatriculation='1002 AB 01', type_vehicule='tricycle').status_code, 400)
+        self.assertEqual(self.creer(immatriculation='1003 AB 01', type_vehicule='inconnu').status_code, 400)

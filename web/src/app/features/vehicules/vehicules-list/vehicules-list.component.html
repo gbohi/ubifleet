@@ -100,7 +100,7 @@
 
     <!-- Type véhicule -->
     <select class="form-control filter-select" [value]="store.filters().type_vehicule" (change)="onTypeFilter($event)">
-      @for (t of typesVehicule; track t.value) {
+      @for (t of typesVehicule(); track t.value) {
         <option [value]="t.value">{{ t.label }}</option>
       }
     </select>

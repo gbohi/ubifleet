@@ -200,7 +200,7 @@
               <div class="form-group">
                 <label class="form-label">Type de véhicule *</label>
                 <select formControlName="type_vehicule" class="form-control">
-                  @for (t of typesVehicule; track t.value) {
+                  @for (t of typesVehicule(); track t.value) {
                     <option [value]="t.value">{{ t.label }}</option>
                   }
                 </select>

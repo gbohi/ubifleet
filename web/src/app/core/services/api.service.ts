@@ -941,6 +941,11 @@ export class ParametrageApiService extends ApiBaseService {
     return this.http.get<any[]>(`${API}/parametrage/tournees/${id}/historique_dotation/`);
   }
   // Types de mouvement (relevés kilométriques)
+  /** Types de véhicule (Paramètres › Types de véhicule). */
+  getTypesVehicule(filters?: { actif?: boolean }): Observable<{ id: number; code: string; libelle: string; actif: boolean }[]> {
+    const params = filters ? this.buildParams(filters) : undefined;
+    return this.http.get<any[]>(`${API}/parametrage/types-vehicule/`, { params });
+  }
   getTypesMouvement(filters?: { actif?: boolean }): Observable<any[]> {
     const params = filters ? this.buildParams(filters) : undefined;
     return this.http.get<any[]>(`${API}/parametrage/types-mouvement/`, { params });

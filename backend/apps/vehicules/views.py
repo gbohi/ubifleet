@@ -36,7 +36,7 @@ class VehiculeFilter(FilterSet):
     agence = df.UUIDFilter(field_name='agence')
     statut = df.CharFilter(field_name='statut__code', lookup_expr='exact')
     type_carburant = df.ChoiceFilter(choices=Vehicule.TypeCarburant.choices)
-    type_vehicule = df.ChoiceFilter(choices=Vehicule.TypeVehicule.choices)
+    type_vehicule = df.CharFilter(field_name='type_vehicule')
     annee_min = df.NumberFilter(field_name='annee', lookup_expr='gte')
     annee_max = df.NumberFilter(field_name='annee', lookup_expr='lte')
     revision_due = df.BooleanFilter(method='filter_revision_due')

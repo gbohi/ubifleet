@@ -39,16 +39,8 @@ export class VehiculeFormComponent implements OnInit {
   error      = signal('');
   success    = signal('');
 
-  // Options statiques
-  readonly typesVehicule = [
-    { value: 'berline',     label: 'Berline' },
-    { value: 'suv',         label: 'SUV / 4×4' },
-    { value: 'minibus',     label: 'Minibus' },
-    { value: 'camionnette', label: 'Camionnette' },
-    { value: 'pickup',      label: 'Pick-up' },
-    { value: 'camion',      label: 'Camion' },
-    { value: 'moto',        label: 'Moto' },
-  ];
+  // Types de véhicule : Paramètres › Types de véhicule (actifs, et celui du véhicule modifié)
+  typesVehicule = signal<{ value: string; label: string }[]>([]);
 
   readonly typesCarburant = [
     { value: 'diesel',     label: 'Diesel' },
@@ -115,6 +107,12 @@ export class VehiculeFormComponent implements OnInit {
     });
     this.parametrageApi.getAffectations().subscribe({
       next: (l) => this.affectationsUsage.set(l.filter((a: any) => a.actif)),
+      error: () => {},
+    });
+    this.parametrageApi.getTypesVehicule().subscribe({
+      next: (l) => this.typesVehicule.set(l
+        .filter(t => t.actif || t.code === this.form.value.type_vehicule)
+        .map(t => ({ value: t.code, label: t.libelle + (t.actif ? '' : ' (désactivé)') }))),
       error: () => {},
     });
     this.parametrageApi.getMarques(true).subscribe({

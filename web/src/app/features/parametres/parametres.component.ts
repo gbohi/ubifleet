@@ -16,10 +16,11 @@ import { CircuitsValidationComponent } from './circuits-validation/circuits-vali
 import { ElementsControleComponent } from './elements-controle/elements-controle.component';
 import { PrixCarburantComponent } from './prix-carburant/prix-carburant.component';
 import { FenetreSaisieComponent } from './fenetre-saisie/fenetre-saisie.component';
+import { ReferentielSimpleComponent } from './referentiel-simple/referentiel-simple.component';
 
 export type Section =
   | 'echeances' | 'saisie' | 'carburant' | 'stations'
-  | 'marques' | 'statuts' | 'affectations' | 'types_doc' | 'types_mouvement'
+  | 'marques' | 'types_vehicule' | 'statuts' | 'affectations' | 'types_doc' | 'types_mouvement'
   | 'agences' | 'tournees'
   | 'types' | 'prestataires' | 'assureurs'
   | 'circuits' | 'elements';
@@ -30,7 +31,7 @@ interface NavGroupe { titre: string; items: NavItem[]; }
 @Component({
   selector: 'ubi-parametres',
   standalone: true,
-  imports: [ReactiveFormsModule, DecimalPipe, DatePipe, SeuilsComponent, CircuitsValidationComponent, ElementsControleComponent, PrixCarburantComponent, FenetreSaisieComponent],
+  imports: [ReactiveFormsModule, DecimalPipe, DatePipe, SeuilsComponent, CircuitsValidationComponent, ElementsControleComponent, PrixCarburantComponent, FenetreSaisieComponent, ReferentielSimpleComponent],
   templateUrl: './parametres.component.html',
   styleUrls: ['./parametres.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,6 +61,7 @@ export class ParametresComponent implements OnInit {
     ]},
     { titre: 'Parc automobile', items: [
       { section: 'marques',      libelle: 'Marques & modèles',        icone: 'fas fa-car-side' },
+      { section: 'types_vehicule', libelle: 'Types de véhicule',      icone: 'fas fa-truck-pickup' },
       { section: 'statuts',      libelle: 'Statuts véhicule',         icone: 'fas fa-circle' },
       { section: 'affectations', libelle: 'Affectations / usages',    icone: 'fas fa-tag' },
       { section: 'types_doc',    libelle: 'Types de documents',       icone: 'fas fa-file-alt' },
@@ -97,7 +99,10 @@ export class ParametresComponent implements OnInit {
     types: this.types().length, prestataires: this.prestataires().length,
     assureurs: this.assureurs().length,
     stations: this.stations().length, types_mouvement: this.typesMouvement().length,
+    types_vehicule: this.nbTypesVehicule(),
   }));
+  /** Nombre de types de véhicule (remonté par le référentiel). */
+  nbTypesVehicule = signal(0);
 
   // Droits d'écriture (calculés par l'API, cf. /auth/me/acces/)
   ecritureReferentiels = computed(() => this.auth.peutAcceder('referentiels_ecriture'));

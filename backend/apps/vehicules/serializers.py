@@ -146,6 +146,14 @@ class VehiculeWriteSerializer(serializers.ModelSerializer):
         value = (value or '').strip().upper()
         return value or None
 
+    def validate_type_vehicule(self, value):
+        from apps.parametrage.models import TypeVehicule
+        t = TypeVehicule.objects.filter(code=value).first()
+        changement = self.instance is None or self.instance.type_vehicule != value
+        if t is None or (changement and not t.actif):
+            raise serializers.ValidationError("Type de véhicule inconnu ou désactivé (Paramètres › Types de véhicule).")
+        return value
+
     def validate_annee(self, value):
         import datetime
         maxi = datetime.date.today().year + 1
