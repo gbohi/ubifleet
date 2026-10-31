@@ -11,16 +11,17 @@ import { messageErreurApi } from '../../../core/services/fenetre-saisie.service'
 import { ReleveFormComponent } from '../../../shared/releve-form/releve-form.component';
 import { HistoriqueCorrectionsComponent } from '../../../shared/corrections/historique-corrections.component';
 import { SuppressionMotifComponent } from '../../../shared/corrections/suppression-motif.component';
+import { UtilisationParcComponent } from '../utilisation-parc/utilisation-parc.component';
 import { OptionsSaisieService } from '../../../core/services/options-saisie.service';
 import { OptionRecherche, SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
 import { ReleveKilometrage, TypeMouvement } from '../../../core/models';
 
-type Tab = 'releves';
+type Tab = 'releves' | 'utilisation';
 
 @Component({
   selector: 'ubi-releves-km-global',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent, ReleveFormComponent, SelectRechercheComponent],
+  imports: [RouterLink, DatePipe, DecimalPipe, HistoriqueCorrectionsComponent, SuppressionMotifComponent, ReleveFormComponent, SelectRechercheComponent, UtilisationParcComponent],
   templateUrl: './releves-km-global.component.html',
   styleUrls: ['./releves-km-global.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

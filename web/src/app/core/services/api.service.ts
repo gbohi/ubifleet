@@ -231,6 +231,12 @@ export class VehiculeApiService extends ApiBaseService {
     return this.http.delete(`${API}/vehicules/types-document/${id}/`);
   }
 
+  getUtilisationParc(params: Record<string, any>): Observable<any> {
+    return this.http.get<any>(`${API}/vehicules/utilisation/`, { params: this.buildParams(params) });
+  }
+  getCourbeCompteur(params: Record<string, any>): Observable<any> {
+    return this.http.get<any>(`${API}/vehicules/utilisation/courbe/`, { params: this.buildParams(params) });
+  }
   getConsommationKm(params: Record<string, any>): Observable<any> {
     const p = this.buildParams(params);
     return this.http.get<any>(`${API}/vehicules/consommation-km/`, { params: p });

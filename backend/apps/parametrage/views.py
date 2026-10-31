@@ -73,8 +73,10 @@ class ParametreViewSet(viewsets.ModelViewSet):
 
         # Le prix du carburant a son propre historique daté (/carburant/prix/)
         from apps.carburant.analyses import CLE_ECART_PCT, CLE_TOLERANCE_HEURES
+        from apps.vehicules.utilisation import CLE_JOURS_SANS_SAISIE, CLE_SAUT_KM_JOUR
         CONNUES = {CLE_CONSO_ANOMALIE: 'alertes', CLE_TOURNEE_OUVERTE: 'alertes',
-                   CLE_TOLERANCE_HEURES: 'alertes', CLE_ECART_PCT: 'alertes'}
+                   CLE_TOLERANCE_HEURES: 'alertes', CLE_ECART_PCT: 'alertes',
+                   CLE_JOURS_SANS_SAISIE: 'alertes', CLE_SAUT_KM_JOUR: 'alertes'}
         for code in ECHEANCES:
             CONNUES[cle(code, 'attention')] = 'alertes'
             CONNUES[cle(code, 'urgent')] = 'alertes'

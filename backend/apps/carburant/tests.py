@@ -504,6 +504,31 @@ class AnalysesCarburantTests(UtilisateursMixin, APITestCase):
         self.assertEqual(r.data['global']['conso_moy'], 12.0)
         self.assertEqual((r.data['par_vehicule'][0]['conso_moy'], r.data['par_vehicule'][0]['ecart_pct']), (12.0, 20.0))
 
+    def test_utilisation_du_parc(self):
+        from apps.parametrage.models import Parametre
+        from apps.vehicules.models import ReleveKilometrage
+        Parametre.objects.update_or_create(cle='utilisation_saut_km_jour', defaults={'valeur': '500', 'type_valeur': 'int'})
+        self.v.kilometrage_revision = 12000
+        self.v.save()
+        self.prise(0, (8, 0), 10000, 50)                                   # 4 mai
+        ReleveKilometrage.objects.create(vehicule=self.v, kilometrage=10300, date_releve=self.d + datetime.timedelta(days=1),
+                                         heure_releve=datetime.time(8))     # 5 mai : +300 km/jour
+        self.prise(2, (8, 0), 11100, 50)                                   # 6 mai : +800 km en 1 jour → saut
+        self.client.force_authenticate(self.responsable_flotte)
+        r = self.client.get('/api/v1/vehicules/utilisation/', {'date_debut': '2026-05-01', 'date_fin': '2026-05-31'})
+        self.assertEqual(r.status_code, 200, r.data)
+        l = next(x for x in r.data['resultats'] if x['immatriculation'] == '56317 WW 01')
+        self.assertEqual((l['km_debut'], l['km_fin'], l['km_parcourus']), (10000, 11100, 1100))
+        self.assertEqual((l['jours_utilisation'], l['km_par_jour_roule'], l['nb_saisies']), (2, 550, 3))
+        self.assertEqual(l['nb_sauts'], 1)
+        self.assertEqual(l['sauts'][0]['km'], 800)
+        self.assertEqual(l['jours_sans_saisie'], 25)                       # 6 → 31 mai
+        self.assertTrue(l['sans_saisie_recente'])
+        self.assertEqual(l['km_avant_revision'], 12000 - self.v.__class__.objects.get(pk=self.v.pk).kilometrage_actuel)
+        r = self.client.get('/api/v1/vehicules/utilisation/courbe/',
+                            {'vehicule': str(self.v.id), 'date_debut': '2026-05-01', 'date_fin': '2026-05-31'})
+        self.assertEqual([p['km'] for p in r.data['points']], [10000, 10300, 11100])
+
     def test_compteur_interpole(self):
         from .analyses import compteur_a
         t = lambda h: datetime.datetime(2026, 5, 1, h)

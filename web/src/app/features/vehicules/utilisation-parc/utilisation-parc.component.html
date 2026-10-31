@@ -1,0 +1,108 @@
+<ubi-info-onglet titre="Utilisation du parc" icone="fas fa-tachometer-alt">
+  Comment les véhicules roulent et si leur compteur est fiable. Le compteur d'un véhicule vient de ses saisies
+  kilométriques (relevés et prises de carburant). Par véhicule sur la période : km parcourus (compteur estimé en début
+  et en fin de période), jours d'utilisation (jours où le compteur avance), dernière saisie, <strong>jours sans saisie</strong>
+  (au-delà de {{ donnees()?.seuils?.jours_sans_saisie ?? '…' }} jours : véhicule qui n'est plus suivi),
+  <strong>sauts suspects</strong> (plus de {{ donnees()?.seuils?.saut_km_jour ?? '…' }} km par jour écoulé entre deux saisies :
+  erreur de saisie ou compteur douteux) et km restants avant la révision, avec une date estimée au rythme de la période.
+  Seuils réglables dans Paramètres › Seuils. Cliquez sur un véhicule pour voir la courbe de son compteur.
+</ubi-info-onglet>
+
+<ubi-filtres-analyse [agences]="agences()" [avecType]="false" [avecChauffeur]="false" [moisPrecedents]="0"
+                     [chargement]="chargement()" (appliquer)="charger($event)">
+  <button class="btn btn-outline" [disabled]="!lignes().length" (click)="exporter()"><i class="fas fa-file-excel"></i> Exporter</button>
+</ubi-filtres-analyse>
+@if (erreur()) { <div class="an-notice"><i class="fas fa-exclamation-triangle"></i> {{ erreur() }}</div> }
+
+@if (donnees(); as d) {
+  <div class="an-kpis">
+    <div class="an-kpi"><span class="an-kpi-lbl">Km parcourus</span><span class="an-kpi-val">{{ d.synthese.km_total | number:'1.0-0' }} km</span>
+      <span class="an-kpi-sub">{{ d.synthese.nb_actifs }} véhicule(s) ont roulé sur {{ d.synthese.nb_vehicules }}</span></div>
+    <div class="an-kpi" [class.attention]="d.synthese.nb_inactifs > 0"><span class="an-kpi-lbl">Sans kilomètre</span>
+      <span class="an-kpi-val">{{ d.synthese.nb_inactifs }}</span><span class="an-kpi-sub">véhicule(s) immobile(s) ou non suivi(s)</span></div>
+    <div class="an-kpi" [class.attention]="d.synthese.nb_sans_saisie_recente > 0"><span class="an-kpi-lbl">Sans saisie récente</span>
+      <span class="an-kpi-val">{{ d.synthese.nb_sans_saisie_recente }}</span>
+      <span class="an-kpi-sub">plus de {{ d.seuils.jours_sans_saisie }} jours sans relevé ni prise</span></div>
+    <div class="an-kpi" [class.alerte]="d.synthese.nb_sauts > 0"><span class="an-kpi-lbl">Sauts suspects</span>
+      <span class="an-kpi-val">{{ d.synthese.nb_sauts }}</span>
+      <span class="an-kpi-sub">plus de {{ d.seuils.saut_km_jour }} km par jour · {{ d.synthese.nb_revision_depassee }} révision(s) dépassée(s)</span></div>
+  </div>
+
+  <div class="an-onglets" role="tablist">
+    <button [class.active]="vue() === 'tous'" (click)="vue.set('tous')">Tous <span class="an-nb">{{ d.resultats.length }}</span></button>
+    <button [class.active]="vue() === 'alertes'" (click)="vue.set('alertes')">À surveiller</button>
+    <button [class.active]="vue() === 'inactifs'" (click)="vue.set('inactifs')">Sans kilomètre <span class="an-nb">{{ d.synthese.nb_inactifs }}</span></button>
+  </div>
+
+  @if (lignes().length) {
+    <div class="an-table-wrap">
+      <table class="an-table up-table">
+        <thead><tr>
+          <th class="triable" (click)="trier('immatriculation')">Véhicule</th>
+          <th class="num">Km début</th><th class="num">Km fin</th>
+          <th class="num triable" (click)="trier('km_parcourus')">Km parcourus</th>
+          <th class="num triable" (click)="trier('jours_utilisation')">Jours d'utilisation</th>
+          <th class="num triable" (click)="trier('km_par_jour_roule')">Km / jour roulé</th>
+          <th class="triable" (click)="trier('jours_sans_saisie')">Dernière saisie</th>
+          <th class="num triable" (click)="trier('nb_sauts')">Sauts suspects</th>
+          <th class="num triable" (click)="trier('km_avant_revision')">Révision</th>
+        </tr></thead>
+        <tbody>
+          @for (l of lignes(); track l.vehicule_id) {
+            <tr class="up-ligne" (click)="ouvrir(l)" title="Voir la courbe du compteur">
+              <td class="nowrap"><span class="fort">{{ l.immatriculation }}</span>
+                <div class="muted petit">{{ l.marque }} {{ l.modele }}{{ l.statut ? ' · ' + l.statut : '' }}</div></td>
+              <td class="num">{{ l.km_debut === null ? '—' : (l.km_debut | number:'1.0-0') }}</td>
+              <td class="num">{{ l.km_fin === null ? '—' : (l.km_fin | number:'1.0-0') }}</td>
+              <td class="num fort">{{ l.km_parcourus === null ? '—' : (l.km_parcourus | number:'1.0-0') }}</td>
+              <td class="num">{{ l.jours_utilisation }} / {{ l.nb_jours_periode }}</td>
+              <td class="num">{{ l.km_par_jour_roule ?? '—' }}</td>
+              <td class="nowrap" [class.ecart-pos]="l.sans_saisie_recente">
+                @if (l.derniere_saisie) {
+                  {{ l.derniere_saisie | date:'dd/MM/yyyy' }} <span class="muted petit">{{ l.derniere_saisie_km | number:'1.0-0' }} km</span>
+                  <div class="petit">il y a {{ l.jours_sans_saisie }} j</div>
+                } @else { aucune saisie }
+              </td>
+              <td class="num" [class.ecart-pos]="l.nb_sauts > 0">{{ l.nb_sauts || '—' }}</td>
+              <td class="num nowrap" [class.ecart-pos]="revisionDepassee(l)">
+                @if (l.km_avant_revision === null) { <span class="muted petit">non planifiée</span> }
+                @else if (revisionDepassee(l)) { dépassée de {{ -l.km_avant_revision | number:'1.0-0' }} km }
+                @else { {{ l.km_avant_revision | number:'1.0-0' }} km
+                  @if (l.date_revision_estimee) { <div class="muted petit">vers le {{ l.date_revision_estimee | date:'dd/MM/yyyy' }}</div> } }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <div class="an-vide">Aucun véhicule dans cette vue.</div>
+  }
+}
+
+@if (detail(); as l) {
+  <div class="modal-backdrop" (click)="fermer()">
+    <div class="modal-container up-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-chart-line"></i> Compteur — {{ l.immatriculation }}</div>
+        <button class="modal-close" title="Fermer" (click)="fermer()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="up-courbe"><canvas #courbe></canvas></div>
+      <p class="an-note"><span class="up-pastille bleu"></span> relevé · <span class="up-pastille vert"></span> prise de carburant ·
+        <span class="up-pastille rouge"></span> saut suspect</p>
+      @if (l.sauts.length) {
+        <div class="an-table-wrap"><table class="an-table">
+          <thead><tr><th>Du</th><th>Au</th><th class="num">Km avant</th><th class="num">Km après</th><th class="num">Écart</th><th class="num">Km / jour</th><th>Saisie</th></tr></thead>
+          <tbody>
+            @for (s of l.sauts; track s.au) {
+              <tr><td>{{ s.du | date:'dd/MM/yyyy HH:mm' }}</td><td>{{ s.au | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td class="num">{{ s.km_avant | number:'1.0-0' }}</td><td class="num">{{ s.km_apres | number:'1.0-0' }}</td>
+                <td class="num ecart-pos">+{{ s.km | number:'1.0-0' }}</td><td class="num">{{ s.km_par_jour | number:'1.0-0' }}</td>
+                <td>{{ s.source }}</td></tr>
+            }
+          </tbody>
+        </table></div>
+      }
+    </div>
+  </div>
+}

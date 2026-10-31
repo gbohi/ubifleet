@@ -33,6 +33,10 @@
       <i class="fas fa-list"></i> Relevés
       @if (total() > 0) { <span class="tab-badge">{{ total() }}</span> }
     </button>
+    <button class="tab" [class.active]="activeTab()==='utilisation'"
+            (click)="activeTab.set('utilisation')">
+      <i class="fas fa-tachometer-alt"></i> Utilisation du parc
+    </button>
   </div>
 
   @if (activeTab() === 'releves') {
@@ -241,6 +245,11 @@
   } <!-- fin @if releves -->
 
 
+
+  <!-- ── ONGLET UTILISATION DU PARC ── -->
+  @if (activeTab() === 'utilisation') {
+    <ubi-utilisation-parc />
+  }
 </div>
 
 <!-- Formulaire de relevé (commun à toute l'application) -->

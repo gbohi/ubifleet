@@ -23,10 +23,12 @@ const ECHEANCES: Echeance[] = [
 ];
 
 // Le prix du carburant a son propre historique daté (rubrique Prix du carburant)
-const AUTRES_CLES = ['conso_anomalie_pct', 'tournee_ouverte_max_jours', 'rapprochement_tolerance_heures', 'rapprochement_ecart_pct'];
+const AUTRES_CLES = ['conso_anomalie_pct', 'tournee_ouverte_max_jours', 'rapprochement_tolerance_heures', 'rapprochement_ecart_pct',
+                     'utilisation_jours_sans_saisie', 'utilisation_saut_km_jour'];
 /** Valeurs par défaut des clés pas encore enregistrées (mêmes que le serveur). */
 const DEFAUTS: Record<string, number> = {
   conso_anomalie_pct: 30, tournee_ouverte_max_jours: 3, rapprochement_tolerance_heures: 6, rapprochement_ecart_pct: 5,
+  utilisation_jours_sans_saisie: 7, utilisation_saut_km_jour: 800,
 };
 
 @Component({

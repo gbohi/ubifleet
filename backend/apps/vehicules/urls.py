@@ -7,7 +7,7 @@ from .views import (
     ReleveKilometrageViewSet, HistoriqueImmatriculationViewSet,
     HistoriqueStatutVehiculeViewSet,
     AffectationVehiculeViewSet, TypeDocumentVehiculeViewSet,
-    ConsommationKmView,
+    ConsommationKmView, UtilisationParcView,
 )
 
 urlpatterns = [
@@ -32,6 +32,8 @@ urlpatterns = [
     ])),
     path('consommation-km/', ConsommationKmView.as_view({'get': 'list'}),
          name='consommation-km'),
+    path('utilisation/', UtilisationParcView.as_view({'get': 'list'}), name='utilisation-parc'),
+    path('utilisation/courbe/', UtilisationParcView.as_view({'get': 'courbe'}), name='utilisation-parc-courbe'),
     path('types-document/', TypeDocumentVehiculeViewSet.as_view({
         'get': 'list', 'post': 'create',
     }), name='types-document-list'),

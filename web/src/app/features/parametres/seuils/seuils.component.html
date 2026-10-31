@@ -19,9 +19,9 @@
   } @else {
     <div class="p-head">
       <div>
-        <h2>Consommation et tournées</h2>
-        <p>Consommations anormales, tournées non clôturées et tolérances du rapprochement avec les transactions Total.</p>
-        <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant</span><span class="p-chip">Suivi tournées</span><span class="p-chip">Alertes</span></div>
+        <h2>Carburant et kilométrage</h2>
+        <p>Consommations anormales, tournées non clôturées, rapprochement avec les transactions Total et utilisation du parc.</p>
+        <div class="p-used-in"><span class="p-chip">Utilisé dans : Carburant</span><span class="p-chip">Suivi tournées</span><span class="p-chip">Alertes</span><span class="p-chip">Relevés km › Utilisation du parc</span></div>
       </div>
     </div>
   }
@@ -118,6 +118,22 @@
             <span class="carte-saisie">
               <input type="number" min="1" formControlName="rapprochement_ecart_pct" />
               <span class="unite">%</span>
+            </span>
+          </label>
+          <label class="carte" [class.modifie]="modifie('utilisation_jours_sans_saisie')">
+            <span class="carte-titre"><i class="fas fa-calendar-times"></i> Utilisation : saisies</span>
+            <span class="carte-aide">Un véhicule est signalé « sans saisie récente » (ni relevé ni prise de carburant) au-delà de :</span>
+            <span class="carte-saisie">
+              <input type="number" min="1" formControlName="utilisation_jours_sans_saisie" />
+              <span class="unite">jours</span>
+            </span>
+          </label>
+          <label class="carte" [class.modifie]="modifie('utilisation_saut_km_jour')">
+            <span class="carte-titre"><i class="fas fa-bolt"></i> Utilisation : saut de compteur</span>
+            <span class="carte-aide">Deux saisies sont signalées « saut suspect » si le compteur avance de plus de (par jour écoulé) :</span>
+            <span class="carte-saisie">
+              <input type="number" min="1" formControlName="utilisation_saut_km_jour" />
+              <span class="unite">km / jour</span>
             </span>
           </label>
         </div>

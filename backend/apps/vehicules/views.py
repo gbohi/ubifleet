@@ -7,7 +7,7 @@ from django.db.models import F
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from django_filters import rest_framework as df
-from datetime import date
+from datetime import date, timedelta
 
 from django.shortcuts import get_object_or_404
 
@@ -615,6 +615,58 @@ class ConsommationKmView(viewsets.ViewSet):
         if q.get('vehicule') or agence_id:
             data['immatriculations_inconnues'] = []
         return Response({'periode': {'debut': debut, 'fin': fin}, 'nb_vehicules': len(data['resultats']), **data})
+
+
+class UtilisationParcView(viewsets.ViewSet):
+    """
+    Utilisation du parc (onglet des relevés kilométriques), cf. utilisation.py.
+    GET /vehicules/utilisation/?date_debut=&date_fin=&agence=&vehicule=
+    GET /vehicules/utilisation/courbe/?vehicule=&date_debut=&date_fin=  — saisies du compteur
+    """
+    module             = 'releves_km'
+    permission_classes = [RoleBasedPermission]
+    role_map           = {'list': 'operateur', 'courbe': 'operateur'}
+
+    def _periode(self, request):
+        from rest_framework import serializers as drf_s
+        try:
+            debut = drf_s.DateField().to_internal_value(request.query_params.get('date_debut') or '')
+            fin = drf_s.DateField().to_internal_value(request.query_params.get('date_fin') or '')
+        except drf_s.ValidationError:
+            raise drf_s.ValidationError({'detail': 'date_debut et date_fin sont requis.'})
+        if debut > fin:
+            raise drf_s.ValidationError({'detail': 'La date de début doit précéder la date de fin.'})
+        return debut, fin
+
+    def _vehicules(self, request):
+        q = request.query_params
+        qs = filtrer_par_agence(Vehicule.objects.filter(is_active=True)
+                                .select_related('agence', 'marque', 'modele', 'statut'), request.user)
+        agence_id = agence_effective(request.user, (q.get('agence') or '').strip())
+        if agence_id:
+            qs = qs.filter(agence_id=agence_id)
+        if q.get('vehicule'):
+            qs = qs.filter(pk=q['vehicule'])
+        return list(qs.order_by('immatriculation'))
+
+    def list(self, request):
+        from .utilisation import saisies_des_vehicules, utilisation
+        debut, fin = self._periode(request)
+        vehicules = self._vehicules(request)
+        saisies = saisies_des_vehicules([v.pk for v in vehicules], fin + timedelta(days=60))
+        return Response({'periode': {'debut': debut, 'fin': fin},
+                         **utilisation(vehicules, saisies, debut, fin, timezone.localdate())})
+
+    def courbe(self, request):
+        from .utilisation import saisies_des_vehicules
+        debut, fin = self._periode(request)
+        vehicules = self._vehicules(request)
+        if not request.query_params.get('vehicule') or not vehicules:
+            return Response({'detail': 'Véhicule introuvable.'}, status=404)
+        v = vehicules[0]
+        points = [{'quand': q.isoformat(), 'km': km, 'source': src}
+                  for q, km, src in saisies_des_vehicules([v.pk], fin).get(v.pk, []) if q.date() >= debut]
+        return Response({'vehicule': v.immatriculation, 'points': points})
 
 
 class TypeDocumentVehiculeViewSet(viewsets.ModelViewSet):
