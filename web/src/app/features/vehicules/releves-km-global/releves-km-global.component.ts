@@ -3,7 +3,7 @@ import {
   Component, inject, OnInit,
   ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { VehiculeApiService } from '../../../core/services/api.service';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
@@ -62,7 +62,12 @@ export class RelevesKmGlobalComponent implements OnInit {
     return r;
   }
 
+  private routeActive = inject(ActivatedRoute);
+
   ngOnInit(): void {
+    // Onglet demandé (ex. depuis Rapports & Statistiques : ?onglet=utilisation)
+    const onglet = this.routeActive.snapshot.queryParamMap.get('onglet') as Tab | null;
+    if (onglet === 'releves' || onglet === 'utilisation') this.activeTab.set(onglet);
     this.typesMvt.charger();
     this.loadReleves();
     this.options.chauffeurs(true).subscribe({ next: l => this.chauffeurs.set(l), error: () => {} });

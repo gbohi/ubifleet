@@ -4,7 +4,7 @@ import {
   Component, inject, OnInit,
   ChangeDetectionStrategy, signal
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DecimalPipe, DatePipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { BudgetStore, EtatDepenses, FiltresDepenses, filtresDepensesInitiaux, paramsDepenses } from '../../../store/budget/budget.store';
@@ -124,7 +124,12 @@ export class BudgetListComponent implements OnInit {
     return Number((b as any)['budget_' + poste] ?? 0);
   }
 
+  private routeActive = inject(ActivatedRoute);
+
   ngOnInit(): void {
+    // Onglet demandé (ex. depuis Rapports & Statistiques : ?onglet=depenses)
+    const onglet = this.routeActive.snapshot.queryParamMap.get('onglet');
+    if (onglet === 'tableau' || onglet === 'depenses' || onglet === 'budgets') this.activeTab.set(onglet);
     this.parametrageApi.getCategoriesDepense().subscribe({
       next: l => this.categories.set(l.map(c => ({ value: c.code, label: c.libelle, actif: c.actif }))),
       error: () => {},

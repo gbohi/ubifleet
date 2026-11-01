@@ -1,7 +1,9 @@
 // UbiFleet — Paramètres Component (Angular 18)
+import { GroupeHub, HubCartesComponent } from '../../shared/hub-cartes/hub-cartes.component';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   Component, inject, OnInit,
-  ChangeDetectionStrategy, signal, computed
+  ChangeDetectionStrategy, signal, computed, DestroyRef
 } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
@@ -25,13 +27,11 @@ export type Section =
   | 'types' | 'prestataires' | 'assureurs' | 'types_sinistre' | 'types_contrat' | 'categories_depense'
   | 'circuits' | 'elements';
 
-interface NavItem { section: Section; libelle: string; icone: string; }
-interface NavGroupe { titre: string; items: NavItem[]; }
 
 @Component({
   selector: 'ubi-parametres',
   standalone: true,
-  imports: [ReactiveFormsModule, DecimalPipe, DatePipe, SeuilsComponent, CircuitsValidationComponent, ElementsControleComponent, PrixCarburantComponent, FenetreSaisieComponent, ReferentielSimpleComponent],
+  imports: [HubCartesComponent, ReactiveFormsModule, DecimalPipe, DatePipe, SeuilsComponent, CircuitsValidationComponent, ElementsControleComponent, PrixCarburantComponent, FenetreSaisieComponent, ReferentielSimpleComponent],
   templateUrl: './parametres.component.html',
   styleUrls: ['./parametres.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,53 +48,80 @@ export class ParametresComponent implements OnInit {
   private auth           = inject(AuthService);
   private route          = inject(ActivatedRoute);
   private router         = inject(Router);
+  private destroyRef     = inject(DestroyRef);
 
-  // ── Navigation par rubriques ──
-  readonly navigation: NavGroupe[] = [
-    { titre: 'Règles & seuils', items: [
-      { section: 'echeances',    libelle: 'Échéances',                icone: 'fas fa-bell' },
-      { section: 'saisie',       libelle: 'Fenêtre de saisie',        icone: 'fas fa-calendar-check' },
+  // ── Rubriques (accueil en cartes) ──
+  readonly navigation: GroupeHub[] = [
+    { titre: 'Règles & seuils', icone: 'fas fa-sliders-h', teinte: 'bleu', cartes: [
+      { cle: 'echeances', libelle: 'Échéances', icone: 'fas fa-bell',
+        description: "Seuils d'alerte : révision, pneus, documents, contrôle technique" },
+      { cle: 'saisie', libelle: 'Fenêtre de saisie', icone: 'fas fa-calendar-check',
+        description: 'Délai de saisie des relevés et prises, corrections tardives' },
     ]},
-    { titre: 'Carburant', items: [
-      { section: 'carburant',    libelle: 'Prix & consommation',      icone: 'fas fa-gas-pump' },
-      { section: 'stations',     libelle: 'Stations',                 icone: 'fas fa-charging-station' },
+    { titre: 'Carburant', icone: 'fas fa-gas-pump', teinte: 'orange', cartes: [
+      { cle: 'carburant', libelle: 'Prix & consommation', icone: 'fas fa-gas-pump',
+        description: 'Prix du litre et historique, seuils de consommation' },
+      { cle: 'stations', libelle: 'Stations', icone: 'fas fa-charging-station',
+        description: 'Stations-service proposées dans les prises de carburant' },
     ]},
-    { titre: 'Parc automobile', items: [
-      { section: 'marques',      libelle: 'Marques & modèles',        icone: 'fas fa-car-side' },
-      { section: 'types_vehicule', libelle: 'Types de véhicule',      icone: 'fas fa-truck-pickup' },
-      { section: 'statuts',      libelle: 'Statuts véhicule',         icone: 'fas fa-circle' },
-      { section: 'affectations', libelle: 'Affectations / usages',    icone: 'fas fa-tag' },
-      { section: 'types_doc',    libelle: 'Types de documents',       icone: 'fas fa-file-alt' },
-      { section: 'types_mouvement', libelle: 'Types de mouvement',    icone: 'fas fa-exchange-alt' },
+    { titre: 'Parc automobile', icone: 'fas fa-car', teinte: 'vert', cartes: [
+      { cle: 'marques', libelle: 'Marques & modèles', icone: 'fas fa-car-side',
+        description: 'Constructeurs et modèles des véhicules' },
+      { cle: 'types_vehicule', libelle: 'Types de véhicule', icone: 'fas fa-truck-pickup',
+        description: 'Berline, pick-up, camion…' },
+      { cle: 'statuts', libelle: 'Statuts véhicule', icone: 'fas fa-circle',
+        description: 'En service, en panne, en révision… (historisés)' },
+      { cle: 'affectations', libelle: 'Affectations / usages', icone: 'fas fa-tag',
+        description: 'Usage du véhicule : livraison, direction, commercial…' },
+      { cle: 'types_doc', libelle: 'Types de documents', icone: 'fas fa-file-alt',
+        description: 'Carte grise, visite technique, vignette…' },
+      { cle: 'types_mouvement', libelle: 'Types de mouvement', icone: 'fas fa-exchange-alt',
+        description: 'Tournée, course, mission… des relevés et des prises' },
     ]},
-    { titre: 'Organisation', items: [
-      { section: 'agences',      libelle: 'Agences',                  icone: 'fas fa-map-marker-alt' },
-      { section: 'tournees',     libelle: 'Tournées',                 icone: 'fas fa-route' },
+    { titre: 'Organisation', icone: 'fas fa-sitemap', teinte: 'violet', cartes: [
+      { cle: 'agences', libelle: 'Agences', icone: 'fas fa-map-marker-alt',
+        description: 'Sites, codes et numéros client Total' },
+      { cle: 'tournees', libelle: 'Tournées', icone: 'fas fa-route',
+        description: 'Circuits de livraison et dotation théorique' },
     ]},
-    { titre: 'Entretien & assurance', items: [
-      { section: 'types',        libelle: "Types d'intervention",     icone: 'fas fa-wrench' },
-      { section: 'prestataires', libelle: 'Prestataires / garages',   icone: 'fas fa-tools' },
-      { section: 'assureurs',    libelle: 'Assureurs',                icone: 'fas fa-shield-alt' },
-      { section: 'types_contrat', libelle: "Types de contrat d'assurance", icone: 'fas fa-file-contract' },
-      { section: 'types_sinistre', libelle: 'Types de sinistre',      icone: 'fas fa-car-crash' },
+    { titre: 'Entretien & assurance', icone: 'fas fa-tools', teinte: 'rouge', cartes: [
+      { cle: 'types', libelle: "Types d'intervention", icone: 'fas fa-wrench',
+        description: 'Vidange, réparation, pneus… et leur périodicité' },
+      { cle: 'prestataires', libelle: 'Prestataires / garages', icone: 'fas fa-tools',
+        description: 'Garages et prestataires des interventions' },
+      { cle: 'assureurs', libelle: 'Assureurs', icone: 'fas fa-shield-alt',
+        description: 'Compagnies et contacts sinistres' },
+      { cle: 'types_contrat', libelle: "Types de contrat d'assurance", icone: 'fas fa-file-contract',
+        description: 'Responsabilité civile, tous risques…' },
+      { cle: 'types_sinistre', libelle: 'Types de sinistre', icone: 'fas fa-car-crash',
+        description: 'Accident, vol, bris de glace…' },
     ]},
-    { titre: 'Budget', items: [
-      { section: 'categories_depense', libelle: 'Catégories de dépense', icone: 'fas fa-coins' },
+    { titre: 'Budget', icone: 'fas fa-coins', teinte: 'orange', cartes: [
+      { cle: 'categories_depense', libelle: 'Catégories de dépense', icone: 'fas fa-coins',
+        description: 'Nature des dépenses et poste du budget' },
     ]},
-    { titre: 'Workflows', items: [
-      { section: 'circuits',     libelle: 'Circuits de validation',   icone: 'fas fa-sitemap' },
-      { section: 'elements',     libelle: 'Éléments de contrôle',     icone: 'fas fa-clipboard-check' },
+    { titre: 'Workflows', icone: 'fas fa-project-diagram', teinte: 'gris', cartes: [
+      { cle: 'circuits', libelle: 'Circuits de validation', icone: 'fas fa-sitemap',
+        description: 'Étapes et valideurs des demandes' },
+      { cle: 'elements', libelle: 'Éléments de contrôle', icone: 'fas fa-clipboard-check',
+        description: 'Points vérifiés lors des contrôles véhicule' },
     ]},
   ];
-  private readonly sections = this.navigation.flatMap(g => g.items.map(i => i.section));
+  private readonly sections = this.navigation.flatMap(g => g.cartes.map(c => c.cle as Section));
 
-  section   = signal<Section>('echeances');
+  /** Rubrique ouverte ; null = accueil en cartes. */
+  section   = signal<Section | null>(null);
   recherche = signal('');
   notice    = signal<{ type: 'ok' | 'err'; texte: string } | null>(null);
 
-  libelleSection = computed(() =>
-    this.navigation.flatMap(g => g.items).find(i => i.section === this.section())?.libelle ?? ''
-  );
+  /** Thème et libellé de la rubrique ouverte (fil d'Ariane). */
+  rubrique = computed(() => {
+    for (const g of this.navigation) {
+      const c = g.cartes.find(x => x.cle === this.section());
+      if (c) return { groupe: g.titre, libelle: c.libelle };
+    }
+    return null;
+  });
 
   /** Nombre d'éléments affiché à côté de chaque rubrique de la navigation. */
   compteurs = computed<Partial<Record<Section, number>>>(() => ({
@@ -110,6 +137,19 @@ export class ParametresComponent implements OnInit {
   /** Nombre d'éléments des référentiels à code (remonté par chaque écran). */
   nbReferentiels = signal<Record<string, number>>({});
   majCompte(section: string, n: number): void { this.nbReferentiels.update(c => ({ ...c, [section]: n })); }
+
+  /** Nombre d'éléments des référentiels à code, pour les cartes de l'accueil. */
+  private chargerComptesReferentiels(): void {
+    const sources: [string, Observable<any[]>][] = [
+      ['types_vehicule', this.parametrageApi.getTypesVehicule()],
+      ['categories_depense', this.parametrageApi.getCategoriesDepense()],
+      ['types_sinistre', this.parametrageApi.getTypesSinistre()],
+      ['types_contrat', this.parametrageApi.getTypesContrat()],
+    ];
+    for (const [cle, obs] of sources) {
+      obs.subscribe({ next: l => cle === 'types_vehicule' ? this.nbTypesVehicule.set(l.length) : this.majCompte(cle, l.length), error: () => {} });
+    }
+  }
 
   /** Postes du budget annuel : chaque catégorie de dépense est imputée sur l'un d'eux. */
   readonly champsCategorie = [{
@@ -130,11 +170,12 @@ export class ParametresComponent implements OnInit {
   ecritureCircuits     = computed(() => this.auth.peutAcceder('circuits_ecriture'));
   ecritureElements     = computed(() => this.auth.peutAcceder('elements_controle_ecriture'));
 
-  allerA(section: Section): void {
-    this.section.set(section);
+  allerA(section: Section | string | null): void {
+    this.section.set(section as Section | null);
     this.recherche.set('');
     this.notice.set(null);
-    this.router.navigate([], { relativeTo: this.route, queryParams: { section }, replaceUrl: true });
+    // Historique du navigateur : « Précédent » revient à l'accueil des paramètres
+    this.router.navigate([], { relativeTo: this.route, queryParams: { section: section || null } });
   }
 
   /** Filtre une liste sur les champs donnés selon la recherche en cours. */
@@ -273,8 +314,12 @@ export class ParametresComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    const demandee = this.route.snapshot.queryParamMap.get('section') as Section | null;
-    if (demandee && this.sections.includes(demandee)) this.section.set(demandee);
+    // Rubrique de l'URL (?section=…), suivie aussi par « Précédent / Suivant »
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(q => {
+      const demandee = q.get('section') as Section | null;
+      this.section.set(demandee && this.sections.includes(demandee) ? demandee : null);
+    });
+    this.chargerComptesReferentiels();
     this.loadTypes();
     this.loadTypesDoc();
     this.loadPrestataires();

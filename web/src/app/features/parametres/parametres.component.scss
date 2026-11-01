@@ -164,38 +164,17 @@
 }
 .form-control-sm { padding: 6px 10px; font-size: 12.5px; }
 
-// ══ Mise en page : navigation par rubriques + contenu ═══════════════
-.settings {
-  display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start;
-  @media (max-width: 1280px) { grid-template-columns: 220px minmax(0, 1fr); gap: 16px; }
+// ══ Mise en page : accueil en cartes, puis rubrique avec fil d'Ariane ══
+.settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.fil-ariane {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--gray-500);
+  .fil-retour { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--gray-200); background: var(--white, #fff); color: var(--navy); font-weight: 600;
+    font-family: inherit; font-size: 13px; cursor: pointer;
+    &:hover { border-color: var(--green); } }
+  .fil-sep { color: var(--gray-300); }
+  .fil-courant { color: var(--navy); font-weight: 700; }
 }
-
-.snav {
-  background: var(--white, #fff); border-radius: var(--radius-lg); padding: 10px;
-  position: sticky; top: 16px; box-shadow: 0 1px 2px rgba(9, 36, 64, .05);
-}
-.snav-groupe {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .1em; color: var(--gray-400);
-  text-transform: uppercase; padding: 12px 12px 6px;
-}
-.snav-item {
-  width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 12px;
-  border: none; background: none; border-radius: 8px; color: var(--gray-700);
-  font-size: 13.5px; font-family: inherit; text-align: left; cursor: pointer;
-  &:hover { background: var(--gray-50); }
-  &.on { background: var(--green-alpha); color: var(--navy); font-weight: 600;
-         .snav-ico { background: var(--green); color: var(--navy); } }
-}
-.snav-ico {
-  width: 26px; height: 26px; border-radius: 7px; background: var(--navy-alpha); color: var(--navy);
-  display: grid; place-items: center; font-size: 12px; flex-shrink: 0;
-}
-.snav-libelle { flex: 1; }
-.snav-count {
-  font-size: 11px; color: var(--gray-400); background: var(--gray-100);
-  padding: 1px 8px; border-radius: 20px; font-weight: 600;
-}
-.snav-mobile { display: none; }
 
 .contenu { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .contenu > * { min-width: 0; }
@@ -235,10 +214,6 @@
 
 @media (max-width: 900px) {
   .settings { grid-template-columns: 1fr; gap: 12px; }
-  .snav { display: none; }
-  .snav-mobile { display: block;
-    select { width: 100%; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--gray-200);
-             font-size: 14px; font-family: inherit; background: var(--white, #fff); } }
   .md { grid-template-columns: 1fr; }
   .md-liste { border-right: none; border-bottom: 1px solid var(--gray-100); max-height: 260px; overflow-y: auto; }
   .filtre-agence { width: 100%; }

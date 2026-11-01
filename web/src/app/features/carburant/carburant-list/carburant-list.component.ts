@@ -67,6 +67,9 @@ export class CarburantListComponent implements OnInit {
   ngOnInit(): void {
     // Lire le queryParam vehicule (depuis vehicule-detail)
     this.route.queryParams.subscribe(params => {
+      // Onglet demandé (ex. depuis Rapports & Statistiques : ?onglet=consommation)
+      const onglets: CarburantTab[] = ['pleins', 'anomalies', 'suivi', 'consommation', 'chauffeurs', 'evolution', 'rapprochement'];
+      if (onglets.includes(params['onglet'])) this.activeTab.set(params['onglet']);
       if (params['vehicule']) {
         this.store.setFilter('vehicule', params['vehicule']);
       }

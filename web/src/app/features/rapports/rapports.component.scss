@@ -179,3 +179,15 @@ select.form-control {
   background: var(--navy); color: white; padding: 2px 8px;
   border-radius: 4px; font-size: 11px; font-weight: 700; font-family: monospace;
 }
+
+// ── Fil d'Ariane (rapport ouvert depuis l'accueil en cartes) ──────────
+.fil-ariane {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--gray-500);
+  margin-bottom: 14px;
+  .fil-retour { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--gray-200); background: var(--white, #fff); color: var(--navy); font-weight: 600;
+    font-family: inherit; font-size: 13px; cursor: pointer;
+    &:hover { border-color: var(--green); } }
+  .fil-sep { color: var(--gray-300); }
+  .fil-courant { color: var(--navy); font-weight: 700; }
+}

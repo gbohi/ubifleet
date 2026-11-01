@@ -1,15 +1,18 @@
 <!-- UbiFleet — Rapports & Statistiques (Angular 18) -->
 <div class="rapports-page">
 
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">
-        <i class="fas fa-chart-line" style="color:var(--green-dark)"></i>
-        Rapports & Statistiques
-      </h1>
-      <p class="page-subtitle">Analyse des performances de la flotte</p>
-    </div>
-  </div>
+  @if (activeTab() === null) {
+    <ubi-hub-cartes titre="Rapports & Statistiques" sousTitre="Tous les états et analyses de la flotte, regroupés par thème"
+                    icone="fas fa-chart-line" placeholder="Chercher un rapport (ex. « consommation »)"
+                    [groupes]="catalogue" (choisir)="ouvrirRapport($event)" />
+  } @else {
+  <nav class="fil-ariane" aria-label="Fil d'Ariane">
+    <button type="button" class="fil-retour" (click)="ouvrirRapport(null)"><i class="fas fa-arrow-left"></i> Rapports</button>
+    @if (rapportOuvert(); as r) {
+      <span class="fil-sep">/</span><span class="fil-groupe">{{ r.groupe }}</span>
+      <span class="fil-sep">/</span><span class="fil-courant">{{ r.libelle }}</span>
+    }
+  </nav>
 
   <!-- Filtres globaux -->
   <div class="global-filters card">
@@ -43,34 +46,6 @@
         <i class="fas fa-sync-alt"></i> Actualiser
       </button>
     </div>
-  </div>
-
-  <!-- Onglets -->
-  <div class="tab-bar">
-    <button class="tab" [class.active]="activeTab()==='dashboard'"    (click)="onTabChange('dashboard')">
-      <i class="fas fa-tachometer-alt"></i> Tableau de bord
-    </button>
-    <button class="tab" [class.active]="activeTab()==='carburant'"   (click)="onTabChange('carburant')">
-      <i class="fas fa-gas-pump"></i> Carburant
-    </button>
-    <button class="tab" [class.active]="activeTab()==='couts'"       (click)="onTabChange('couts')">
-      <i class="fas fa-coins"></i> Coûts
-    </button>
-    <button class="tab" [class.active]="activeTab()==='multiagences'"(click)="onTabChange('multiagences')">
-      <i class="fas fa-sitemap"></i> Multi-agences
-    </button>
-    <button class="tab" [class.active]="activeTab()==='sinistres'"   (click)="onTabChange('sinistres')">
-      <i class="fas fa-car-crash"></i> Sinistres
-    </button>
-    <button class="tab" [class.active]="activeTab()==='interventions'"(click)="onTabChange('interventions')">
-      <i class="fas fa-tools"></i> Interventions
-    </button>
-    <button class="tab" [class.active]="activeTab()==='pneus'"       (click)="onTabChange('pneus')">
-      <i class="fas fa-circle-notch"></i> Pneus
-    </button>
-    <button class="tab" [class.active]="activeTab()==='effectif'"    (click)="onTabChange('effectif')">
-      <i class="fas fa-th-large"></i> Effectif parc
-    </button>
   </div>
 
   <!-- ══ DASHBOARD ══ -->
@@ -314,7 +289,7 @@
                 @for (v of d.top_vehicules; track $index) {
                   <tr>
                     <td><span class="immat-badge">{{ v.vehicule__immatriculation }}</span>
-                      <span style="font-size:11px;color:var(--gray-400);margin-left:8px">{{ v.vehicule__marque }} {{ v.vehicule__modele }}</span></td>
+                      <span style="font-size:11px;color:var(--gray-400);margin-left:8px">{{ v.vehicule__marque__libelle }} {{ v.vehicule__modele__libelle }}</span></td>
                     <td style="text-align:right;font-weight:700;color:var(--navy)">{{ dispatcheur(v.total) | number:'1.0-0' }}</td>
                   </tr>
                 }
@@ -863,4 +838,5 @@
     }
   }
 
+  }
 </div>

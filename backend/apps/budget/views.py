@@ -110,7 +110,7 @@ class BudgetViewSet(AgenceMixin, viewsets.ModelViewSet):
               .order_by('-total')
         )
         par_vehicule = list(
-            qs.values('vehicule__immatriculation', 'vehicule__marque', 'vehicule__modele')
+            qs.values('vehicule__immatriculation', 'vehicule__marque__libelle', 'vehicule__modele__libelle')
               .annotate(total=Sum('montant'))
               .order_by('-total')[:10]
         )

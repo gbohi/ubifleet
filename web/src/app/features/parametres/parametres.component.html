@@ -1,43 +1,19 @@
 <!-- UbiFleet — Paramètres (Angular 18) -->
 <div class="parametres-page">
 
-  <div class="page-header">
-    <div>
-      <h1 class="page-title">Paramètres</h1>
-      <p class="page-subtitle">Configuration de l'application UbiFleet</p>
-    </div>
-  </div>
-
+  @if (section() === null) {
+    <ubi-hub-cartes titre="Paramètres" sousTitre="Tout ce qui configure UbiFleet, regroupé par thème"
+                    icone="fas fa-cog" placeholder="Chercher un paramètre (ex. « carburant »)"
+                    [groupes]="navigation" [compteurs]="compteurs()" (choisir)="allerA($event)" />
+  } @else {
   <div class="settings">
-
-    <!-- ── Navigation par rubriques ── -->
-    <nav class="snav" aria-label="Rubriques des paramètres">
-      @for (g of navigation; track g.titre) {
-        <div class="snav-groupe">{{ g.titre }}</div>
-        @for (i of g.items; track i.section) {
-          <button type="button" class="snav-item" [class.on]="section() === i.section" (click)="allerA(i.section)">
-            <span class="snav-ico"><i [class]="i.icone"></i></span>
-            <span class="snav-libelle">{{ i.libelle }}</span>
-            @if (compteurs()[i.section] !== undefined) {
-              <span class="snav-count">{{ compteurs()[i.section] }}</span>
-            }
-          </button>
-        }
+    <nav class="fil-ariane" aria-label="Fil d'Ariane">
+      <button type="button" class="fil-retour" (click)="allerA(null)"><i class="fas fa-arrow-left"></i> Paramètres</button>
+      @if (rubrique(); as r) {
+        <span class="fil-sep">/</span><span class="fil-groupe">{{ r.groupe }}</span>
+        <span class="fil-sep">/</span><span class="fil-courant">{{ r.libelle }}</span>
       }
     </nav>
-
-    <!-- Navigation mobile -->
-    <div class="snav-mobile">
-      <select [value]="section()" (change)="allerA($any($event.target).value)" aria-label="Rubrique">
-        @for (g of navigation; track g.titre) {
-          <optgroup [label]="g.titre">
-            @for (i of g.items; track i.section) {
-              <option [value]="i.section" [selected]="section() === i.section">{{ i.libelle }}</option>
-            }
-          </optgroup>
-        }
-      </select>
-    </div>
 
     <div class="contenu">
 
@@ -652,6 +628,7 @@
       }
     </div>
   </div>
+  }
 </div>
 
 <!-- Modale : Créer / Modifier tournée -->

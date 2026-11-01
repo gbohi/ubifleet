@@ -1,9 +1,11 @@
 // UbiFleet — Rapports & Statistiques (Angular 18)
 import {
   Component, inject, OnInit, OnDestroy,
-  ChangeDetectionStrategy, signal, ElementRef, ViewChild
+  ChangeDetectionStrategy, signal, computed, ElementRef, ViewChild, DestroyRef
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { GroupeHub, HubCartesComponent } from '../../shared/hub-cartes/hub-cartes.component';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import {
   RapportApiService, AgenceApiService, ChauffeurApiService
@@ -20,7 +22,7 @@ const CHART_COLORS = ['#092440','#5bd988','#3b82f6','#f59e0b','#ef4444',
 @Component({
   selector: 'ubi-rapports',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe],
+  imports: [RouterLink, DatePipe, DecimalPipe, HubCartesComponent],
   templateUrl: './rapports.component.html',
   styleUrls: ['./rapports.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -36,7 +38,92 @@ export class RapportsComponent implements OnInit, OnDestroy {
   private agenceApi  = inject(AgenceApiService);
   private chauffeurApi = inject(ChauffeurApiService);
 
-  activeTab   = signal<RapportTab>('dashboard');
+  /** Rapport ouvert ; null = accueil en cartes. */
+  activeTab   = signal<RapportTab | null>(null);
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+  private destroyRef = inject(DestroyRef);
+  private readonly rapportsInternes: RapportTab[] =
+    ['dashboard', 'carburant', 'couts', 'multiagences', 'sinistres', 'interventions', 'pneus', 'effectif'];
+
+  /** Rapports situés dans d'autres pages : la carte y mène directement. */
+  private readonly liensExternes: Record<string, { route: string; params?: Record<string, string> }> = {
+    conso_vehicules:  { route: '/carburant', params: { onglet: 'consommation' } },
+    evolution_carb:   { route: '/carburant', params: { onglet: 'evolution' } },
+    rapprochement:    { route: '/carburant', params: { onglet: 'rapprochement' } },
+    classement:       { route: '/carburant', params: { onglet: 'chauffeurs' } },
+    suivi_tournees:   { route: '/carburant', params: { onglet: 'suivi' } },
+    anomalies:        { route: '/carburant', params: { onglet: 'anomalies' } },
+    restitution:      { route: '/restitution-mensuelle' },
+    utilisation:      { route: '/releves-km', params: { onglet: 'utilisation' } },
+    etat_depenses:    { route: '/budget', params: { onglet: 'depenses' } },
+    budget:           { route: '/budget', params: { onglet: 'tableau' } },
+    etat_parc:        { route: '/etat-parc' },
+  };
+
+  readonly catalogue: GroupeHub[] = [
+    { titre: "Vue d'ensemble", icone: 'fas fa-tachometer-alt', teinte: 'bleu', cartes: [
+      { cle: 'dashboard', libelle: 'Tableau de bord', icone: 'fas fa-tachometer-alt',
+        description: 'Indicateurs clés du mois : parc, carburant, coûts, alertes' },
+      { cle: 'multiagences', libelle: 'Comparatif agences', icone: 'fas fa-sitemap',
+        description: 'Véhicules, carburant et coûts par agence' },
+      { cle: 'effectif', libelle: 'Effectif du parc', icone: 'fas fa-th-large',
+        description: 'Répartition des véhicules par statut, type et agence' },
+      { cle: 'etat_parc', libelle: 'État du parc', icone: 'fas fa-clipboard-list',
+        description: 'Échéances : révisions, pneus, documents' },
+      { cle: 'utilisation', libelle: 'Utilisation du parc', icone: 'fas fa-road',
+        description: 'Km parcourus, véhicules sous-utilisés, coût au km' },
+    ]},
+    { titre: 'Carburant', icone: 'fas fa-gas-pump', teinte: 'orange', cartes: [
+      { cle: 'carburant', libelle: 'Synthèse carburant', icone: 'fas fa-gas-pump',
+        description: 'Litres, montants et consommation de la période' },
+      { cle: 'conso_vehicules', libelle: 'Consommation par véhicule', icone: 'fas fa-tachometer-alt',
+        description: 'L/100 km, écart à la référence, coût au km' },
+      { cle: 'evolution_carb', libelle: 'Évolution par agence', icone: 'fas fa-chart-line',
+        description: 'Consommation et dépenses mois par mois' },
+      { cle: 'classement', libelle: 'Classement des chauffeurs', icone: 'fas fa-trophy',
+        description: 'Consommation et écarts par chauffeur' },
+      { cle: 'suivi_tournees', libelle: 'Suivi des tournées', icone: 'fas fa-route',
+        description: 'Litres consommés par tournée et hors tournée' },
+      { cle: 'anomalies', libelle: 'Anomalies de consommation', icone: 'fas fa-exclamation-triangle',
+        description: 'Prises de carburant anormales à vérifier' },
+      { cle: 'rapprochement', libelle: 'Rapprochement Total', icone: 'fas fa-balance-scale',
+        description: 'Prises saisies face aux transactions Total' },
+      { cle: 'restitution', libelle: 'Restitution mensuelle', icone: 'fas fa-file-invoice',
+        description: 'Consommation facturée par véhicule et par mois' },
+    ]},
+    { titre: 'Coûts & budget', icone: 'fas fa-coins', teinte: 'vert', cartes: [
+      { cle: 'couts', libelle: 'Coûts annuels', icone: 'fas fa-coins',
+        description: 'Coût total par catégorie, agence et véhicule' },
+      { cle: 'etat_depenses', libelle: 'État des dépenses', icone: 'fas fa-receipt',
+        description: 'Toutes les dépenses filtrées, par poste, catégorie et origine' },
+      { cle: 'budget', libelle: 'Budget prévu / réalisé', icone: 'fas fa-wallet',
+        description: 'Suivi du budget annuel par poste' },
+    ]},
+    { titre: 'Entretien & sinistres', icone: 'fas fa-tools', teinte: 'rouge', cartes: [
+      { cle: 'interventions', libelle: 'Interventions', icone: 'fas fa-tools',
+        description: 'Interventions par type, coût et prestataire' },
+      { cle: 'pneus', libelle: 'Pneus', icone: 'fas fa-circle-notch',
+        description: 'Pneus montés, usure et remplacements' },
+      { cle: 'sinistres', libelle: 'Sinistres', icone: 'fas fa-car-crash',
+        description: 'Sinistres par type, mois et coût' },
+    ]},
+  ];
+
+  /** Libellé du rapport ouvert (fil d'Ariane). */
+  rapportOuvert = computed(() => {
+    for (const g of this.catalogue) {
+      const c = g.cartes.find(x => x.cle === this.activeTab());
+      if (c) return { groupe: g.titre, libelle: c.libelle };
+    }
+    return null;
+  });
+
+  ouvrirRapport(cle: string | null): void {
+    const externe = cle ? this.liensExternes[cle] : undefined;
+    if (externe) { this.router.navigate([externe.route], { queryParams: externe.params ?? {} }); return; }
+    this.router.navigate([], { relativeTo: this.route, queryParams: { rapport: cle || null } });
+  }
   agences     = signal<{ id: string; nom: string }[]>([]);
   chauffeurs  = signal<{ id: string; nom_complet: string }[]>([]);
   moisNoms    = MOIS;
@@ -83,21 +170,27 @@ export class RapportsComponent implements OnInit, OnDestroy {
       }))),
       error: () => {},
     });
-    this.loadDashboard();
+    // Rapport de l'URL (?rapport=…), suivi aussi par « Précédent / Suivant »
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(q => {
+      const r = q.get('rapport') as RapportTab | null;
+      if (r && this.rapportsInternes.includes(r)) this.onTabChange(r);
+      else { this.destroyCharts(); this.activeTab.set(null); }
+    });
   }
 
   ngOnDestroy(): void { this.destroyCharts(); }
 
   onTabChange(tab: RapportTab): void {
+    if (this.activeTab() !== tab) this.destroyCharts();
     this.activeTab.set(tab);
-    if (tab === 'dashboard'    && !this.dashData())  this.loadDashboard();
-    if (tab === 'carburant'    && !this.carbData())  this.loadCarburant();
-    if (tab === 'couts'        && !this.coutsData()) this.loadCouts();
-    if (tab === 'multiagences' && !this.maData())    this.loadMultiAgences();
-    if (tab === 'sinistres'    && !this.sinData())   this.loadSinistres();
-    if (tab === 'interventions'&& !this.intData())   this.loadInterventions();
-    if (tab === 'pneus'        && !this.pnData())    this.loadPneus();
-    if (tab === 'effectif'     && !this.effData())   this.loadEffectif();
+    // Données rechargées à chaque ouverture : à jour, et graphiques redessinés
+    const chargements: Record<RapportTab, () => void> = {
+      dashboard: () => this.loadDashboard(), carburant: () => this.loadCarburant(),
+      couts: () => this.loadCouts(), multiagences: () => this.loadMultiAgences(),
+      sinistres: () => this.loadSinistres(), interventions: () => this.loadInterventions(),
+      pneus: () => this.loadPneus(), effectif: () => this.loadEffectif(),
+    };
+    chargements[tab]();
   }
 
   onFiltre(field: string, e: Event): void {
