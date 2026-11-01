@@ -89,11 +89,22 @@
       } @else {
         <div class="cartes">
           <label class="carte" [class.modifie]="modifie('conso_anomalie_pct')">
-            <span class="carte-titre"><i class="fas fa-chart-line"></i> Seuil d'anomalie</span>
-            <span class="carte-aide">Une prise de carburant est marquée « anomalie » (et une alerte est ouverte) si sa consommation dépasse la moyenne des autres prises du véhicule de plus de :</span>
+            <span class="carte-titre"><i class="fas fa-chart-line"></i> Seuil d'anomalie de consommation</span>
+            <span class="carte-aide">Une prise de carburant est marquée « anomalie » (et une alerte est ouverte) si la consommation
+              de ses dernières prises dépasse la moyenne des autres prises du véhicule de plus de :</span>
             <span class="carte-saisie">
               <input type="number" min="1" formControlName="conso_anomalie_pct" />
               <span class="unite">%</span>
+            </span>
+          </label>
+          <label class="carte" [class.modifie]="modifie('conso_anomalie_fenetre')">
+            <span class="carte-titre"><i class="fas fa-layer-group"></i> Prises jugées ensemble</span>
+            <span class="carte-aide">Nombre de prises (la prise saisie et les précédentes) dont les litres et les km sont additionnés
+              pour juger la consommation. Plusieurs prises lissent les remplissages partiels (20 L puis 60 L) ;
+              1 = chaque prise jugée seule.</span>
+            <span class="carte-saisie">
+              <input type="number" min="1" max="10" formControlName="conso_anomalie_fenetre" />
+              <span class="unite">prise(s)</span>
             </span>
           </label>
           <label class="carte" [class.modifie]="modifie('tournee_ouverte_max_jours')">

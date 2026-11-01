@@ -70,7 +70,54 @@ class AnomalieConsommationTests(UtilisateursMixin, APITestCase):
         cls.tournee = Tournee.objects.create(code='AN-T', libelle='Tournée AN', agence=cls.agence_a)
         Parametre.objects.update_or_create(cle='fenetre_saisie_carburant_jours',
                                            defaults={'valeur': '0', 'type_valeur': 'int'})
+        # Ces tests vérifient le jugement d'une prise seule (fenêtre de 1) au seuil de 30 %
+        for cle, valeur in (('conso_anomalie_fenetre', '1'), ('conso_anomalie_pct', '30')):
+            Parametre.objects.update_or_create(cle=cle, defaults={'valeur': valeur, 'type_valeur': 'int'})
         cls.debut = timezone.localdate() - datetime.timedelta(days=30)
+
+    def regler(self, fenetre, seuil):
+        from apps.parametrage.models import Parametre
+        for cle, valeur in (('conso_anomalie_fenetre', fenetre), ('conso_anomalie_pct', seuil)):
+            Parametre.objects.update_or_create(cle=cle, defaults={'valeur': str(valeur), 'type_valeur': 'int'})
+
+    def test_fenetre_lisse_les_remplissages_partiels(self):
+        # 3 prises, 40 % : 20 L puis un complément de 60 L (5 puis 15 L/100 km) ne déclenchent rien
+        self.regler(3, 40)
+        self.historique_normal()                      # 10 L/100 km
+        a = self.prise(5, 12400, 20)
+        b = self.prise(6, 12800, 60)
+        self.assertEqual(float(b.consommation_calculee), 15.0)    # la prise seule paraît anormale…
+        self.assertEqual((a.statut_validation, b.statut_validation), ('valide', 'valide'))   # … pas la fenêtre
+        self.assertFalse(self.alertes().exists())
+
+    def test_fenetre_detecte_un_exces_durable(self):
+        # 3 prises à ~15 L/100 km : la fenêtre dépasse la moyenne de plus de 40 %
+        self.regler(3, 40)
+        self.historique_normal()
+        for i, km in enumerate((12400, 12800, 13200), start=5):
+            p = self.prise(i, km, 60)
+        self.assertEqual(p.statut_validation, 'anomalie')
+        self.assertIn('sur les 3 dernières prises', p.motif_anomalie)
+        self.assertIn('seuil : 40 %', p.motif_anomalie)
+
+    def test_changement_de_reglage_reevalue_les_prises(self):
+        # Fenêtre de 1 à 30 % : la prise à 15 L/100 km est en anomalie ; passée à 3 prises / 40 %, elle ne l'est plus
+        self.historique_normal()
+        p = self.prise(5, 12400, 60)
+        self.assertEqual(p.statut_validation, 'anomalie')
+        self.client.force_authenticate(self.super_admin)
+        r = self.client.post('/api/v1/parametrage/bulk_update/', [{'cle': 'conso_anomalie_fenetre', 'valeur': 3},
+                                                                  {'cle': 'conso_anomalie_pct', 'valeur': 40}], format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertTrue(r.data['prises_reevaluees'])
+        p.refresh_from_db()
+        self.assertEqual(p.statut_validation, 'valide')
+        self.assertFalse(self.alertes().filter(statut__in=['active', 'lue']).exists())
+
+    def test_reglage_fenetre_borne(self):
+        self.client.force_authenticate(self.super_admin)
+        r = self.client.post('/api/v1/parametrage/bulk_update/', [{'cle': 'conso_anomalie_fenetre', 'valeur': 11}], format='json')
+        self.assertEqual(r.status_code, 400)
 
     def prise(self, n, km, litres):
         """Prise au jour `debut + n`, via l'API (recalcul et alerte compris)."""

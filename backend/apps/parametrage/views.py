@@ -74,7 +74,8 @@ class ParametreViewSet(viewsets.ModelViewSet):
         # Le prix du carburant a son propre historique daté (/carburant/prix/)
         from apps.carburant.analyses import CLE_ECART_PCT, CLE_TOLERANCE_HEURES
         from apps.vehicules.utilisation import CLE_JOURS_SANS_SAISIE, CLE_SAUT_KM_JOUR
-        CONNUES = {CLE_CONSO_ANOMALIE: 'alertes', CLE_TOURNEE_OUVERTE: 'alertes',
+        from .echeances import CLE_CONSO_FENETRE, CONSO_FENETRE_MAX
+        CONNUES = {CLE_CONSO_ANOMALIE: 'alertes', CLE_CONSO_FENETRE: 'alertes', CLE_TOURNEE_OUVERTE: 'alertes',
                    CLE_TOLERANCE_HEURES: 'alertes', CLE_ECART_PCT: 'alertes',
                    CLE_JOURS_SANS_SAISIE: 'alertes', CLE_SAUT_KM_JOUR: 'alertes'}
         for code in ECHEANCES:
@@ -104,6 +105,9 @@ class ParametreViewSet(viewsets.ModelViewSet):
                 elif v < 1:
                     erreurs.append(f'« {k} » doit être supérieur à 0.')
                     continue
+                elif k == CLE_CONSO_FENETRE and v > CONSO_FENETRE_MAX:
+                    erreurs.append(f"Le nombre de prises pour juger la consommation doit être compris entre 1 et {CONSO_FENETRE_MAX}.")
+                    continue
             elif not Parametre.objects.filter(cle=k).exists():
                 erreurs.append(f'Paramètre inconnu : « {k} ».')
                 continue
@@ -120,6 +124,8 @@ class ParametreViewSet(viewsets.ModelViewSet):
         if erreurs:
             return Response({'detail': ' '.join(erreurs), 'erreurs': erreurs}, status=400)
 
+        from .echeances import seuil_conso_anomalie, fenetre_conso_anomalie
+        avant_conso = (seuil_conso_anomalie(), fenetre_conso_anomalie())
         for k, v in valeurs.items():
             if k in CONNUES:
                 Parametre.objects.update_or_create(cle=k, defaults={
@@ -129,7 +135,13 @@ class ParametreViewSet(viewsets.ModelViewSet):
                 p = Parametre.objects.get(cle=k)
                 p.valeur = str(v)
                 p.save(update_fields=['valeur', 'updated_at'])
-        return Response({'updated': list(valeurs)})
+        # Règle d'anomalie de consommation modifiée : réévaluer les prises existantes
+        # (statut, motif ; alertes ouvertes ou clôturées en conséquence)
+        recalcul = (seuil_conso_anomalie(), fenetre_conso_anomalie()) != avant_conso
+        if recalcul:
+            from django.core.management import call_command
+            call_command('recalculer_consommations', '--alertes', '--depuis', '3650', verbosity=0)
+        return Response({'updated': list(valeurs), 'prises_reevaluees': recalcul})
 
 
 class FenetreSaisieView(viewsets.ViewSet):

@@ -33,9 +33,13 @@ ECHEANCES = {e.code: e for e in [
     Echeance('pneus',           'Pneus',              KM,  2000, 500),
 ]}
 
-# Seuil d'anomalie de consommation (% au-dessus de la moyenne du véhicule)
+# Anomalie de consommation : la consommation des N dernières prises du véhicule
+# (litres et km cumulés, pour lisser les remplissages partiels) dépasse sa
+# moyenne de plus de X %.
 CLE_CONSO_ANOMALIE = 'conso_anomalie_pct'
-CONSO_ANOMALIE_DEFAUT = 30
+CONSO_ANOMALIE_DEFAUT = 40
+CLE_CONSO_FENETRE = 'conso_anomalie_fenetre'
+CONSO_FENETRE_DEFAUT, CONSO_FENETRE_MAX = 3, 10
 
 # Tournée effectuée restée ouverte au-delà de N jours : alerte (clôture oubliée)
 CLE_TOURNEE_OUVERTE = 'tournee_ouverte_max_jours'
@@ -85,3 +89,13 @@ def tournee_ouverte_max_jours() -> int:
 def seuil_conso_anomalie() -> float:
     from .models import Parametre
     return float(Parametre.get(CLE_CONSO_ANOMALIE, CONSO_ANOMALIE_DEFAUT))
+
+
+def fenetre_conso_anomalie() -> int:
+    """Nombre de prises (la prise jugée et les précédentes) sur lequel la consommation est jugée."""
+    from .models import Parametre
+    try:
+        n = int(float(Parametre.get(CLE_CONSO_FENETRE, CONSO_FENETRE_DEFAUT)))
+    except (TypeError, ValueError):
+        n = CONSO_FENETRE_DEFAUT
+    return min(max(n, 1), CONSO_FENETRE_MAX)

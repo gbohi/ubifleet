@@ -4,11 +4,15 @@ Méthode « plein à plein » : la consommation d'une prise est son volume
 rapporté aux km parcourus depuis la prise précédente du véhicule
 (ordre chronologique : date, heure, saisie).
 
-Une prise est anormale si sa consommation dépasse la consommation de
-référence du véhicule de plus du seuil paramétré (Paramètres › Seuils).
-La référence est la consommation moyenne des AUTRES prises du véhicule
-(litres ÷ km), pour que la prise contrôlée ne se compare pas à elle-même ;
-il en faut au moins MIN_PRISES_REFERENCE pour juger.
+Une prise est anormale si la consommation de la FENÊTRE qu'elle termine
+(elle et les prises précédentes, N au total : litres et km cumulés)
+dépasse la consommation de référence du véhicule de plus du seuil
+(Paramètres › Seuils : N = 3 et 40 % par défaut). Juger plusieurs prises
+ensemble lisse les remplissages partiels : 20 L puis un complément de 60 L
+paraissent anormaux pris un par un, pas ensemble. La référence est la
+consommation moyenne des AUTRES prises du véhicule (hors fenêtre jugée),
+pour que les prises contrôlées ne se comparent pas à elles-mêmes ; il en
+faut au moins MIN_PRISES_REFERENCE pour juger.
 
 Un kilométrage incohérent est lui-même une anomalie : compteur inférieur à
 celui de la prise précédente, ou plus de KM_MAX_INTERVALLE km depuis (erreur
@@ -60,7 +64,7 @@ def _nombre(x):
 def evaluer(prises):
     """{pk: Evaluation} pour des prises d'un même véhicule, triées par ordre_chronologique."""
     from apps.carburant.models import PleinsCarburant
-    from apps.parametrage.echeances import seuil_conso_anomalie
+    from apps.parametrage.echeances import fenetre_conso_anomalie, seuil_conso_anomalie
 
     # Intervalles : depuis la dernière prise au kilométrage cohérent ; les litres
     # d'une prise écartée sont reportés sur l'intervalle suivant (ils ont été
@@ -97,20 +101,33 @@ def evaluer(prises):
     total_litres = sum(v for v, _ in comptees.values())
     total_km = sum(k for _, k in comptees.values())
     seuil = seuil_conso_anomalie()
+    fenetre = fenetre_conso_anomalie()
 
-    resultat = {}
+    resultat, recents = {}, []   # recents : derniers intervalles cohérents (pk, litres, km)
     for p, depart, km, incoherent, litres_intervalle in intervalles:
         conso = round(litres_intervalle / km * 100, 2) if km else None
+        if km:
+            recents = (recents + [(p.pk, litres_intervalle, km)])[-fenetre:]
+        # Fenêtre jugée : cette prise et les précédentes (litres et km cumulés : un
+        # remplissage partiel suivi d'un complément se compensent)
+        groupe = recents if km else []
+        litres_f = sum(l for _, l, _ in groupe)
+        km_f = sum(k for _, _, k in groupe)
+        conso_f = litres_f / km_f * 100 if km_f else None
+        # Référence : moyenne des autres prises du véhicule (hors fenêtre jugée)
         litres, km_ref, n = total_litres, total_km, len(comptees)
-        if p.pk in comptees:
-            litres -= comptees[p.pk][0]
-            km_ref -= comptees[p.pk][1]
-            n -= 1
+        for pk, _, _ in groupe:
+            if pk in comptees:
+                litres -= comptees[pk][0]
+                km_ref -= comptees[pk][1]
+                n -= 1
         reference = round(litres / km_ref * 100, 2) if n >= MIN_PRISES_REFERENCE and km_ref > 0 else None
         motif = incoherent
-        if not motif and conso is not None and reference and conso > reference * (1 + seuil / 100):
-            ecart = round((conso / reference - 1) * 100)
-            motif = (f"Consommation de {_nombre(conso)} L/100 km, soit {ecart} % au-dessus de la "
+        if not motif and conso_f is not None and reference and conso_f > reference * (1 + seuil / 100):
+            ecart = round((conso_f / reference - 1) * 100)
+            sur = (f"sur les {len(groupe)} dernières prises ({_nombre(litres_f)} L pour {_km(km_f)})"
+                   if len(groupe) > 1 else f"sur cette prise ({_nombre(litres_f)} L pour {_km(km_f)})")
+            motif = (f"Consommation de {_nombre(conso_f)} L/100 km {sur}, soit {ecart} % au-dessus de la "
                      f"moyenne du véhicule ({_nombre(reference)} L/100 km ; seuil : {seuil:g} %).")
         resultat[p.pk] = Evaluation(depart, km, conso, reference, motif, bool(incoherent))
     return resultat
