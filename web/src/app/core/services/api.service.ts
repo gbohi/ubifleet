@@ -631,6 +631,12 @@ export class BudgetApiService extends ApiBaseService {
   deleteDepense(id: string): Observable<any> {
     return this.http.delete(`${API}/budget/depenses/${id}/`);
   }
+  /** État des dépenses : totaux par catégorie, poste du budget et origine (mêmes filtres que la liste). */
+  getEtatDepenses(filters?: Record<string, any>): Observable<any> {
+    const params = filters ? this.buildParams(filters) : undefined;
+    return this.http.get<any>(`${API}/budget/depenses/etat/`, { params });
+  }
+
   getDepensesByVehicule(vehiculeId: string): Observable<PaginatedResponse<Depense>> {
     const params = this.buildParams({ vehicule: vehiculeId, page_size: 20 });
     return this.http.get<PaginatedResponse<Depense>>(`${API}/budget/depenses/`, { params });

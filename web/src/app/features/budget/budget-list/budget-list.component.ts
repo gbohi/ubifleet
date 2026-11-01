@@ -7,14 +7,17 @@ import {
 import { RouterLink } from '@angular/router';
 import { DecimalPipe, DatePipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
-import { BudgetStore } from '../../../store/budget/budget.store';
+import { BudgetStore, EtatDepenses, FiltresDepenses, filtresDepensesInitiaux, paramsDepenses } from '../../../store/budget/budget.store';
+import { Observable, forkJoin, map, of, switchMap } from 'rxjs';
+import { OptionsSaisieService } from '../../../core/services/options-saisie.service';
+import { OptionRecherche, SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
 import { AgenceApiService, BudgetApiService, ParametrageApiService } from '../../../core/services/api.service';
 import { Agence, BudgetAnnuel, Depense } from '../../../core/models';
 
 @Component({
   selector: 'ubi-budget-list',
   standalone: true,
-  imports: [RouterLink, DecimalPipe, DatePipe, ReactiveFormsModule],
+  imports: [RouterLink, DecimalPipe, DatePipe, ReactiveFormsModule, SelectRechercheComponent],
   templateUrl: './budget-list.component.html',
   styleUrls: ['./budget-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,11 +34,20 @@ export class BudgetListComponent implements OnInit {
   activeTab  = signal<'tableau' | 'depenses' | 'budgets'>('tableau');
 
   // ── Filtres dépenses ─────────────────────────────────────────────
-  filtreDepDateMin  = signal('');
-  filtreDepDateMax  = signal('');
-  filtreDepCateg    = signal('');
-  filtreDepAgence   = signal('');
-  filtreDepVehicule = signal('');
+  /** Filtres saisis de l'état des dépenses (appliqués par « Filtrer »). */
+  filtresDep = signal<FiltresDepenses>(filtresDepensesInitiaux());
+  vehiculesOptions = signal<OptionRecherche[]>([]);
+  exportEnCours = signal(false);
+  private options = inject(OptionsSaisieService);
+
+  readonly origines = [
+    { value: 'manuelle',          label: 'Saisie manuelle' },
+    { value: 'prise_carburant',   label: 'Prise de carburant' },
+    { value: 'intervention',      label: 'Intervention' },
+    { value: 'pneu',              label: 'Pneu' },
+    { value: 'contrat_assurance', label: "Contrat d'assurance" },
+    { value: 'sinistre',          label: 'Sinistre' },
+  ];
 
   // ── Filtres budgets ──────────────────────────────────────────────
   filtreBudAnnee  = signal(new Date().getFullYear().toString());
@@ -119,7 +131,13 @@ export class BudgetListComponent implements OnInit {
       error: () => {},
     });
     this.store.loadTableauDeBord();
+    this.filtresDep.set({ ...this.store.filtresDepenses() });
     this.store.loadDepenses();
+    this.store.loadEtat();
+    this.options.vehicules().subscribe({
+      next: l => this.vehiculesOptions.set(l.map(v => ({ value: v.value, label: v.label }))),
+      error: () => {},
+    });
     this.agenceApi.getAll().subscribe({
       next: (list: any) => this.agences.set(Array.isArray(list) ? list : (list.results ?? [])),
       error: () => {},
@@ -138,22 +156,72 @@ export class BudgetListComponent implements OnInit {
   }
 
   // ── Filtres dépenses ─────────────────────────────────────────────
-  onDepFilter(field: string, e: Event): void {
-    const val = (e.target as HTMLInputElement | HTMLSelectElement).value;
-    if (field === 'date_min')  this.filtreDepDateMin.set(val);
-    if (field === 'date_max')  this.filtreDepDateMax.set(val);
-    if (field === 'categorie') this.filtreDepCateg.set(val);
-    if (field === 'agence')    this.filtreDepAgence.set(val);
-    if (field === 'vehicule')  this.filtreDepVehicule.set(val);
+  majFiltreDep(cle: keyof FiltresDepenses, valeur: string | null | undefined): void {
+    this.filtresDep.update(f => ({ ...f, [cle]: valeur ?? '' }));
   }
 
   appliquerFiltresDepenses(): void {
-    if (this.filtreDepDateMin())  this.store.setFilter('date_min'  as any, this.filtreDepDateMin());
-    if (this.filtreDepDateMax())  this.store.setFilter('date_max'  as any, this.filtreDepDateMax());
-    if (this.filtreDepCateg())    this.store.setFilter('categorie' as any, this.filtreDepCateg());
-    if (this.filtreDepAgence())   this.store.setFilter('agence'    as any, this.filtreDepAgence());
-    if (this.filtreDepVehicule()) this.store.setFilter('vehicule'  as any, this.filtreDepVehicule());
+    this.store.setFiltresDepenses(this.filtresDep());
+    this.rechargerDepenses();
+  }
+
+  reinitialiserFiltresDepenses(): void {
+    this.filtresDep.set(filtresDepensesInitiaux());
+    this.appliquerFiltresDepenses();
+  }
+
+  private rechargerDepenses(): void {
     this.store.loadDepenses();
+    this.store.loadEtat();
+  }
+
+  /** Page de la source d'une dépense automatique (là où elle se modifie). */
+  lienSource(d: Depense): any[] | null {
+    switch (d.ref_objet_type) {
+      case 'prise_carburant': return ['/carburant', d.ref_objet_id, 'modifier'];
+      case 'intervention':    return ['/entretien', d.ref_objet_id];
+      case 'sinistre':        return ['/sinistres', d.ref_objet_id];
+      case 'contrat_assurance':
+      case 'pneu':            return d.vehicule ? ['/vehicules', d.vehicule] : null;
+      default:                return null;
+    }
+  }
+
+  /** Libellé d'un filtre appliqué (pour l'en-tête des exports). */
+  private resumeFiltres(): string {
+    const f = this.store.filtresDepenses();
+    const morceaux: string[] = [];
+    const fr = (d: string) => d.split('-').reverse().join('/');
+    if (f.date_min || f.date_max) morceaux.push(`Période : ${f.date_min ? fr(f.date_min) : '…'} → ${f.date_max ? fr(f.date_max) : "aujourd'hui"}`);
+    if (f.categorie) morceaux.push(`Catégorie : ${this.categories().find(c => c.value === f.categorie)?.label ?? f.categorie}`);
+    if (f.poste) morceaux.push(`Poste : ${this.postes.find(p => p.value === f.poste)?.label ?? f.poste}`);
+    if (f.origine) morceaux.push(`Origine : ${this.origines.find(o => o.value === f.origine)?.label ?? f.origine}`);
+    if (f.agence) morceaux.push(`Agence : ${this.agences().find(a => a.id === f.agence)?.nom ?? ''}`);
+    if (f.vehicule) morceaux.push(`Véhicule : ${this.vehiculesOptions().find(v => v.value === f.vehicule)?.label ?? ''}`);
+    if (f.recherche) morceaux.push(`Recherche : « ${f.recherche} »`);
+    return morceaux.join(' · ') || 'Toutes les dépenses';
+  }
+
+  /** Toutes les dépenses filtrées (toutes les pages), pour les exports. */
+  private toutesLesDepenses(): Observable<Depense[]> {
+    const params = paramsDepenses(this.store.filtresDepenses());
+    const page = (n: number): Observable<Depense[]> =>
+      this.budgetApi.getDepenses({ ...params, page: n, page_size: 1000 }).pipe(
+        switchMap(res => {
+          const lignes = Array.isArray(res) ? res : (res.results ?? []);
+          return (res as any).next ? page(n + 1).pipe(map(suite => [...lignes, ...suite])) : of(lignes);
+        }));
+    return page(1);
+  }
+
+  private avecToutesLesDepenses(suite: (lignes: Depense[], etat: EtatDepenses) => void): void {
+    if (this.exportEnCours()) return;
+    this.exportEnCours.set(true);
+    forkJoin([this.toutesLesDepenses(), this.budgetApi.getEtatDepenses(paramsDepenses(this.store.filtresDepenses()))])
+      .subscribe({
+        next: ([lignes, etat]) => { this.exportEnCours.set(false); if (lignes.length) suite(lignes, etat); },
+        error: () => this.exportEnCours.set(false),
+      });
   }
 
   // ── Filtres budgets ──────────────────────────────────────────────
@@ -167,80 +235,79 @@ export class BudgetListComponent implements OnInit {
   onAnneeFilter(event: Event): void {
     this.store.setFilter('annee', (event.target as HTMLSelectElement).value);
     this.store.loadTableauDeBord();
-    this.store.loadDepenses();
   }
 
   onAgenceFilter(event: Event): void {
     this.store.setFilter('agence', (event.target as HTMLSelectElement).value);
     this.store.loadTableauDeBord();
-    this.store.loadDepenses();
   }
 
-  onCategorieFilter(event: Event): void {
-    this.store.setFilter('categorie', (event.target as HTMLSelectElement).value);
-    this.store.loadDepenses();
-  }
 
   // ── Export dépenses ──────────────────────────────────────────────
   exportDepensesExcel(): void {
-    const rows = this.store.depenses();
-    if (!rows.length) return;
-    const sep = ';'; const eol = '\r\n';
-    const hdrs = ['Date','Véhicule','Agence','Catégorie','Description',
-                  'Fournisseur','N° Facture','Montant (FCFA)'].join(sep);
-    const data = rows.map((d: Depense) => [
-      d.date_depense,
-      d.vehicule_immat ?? '—',
-      d.agence_nom ?? '—',
-      d.categorie_display ?? d.categorie,
-      d.description,
-      d.fournisseur ?? '',
-      d.numero_facture ?? '',
-      d.montant,
-    ].join(sep)).join(eol);
-    this.downloadFile('\uFEFF' + hdrs + eol + data, 'depenses.csv', 'text/csv;charset=utf-8;');
+    this.avecToutesLesDepenses((rows, etat) => {
+      const sep = ';'; const eol = '\r\n';
+      const cell = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const ligne = (cols: any[]) => cols.map(cell).join(sep);
+      const recap = (titre: string, lignes: any[]) => [ligne([titre, 'Nb', 'Montant (FCFA)', 'Part (%)']),
+        ...lignes.map(l => ligne([l.libelle, l.nb, Math.round(l.total), String(l.part).replace('.', ',')])), ''];
+      const contenu = [
+        ligne(['État des dépenses UbiFleet']), ligne([this.resumeFiltres()]),
+        ligne(['Total', etat.nb + ' dépense(s)', Math.round(etat.total)]), '',
+        ...recap('Poste du budget', etat.par_poste),
+        ...recap('Catégorie', etat.par_categorie),
+        ...recap('Origine', etat.par_origine),
+        ligne(['Date', 'Véhicule', 'Agence', 'Catégorie', 'Origine', 'Description', 'Fournisseur', 'N° Facture', 'Montant (FCFA)']),
+        ...rows.map((d: Depense) => ligne([
+          d.date_depense.split('-').reverse().join('/'), d.vehicule_immat ?? '', d.agence_nom ?? '',
+          d.categorie_display ?? d.categorie, d.origine ?? '', d.description, d.fournisseur ?? '',
+          d.numero_facture ?? '', String(d.montant).replace('.', ','),
+        ])),
+      ].join(eol);
+      this.downloadFile('﻿' + contenu, 'etat-depenses.csv', 'text/csv;charset=utf-8;');
+    });
   }
 
   exportDepensesPdf(): void {
-    const rows = this.store.depenses();
-    if (!rows.length) return;
-    const lines = rows.map((d: Depense) =>
-      `<tr>
-        <td>${d.date_depense}</td>
-        <td>${d.vehicule_immat ?? '—'}</td>
-        <td>${d.agence_nom ?? '—'}</td>
-        <td>${d.categorie_display ?? d.categorie}</td>
-        <td>${d.description}</td>
-        <td>${d.fournisseur ?? ''}</td>
-        <td style="text-align:right">${Number(d.montant).toLocaleString('fr-FR')} FCFA</td>
-      </tr>`
-    ).join('');
-    const total = this.totalDepenses;
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<title>Dépenses UbiFleet</title>
+    this.avecToutesLesDepenses((rows, etat) => {
+      const esc = (v: any) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const fcfa = (n: any) => Math.round(Number(n)).toLocaleString('fr-FR');
+      const recap = (titre: string, lignes: any[]) => `<table class="recap"><thead><tr><th>${titre}</th>
+        <th class="num">Nb</th><th class="num">Montant (FCFA)</th><th class="num">Part</th></tr></thead><tbody>
+        ${lignes.map(l => `<tr><td>${esc(l.libelle)}</td><td class="num">${l.nb}</td>
+          <td class="num">${fcfa(l.total)}</td><td class="num">${l.part} %</td></tr>`).join('')}</tbody></table>`;
+      const lines = rows.map((d: Depense) => `<tr>
+        <td>${d.date_depense.split('-').reverse().join('/')}</td><td>${esc(d.vehicule_immat ?? '—')}</td>
+        <td>${esc(d.categorie_display ?? d.categorie)}</td><td>${esc(d.origine ?? '')}</td>
+        <td>${esc(d.description)}</td><td>${esc(d.fournisseur ?? '')}</td>
+        <td class="num">${fcfa(d.montant)}</td></tr>`).join('');
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>État des dépenses — UbiFleet</title>
 <style>
-  body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
-  h2 { color: #092440; }
-  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-  th { background: #092440; color: white; padding: 8px; text-align: left; }
-  td { border-bottom: 1px solid #eee; padding: 6px 8px; }
-  tr:nth-child(even) td { background: #f9f9f9; }
-  .total { font-weight: bold; text-align: right; margin-top: 12px; font-size: 14px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-  .logo { font-size: 22px; font-weight: 900; color: #092440; }
-  .logo span { color: #5bd988; }
+  body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #333; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th { background: #092440; color: white; padding: 6px; text-align: left; }
+  td { border-bottom: 1px solid #eee; padding: 5px 6px; }
+  .num { text-align: right; }
+  .recaps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .recap th { background: #e8edf3; color: #092440; }
+  .total { font-size: 15px; font-weight: bold; margin: 8px 0; }
+  .header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .logo { font-size: 22px; font-weight: 900; color: #092440; } .logo span { color: #5bd988; }
+  h3 { color: #092440; margin: 18px 0 0; }
 </style></head><body>
 <div class="header">
-  <div><div class="logo">Ubi<span>Fleet</span></div><div style="color:#666">Rapport des dépenses</div></div>
+  <div><div class="logo">Ubi<span>Fleet</span></div><div style="color:#666">État des dépenses</div></div>
   <div style="text-align:right;color:#666">Généré le ${new Date().toLocaleDateString('fr-FR')}</div>
 </div>
-<table><thead><tr>
-  <th>Date</th><th>Véhicule</th><th>Agence</th><th>Catégorie</th>
-  <th>Description</th><th>Fournisseur</th><th>Montant</th>
-</tr></thead><tbody>${lines}</tbody></table>
-<div class="total">Total : ${total.toLocaleString('fr-FR')} FCFA</div>
+<div style="color:#555">${esc(this.resumeFiltres())}</div>
+<div class="total">Total : ${fcfa(etat.total)} FCFA — ${etat.nb} dépense(s)</div>
+<div class="recaps">${recap('Poste du budget', etat.par_poste)}${recap('Catégorie', etat.par_categorie)}${recap('Origine', etat.par_origine)}</div>
+<h3>Détail</h3>
+<table><thead><tr><th>Date</th><th>Véhicule</th><th>Catégorie</th><th>Origine</th><th>Description</th>
+  <th>Fournisseur</th><th class="num">Montant (FCFA)</th></tr></thead><tbody>${lines}</tbody></table>
 </body></html>`;
-    this.printHtml(html);
+      this.printHtml(html);
+    });
   }
 
   // ── Facture PDF d'une dépense ─────────────────────────────────────
@@ -474,7 +541,7 @@ export class BudgetListComponent implements OnInit {
       next: () => {
         this.depenseSaving.set(false);
         this.closeDepenseModal();
-        this.store.loadDepenses();
+        this.rechargerDepenses();
         this.store.loadTableauDeBord();
       },
       error: (err) => {
@@ -490,7 +557,7 @@ export class BudgetListComponent implements OnInit {
     this.budgetApi.deleteDepense(id).subscribe({
       next: () => {
         this.deleteDepenseId.set(null);
-        this.store.loadDepenses();
+        this.rechargerDepenses();
         this.store.loadTableauDeBord();
       },
       error: () => this.deleteDepenseId.set(null),
@@ -524,11 +591,12 @@ export class BudgetListComponent implements OnInit {
     if (pct >= 80)  return 'warning';
     return 'green';
   }
-  formatFCFA(v: number): string {
-    if (!v) return '0';
-    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000)     return `${(v / 1_000).toFixed(0)}K`;
-    return `${v}`;
+  formatFCFA(v: number | string | null | undefined): string {
+    const n = Number(v) || 0;           // les montants de l'API arrivent parfois en texte
+    const a = Math.abs(n), signe = n < 0 ? '−' : '';
+    if (a >= 1_000_000) return `${signe}${(a / 1_000_000).toFixed(1)}M`;
+    if (a >= 1_000)     return `${signe}${(a / 1_000).toFixed(0)}K`;
+    return `${signe}${Math.round(a)}`;
   }
 
   private downloadFile(content: string, filename: string, mime: string): void {

@@ -51,16 +51,22 @@ class DepenseSerializer(serializers.ModelSerializer):
             'id', 'vehicule', 'vehicule_immat', 'agence', 'agence_nom',
             'categorie', 'categorie_display', 'date_depense', 'montant',
             'description', 'fournisseur', 'numero_facture',
-            'fichier_justificatif', 'created_at', 'automatique', 'ref_objet_id'
+            'fichier_justificatif', 'created_at', 'automatique', 'origine', 'ref_objet_type', 'ref_objet_id'
         ]
-        read_only_fields = ['created_at', 'ref_objet_id']
+        read_only_fields = ['created_at', 'ref_objet_type', 'ref_objet_id']
 
     automatique = serializers.SerializerMethodField()
 
+    origine = serializers.SerializerMethodField()
+
     def get_automatique(self, obj):
-        """Dépense générée par une prise de carburant : elle se modifie par la prise."""
-        from apps.carburant.depenses import REF_PRISE
-        return obj.ref_objet_type == REF_PRISE
+        """Dépense reportée d'un autre module : elle se modifie par sa source."""
+        from .automatiques import ORIGINES
+        return obj.ref_objet_type in ORIGINES
+
+    def get_origine(self, obj):
+        from .automatiques import ORIGINES
+        return ORIGINES.get(obj.ref_objet_type, 'Saisie manuelle')
 
     def validate_categorie(self, value):
         from apps.core.referentiels import valider_code_referentiel

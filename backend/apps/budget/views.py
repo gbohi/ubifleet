@@ -29,6 +29,23 @@ class DepenseFilter(FilterSet):
     date_max = df.DateFilter(field_name='date_depense', lookup_expr='lte')
     mois = df.NumberFilter(field_name='date_depense__month')
     annee = df.NumberFilter(field_name='date_depense__year')
+    poste = df.CharFilter(method='filtrer_poste')
+    origine = df.CharFilter(method='filtrer_origine')
+    recherche = df.CharFilter(method='filtrer_recherche')
+
+    def filtrer_poste(self, qs, name, value):
+        """Poste du budget annuel : les catégories qui y sont imputées."""
+        from apps.parametrage.models import CategorieDepense
+        return qs.filter(categorie__in=CategorieDepense.objects.filter(poste_budget=value).values('code'))
+
+    def filtrer_origine(self, qs, name, value):
+        """« manuelle » ou une source (prise_carburant, intervention, pneu, contrat_assurance, sinistre)."""
+        return qs.filter(ref_objet_type='' if value == 'manuelle' else value)
+
+    def filtrer_recherche(self, qs, name, value):
+        from django.db.models import Q
+        return qs.filter(Q(description__icontains=value) | Q(fournisseur__icontains=value)
+                         | Q(numero_facture__icontains=value) | Q(vehicule__immatriculation__icontains=value))
 
     class Meta:
         model = DepenseVehicule
@@ -132,28 +149,60 @@ class DepenseViewSet(viewsets.ModelViewSet):
     role_map = {
         'list': 'comptable',
         'retrieve': 'comptable',
-        'create': 'gestionnaire',
-        'update': 'gestionnaire',
-        'partial_update': 'gestionnaire',
-        'destroy': 'responsable_flotte',
+        'etat': 'comptable',
+        'create': 'responsable_flotte',
+        'update': 'responsable_flotte',
+        'partial_update': 'responsable_flotte',
+        'destroy': 'super_admin',
     }
 
-    role_map = {
-            'list': 'comptable',
-            'retrieve': 'comptable',
-            'create': 'responsable_flotte',
-            'update': 'responsable_flotte',
-            'partial_update': 'responsable_flotte',
-            'destroy': 'super_admin',
-            'tableau_de_bord': 'comptable',
-        }
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = DepenseFilter
 
     def get_permissions(self):
         return [RoleBasedPermission()]
 
     def get_queryset(self):
-        qs = DepenseVehicule.objects.select_related('vehicule', 'agence')
+        qs = DepenseVehicule.objects.select_related('vehicule', 'agence').order_by('-date_depense', '-created_at')
         return filtrer_par_agence(qs, self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def etat(self, request):
+        """État des dépenses (mêmes filtres que la liste) : totaux par catégorie,
+        par poste du budget et par origine."""
+        from apps.parametrage.models import CategorieDepense
+        from .automatiques import ORIGINES
+        qs = self.filter_queryset(self.get_queryset()).order_by()
+        total = float(qs.aggregate(t=Sum('montant'))['t'] or 0)
+        cats = {c.code: c for c in CategorieDepense.objects.all()}
+        postes = dict(CategorieDepense.PosteBudget.choices)
+
+        def part(montant):
+            return round(montant * 100 / total, 1) if total else 0
+
+        par_categorie, par_poste = [], {}
+        for r in qs.values('categorie').annotate(nb=Count('id'), t=Sum('montant')).order_by('-t'):
+            c = cats.get(r['categorie'])
+            poste = c.poste_budget if c else 'divers'
+            montant = float(r['t'] or 0)
+            par_categorie.append({'categorie': r['categorie'], 'libelle': c.libelle if c else r['categorie'],
+                                  'poste': poste, 'poste_libelle': postes.get(poste, poste),
+                                  'nb': r['nb'], 'total': montant, 'part': part(montant)})
+            p = par_poste.setdefault(poste, {'poste': poste, 'libelle': postes.get(poste, poste), 'nb': 0, 'total': 0.0})
+            p['nb'] += r['nb']
+            p['total'] += montant
+        for p in par_poste.values():
+            p['part'] = part(p['total'])
+        par_origine = [{'origine': r['ref_objet_type'] or 'manuelle',
+                        'libelle': ORIGINES.get(r['ref_objet_type'], 'Saisie manuelle'),
+                        'nb': r['nb'], 'total': float(r['t'] or 0), 'part': part(float(r['t'] or 0))}
+                       for r in qs.values('ref_objet_type').annotate(nb=Count('id'), t=Sum('montant')).order_by('-t')]
+        return Response({
+            'total': total, 'nb': qs.count(),
+            'par_categorie': par_categorie,
+            'par_poste': sorted(par_poste.values(), key=lambda p: -p['total']),
+            'par_origine': par_origine,
+        })
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -164,10 +213,10 @@ class DepenseViewSet(viewsets.ModelViewSet):
         )
 
     def _refuser_si_automatique(self, depense):
-        from apps.carburant.depenses import REF_PRISE
-        if depense.ref_objet_type == REF_PRISE:
-            raise ValidationError({'detail': "Cette dépense provient d'une prise de carburant : "
-                                             "modifiez ou supprimez la prise dans Carburant."})
+        from .automatiques import MODIFIER_DANS
+        if depense.ref_objet_type in MODIFIER_DANS:
+            raise ValidationError({'detail': "Dépense reportée automatiquement : modifiez ou supprimez "
+                                             f"{MODIFIER_DANS[depense.ref_objet_type]}."})
 
     def perform_update(self, serializer):
         self._refuser_si_automatique(serializer.instance)

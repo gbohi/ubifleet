@@ -338,6 +338,9 @@ export interface Depense {
   /** Dépense reportée depuis une prise de carburant (modifiable seulement par la prise). */
   automatique?: boolean;
   ref_objet_id?: string | null;
+  ref_objet_type?: string;
+  /** Prise de carburant, Intervention, Pneu, Contrat d'assurance, Sinistre ou Saisie manuelle. */
+  origine?: string;
 }
 
 // ── Alertes ──

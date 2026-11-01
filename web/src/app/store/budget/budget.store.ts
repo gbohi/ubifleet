@@ -25,6 +25,30 @@ interface BudgetState {
     vehicule:  string;
     mois:      string;
   };
+  /** Filtres de l'état des dépenses (onglet Dépenses), indépendants du tableau de bord. */
+  filtresDepenses: FiltresDepenses;
+  /** Récapitulatif de l'état des dépenses (totaux par poste, catégorie, origine). */
+  etat: EtatDepenses | null;
+}
+
+export interface FiltresDepenses {
+  date_min: string; date_max: string; categorie: string; poste: string;
+  origine: string; agence: string; vehicule: string; recherche: string;
+}
+export interface LigneEtat { libelle: string; nb: number; total: number; part: number; [cle: string]: any; }
+export interface EtatDepenses {
+  total: number; nb: number;
+  par_categorie: LigneEtat[]; par_poste: LigneEtat[]; par_origine: LigneEtat[];
+}
+
+export const filtresDepensesInitiaux = (): FiltresDepenses => ({
+  date_min: `${new Date().getFullYear()}-01-01`, date_max: '', categorie: '', poste: '',
+  origine: '', agence: '', vehicule: '', recherche: '',
+});
+
+/** Paramètres d'API des filtres renseignés. */
+export function paramsDepenses(f: FiltresDepenses): Record<string, string> {
+  return Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '' && v != null));
 }
 
 const initialState: BudgetState = {
@@ -41,6 +65,8 @@ const initialState: BudgetState = {
     vehicule:  '',
     mois:      '',
   },
+  filtresDepenses: filtresDepensesInitiaux(),
+  etat: null,
 };
 
 export const BudgetStore = signalStore(
@@ -91,14 +117,8 @@ export const BudgetStore = signalStore(
     loadDepenses: rxMethod<void>(
       pipe(
         switchMap(() => {
-          const f = store.filters();
           const p = store.pagination();
-          const params: Record<string, any> = { page: p.page, page_size: p.pageSize };
-          if (f.agence)    params['agence']    = f.agence;
-          if (f.annee)     params['annee']     = f.annee;
-          if (f.categorie) params['categorie'] = f.categorie;
-          if (f.vehicule)  params['vehicule']  = f.vehicule;
-          if (f.mois)      params['mois']      = f.mois;
+          const params: Record<string, any> = { ...paramsDepenses(store.filtresDepenses()), page: p.page, page_size: p.pageSize };
 
           return api.getDepenses(params).pipe(
             tapResponse({
@@ -112,6 +132,21 @@ export const BudgetStore = signalStore(
         })
       )
     ),
+
+    loadEtat: rxMethod<void>(
+      pipe(
+        switchMap(() => api.getEtatDepenses(paramsDepenses(store.filtresDepenses())).pipe(
+          tapResponse({
+            next: (etat) => patchState(store, { etat }),
+            error: () => patchState(store, { etat: null }),
+          })
+        ))
+      )
+    ),
+
+    setFiltresDepenses(f: FiltresDepenses): void {
+      patchState(store, { filtresDepenses: { ...f }, pagination: { ...store.pagination(), page: 1 } });
+    },
 
     setFilter(key: keyof BudgetState['filters'], value: string): void {
       patchState(store, {
