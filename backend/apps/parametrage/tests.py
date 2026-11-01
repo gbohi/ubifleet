@@ -647,3 +647,68 @@ class CorrectionSaisieTests(UtilisateursMixin, APITestCase):
         # Renvoyer la valeur actuelle (formulaire complet) reste accepté
         resp = self.client.patch(url, {'kilometrage_actuel': self.km(), 'couleur': 'Blanc'}, format='json')
         self.assertEqual(resp.status_code, 200, resp.data)
+
+
+class ReferentielsCodeTests(UtilisateursMixin, APITestCase):
+    """Catégories de dépense, types de sinistre et de contrat paramétrables."""
+
+    def setUp(self):
+        self.client.force_authenticate(self.responsable_flotte)
+
+    def test_categorie_depense_parametrable_et_budget_par_poste(self):
+        from apps.budget.models import BudgetAnnuel, DepenseVehicule
+        from .models import CategorieDepense
+        r = self.client.post('/api/v1/parametrage/categories-depense/',
+                             {'code': 'lavage', 'libelle': 'Lavage', 'poste_budget': 'entretien'}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        r = self.client.post('/api/v1/budget/depenses/', {
+            'agence': str(self.agence_a.id), 'categorie': 'lavage', 'date_depense': '2026-03-01',
+            'montant': '5000', 'description': 'Lavage'}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['categorie_display'], 'Lavage')
+        DepenseVehicule.objects.create(agence=self.agence_a, categorie='assurance', date_depense='2026-03-02',
+                                       montant=20000, description='Prime')
+        b = BudgetAnnuel.objects.create(agence=self.agence_a, annee=2026)
+        realise = self.client.get(f'/api/v1/budget/budgets/{b.id}/').data['realise']
+        self.assertEqual(realise['entretien'], 5000.0)     # imputé sur le poste de la catégorie
+        self.assertEqual(realise['assurances'], 20000.0)   # « assurance » → poste « assurances »
+        # Code inconnu ou catégorie désactivée : refusé
+        lavage = CategorieDepense.objects.get(code='lavage')
+        self.client.patch(f'/api/v1/parametrage/categories-depense/{lavage.id}/', {'actif': False}, format='json')
+        r = self.client.post('/api/v1/budget/depenses/', {
+            'agence': str(self.agence_a.id), 'categorie': 'lavage', 'date_depense': '2026-03-01',
+            'montant': '5000', 'description': 'Lavage'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        # Utilisée : suppression refusée ; « carburant » (système) : ni suppression ni désactivation
+        self.assertEqual(self.client.delete(f'/api/v1/parametrage/categories-depense/{lavage.id}/').status_code, 400)
+        carb = CategorieDepense.objects.get(code='carburant')
+        self.assertTrue(carb.systeme)
+        self.assertEqual(self.client.delete(f'/api/v1/parametrage/categories-depense/{carb.id}/').status_code, 400)
+        self.assertEqual(self.client.patch(f'/api/v1/parametrage/categories-depense/{carb.id}/',
+                                           {'actif': False}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch(f'/api/v1/parametrage/categories-depense/{carb.id}/',
+                                           {'libelle': 'Gasoil & essence'}, format='json').status_code, 200)
+
+    def test_types_sinistre_et_contrat(self):
+        from apps.sinistres.models import Sinistre
+        from .models import TypeContratAssurance, TypeSinistre
+        self.assertTrue(TypeSinistre.objects.filter(code='bris_glace').exists())
+        self.assertTrue(TypeContratAssurance.objects.filter(code='tous_risques').exists())
+        r = self.client.post('/api/v1/parametrage/types-sinistre/', {'code': 'inondation', 'libelle': 'Inondation'},
+                             format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        v = Vehicule.objects.create(immatriculation='SN-1', agence=self.agence_a, annee=2020)
+        s = Sinistre.objects.create(vehicule=v, agence=self.agence_a, type_sinistre='inondation',
+                                    date_sinistre='2026-05-01', description='Crue')
+        self.assertEqual(s.get_type_sinistre_display(), 'Inondation')
+        t = TypeSinistre.objects.get(code='inondation')
+        liste = self.client.get('/api/v1/parametrage/types-sinistre/').data
+        self.assertEqual(next(x for x in liste if x['code'] == 'inondation')['nb_utilisations'], 1)
+        self.assertEqual(self.client.delete(f'/api/v1/parametrage/types-sinistre/{t.id}/').status_code, 400)
+        self.assertEqual(self.client.patch(f'/api/v1/parametrage/types-sinistre/{t.id}/', {'code': 'crue'},
+                                           format='json').status_code, 400)
+        r = self.client.patch(f'/api/v1/parametrage/types-sinistre/{t.id}/', {'libelle': 'Inondation / crue'},
+                              format='json')
+        self.assertEqual(r.status_code, 200)
+        s.refresh_from_db()
+        self.assertEqual(s.get_type_sinistre_display(), 'Inondation / crue')   # cache vidé

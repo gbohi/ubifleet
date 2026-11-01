@@ -21,12 +21,6 @@ class Assureur(UbiFleetBaseModel):
 
 
 class ContratAssurance(UbiFleetBaseModel):
-    class TypeContrat(models.TextChoices):
-        RC = 'rc', 'Responsabilité civile'
-        TOUS_RISQUES = 'tous_risques', 'Tous risques'
-        TIERS_COLLISION = 'tiers_collision', 'Tiers collision'
-        FLOTTE = 'flotte', 'Flotte'
-
     vehicule = models.ForeignKey(
         'vehicules.Vehicule', on_delete=models.CASCADE,
         related_name='contrats_assurance'
@@ -36,7 +30,8 @@ class ContratAssurance(UbiFleetBaseModel):
         related_name='contrats'
     )
     numero_police = models.CharField(max_length=100)
-    type_contrat = models.CharField(max_length=20, choices=TypeContrat.choices)
+    # Code de Paramètres › Types de contrat d'assurance
+    type_contrat = models.CharField(max_length=20)
     date_debut = models.DateField()
     date_fin = models.DateField()
     prime_annuelle = models.DecimalField(max_digits=12, decimal_places=2)
@@ -51,6 +46,10 @@ class ContratAssurance(UbiFleetBaseModel):
     def __str__(self):
         return f"{self.vehicule.immatriculation} — {self.assureur.nom} — {self.numero_police}"
 
+    def get_type_contrat_display(self):
+        from apps.parametrage.models import TypeContratAssurance, libelles
+        return libelles(TypeContratAssurance).get(self.type_contrat, self.type_contrat)
+
     @property
     def est_expire(self):
         from django.utils import timezone
@@ -64,15 +63,6 @@ class ContratAssurance(UbiFleetBaseModel):
 
 
 class Sinistre(UbiFleetBaseModel):
-    class TypeSinistre(models.TextChoices):
-        ACCIDENT = 'accident', 'Accident'
-        VOL = 'vol', 'Vol'
-        INCENDIE = 'incendie', 'Incendie'
-        VANDALISME = 'vandalisme', 'Vandalisme'
-        BRIS_GLACE = 'bris_glace', 'Bris de glace'
-        CATASTROPHE = 'catastrophe', 'Catastrophe naturelle'
-        AUTRE = 'autre', 'Autre'
-
     class Statut(models.TextChoices):
         DECLARE = 'declare', 'Déclaré'
         EN_INSTRUCTION = 'en_instruction', 'En instruction'
@@ -103,7 +93,8 @@ class Sinistre(UbiFleetBaseModel):
 
     # Référence
     numero_dossier = models.CharField(max_length=50, unique=True)
-    type_sinistre = models.CharField(max_length=20, choices=TypeSinistre.choices)
+    # Code de Paramètres › Types de sinistre
+    type_sinistre = models.CharField(max_length=20)
     statut = models.CharField(max_length=20, choices=Statut.choices, default=Statut.DECLARE)
     responsabilite = models.CharField(
         max_length=20, choices=Responsabilite.choices,
@@ -146,6 +137,10 @@ class Sinistre(UbiFleetBaseModel):
 
     def __str__(self):
         return f"{self.numero_dossier} — {self.vehicule.immatriculation} — {self.get_type_sinistre_display()}"
+
+    def get_type_sinistre_display(self):
+        from apps.parametrage.models import TypeSinistre, libelles
+        return libelles(TypeSinistre).get(self.type_sinistre, self.type_sinistre)
 
     def save(self, *args, **kwargs):
         if not self.numero_dossier:

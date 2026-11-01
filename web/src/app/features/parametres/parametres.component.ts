@@ -22,7 +22,7 @@ export type Section =
   | 'echeances' | 'saisie' | 'carburant' | 'stations'
   | 'marques' | 'types_vehicule' | 'statuts' | 'affectations' | 'types_doc' | 'types_mouvement'
   | 'agences' | 'tournees'
-  | 'types' | 'prestataires' | 'assureurs'
+  | 'types' | 'prestataires' | 'assureurs' | 'types_sinistre' | 'types_contrat' | 'categories_depense'
   | 'circuits' | 'elements';
 
 interface NavItem { section: Section; libelle: string; icone: string; }
@@ -75,6 +75,11 @@ export class ParametresComponent implements OnInit {
       { section: 'types',        libelle: "Types d'intervention",     icone: 'fas fa-wrench' },
       { section: 'prestataires', libelle: 'Prestataires / garages',   icone: 'fas fa-tools' },
       { section: 'assureurs',    libelle: 'Assureurs',                icone: 'fas fa-shield-alt' },
+      { section: 'types_contrat', libelle: "Types de contrat d'assurance", icone: 'fas fa-file-contract' },
+      { section: 'types_sinistre', libelle: 'Types de sinistre',      icone: 'fas fa-car-crash' },
+    ]},
+    { titre: 'Budget', items: [
+      { section: 'categories_depense', libelle: 'Catégories de dépense', icone: 'fas fa-coins' },
     ]},
     { titre: 'Workflows', items: [
       { section: 'circuits',     libelle: 'Circuits de validation',   icone: 'fas fa-sitemap' },
@@ -100,7 +105,22 @@ export class ParametresComponent implements OnInit {
     assureurs: this.assureurs().length,
     stations: this.stations().length, types_mouvement: this.typesMouvement().length,
     types_vehicule: this.nbTypesVehicule(),
+    ...this.nbReferentiels(),
   }));
+  /** Nombre d'éléments des référentiels à code (remonté par chaque écran). */
+  nbReferentiels = signal<Record<string, number>>({});
+  majCompte(section: string, n: number): void { this.nbReferentiels.update(c => ({ ...c, [section]: n })); }
+
+  /** Postes du budget annuel : chaque catégorie de dépense est imputée sur l'un d'eux. */
+  readonly champsCategorie = [{
+    cle: 'poste_budget', libelle: 'Poste du budget',
+    aide: 'Ligne du budget annuel sur laquelle ces dépenses sont comptées (budget prévu / réalisé).',
+    options: [
+      { value: 'carburant', label: 'Carburant' }, { value: 'entretien', label: 'Entretien' },
+      { value: 'reparations', label: 'Réparations' }, { value: 'assurances', label: 'Assurances' },
+      { value: 'pneumatiques', label: 'Pneumatiques' }, { value: 'divers', label: 'Divers' },
+    ],
+  }];
   /** Nombre de types de véhicule (remonté par le référentiel). */
   nbTypesVehicule = signal(0);
 

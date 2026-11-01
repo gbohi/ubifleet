@@ -94,7 +94,7 @@
                 @for (cat of store.parCategorie(); track cat.categorie) {
                   <div class="cat-item">
                     <div class="cat-header">
-                      <span class="cat-name">{{ cat.categorie_display ?? cat.categorie }}</span>
+                      <span class="cat-name">{{ cat.libelle ?? cat.categorie }}</span>
                       <span class="cat-amount">{{ formatFCFA(cat.total) }} FCFA</span>
                     </div>
                     <div class="progress">
@@ -182,7 +182,7 @@
             <label class="filter-label"><i class="fas fa-tag"></i> Catégorie</label>
             <select class="form-control" (change)="onDepFilter('categorie',$event)">
               <option value="">Toutes</option>
-              @for (cat of categories; track cat.value) {
+              @for (cat of categories(); track cat.value) {
                 <option [value]="cat.value">{{ cat.label }}</option>
               }
             </select>
@@ -369,50 +369,22 @@
 
               <!-- Lignes budget par catégorie -->
               <div class="budget-lines">
-                @if (b.budget_carburant > 0) {
-                  <div class="budget-line">
-                    <span class="bl-name">Carburant</span>
-                    <div class="progress bl-progress">
-                      <div class="progress-bar"
-                           [class]="budgetBarClass(b.realise['carburant'], b.budget_carburant)"
-                           [style.width.%]="budgetBarWidth(b.realise['carburant'], b.budget_carburant)">
+                @for (p of postes; track p.value) {
+                  @if (montantPoste(b, p.value) > 0 || (b.realise[p.value] ?? 0) > 0) {
+                    <div class="budget-line">
+                      <span class="bl-name">{{ p.label }}</span>
+                      <div class="progress bl-progress">
+                        <div class="progress-bar"
+                             [class]="budgetBarClass(b.realise[p.value], montantPoste(b, p.value))"
+                             [style.width.%]="budgetBarWidth(b.realise[p.value], montantPoste(b, p.value))">
+                        </div>
                       </div>
+                      <span class="bl-amounts">
+                        {{ formatFCFA(b.realise[p.value] ?? 0) }} /
+                        {{ formatFCFA(montantPoste(b, p.value)) }}
+                      </span>
                     </div>
-                    <span class="bl-amounts">
-                      {{ formatFCFA(b.realise['carburant']) }} /
-                      {{ formatFCFA(b.budget_carburant) }}
-                    </span>
-                  </div>
-                }
-                @if (b.budget_entretien > 0) {
-                  <div class="budget-line">
-                    <span class="bl-name">Entretien</span>
-                    <div class="progress bl-progress">
-                      <div class="progress-bar"
-                           [class]="budgetBarClass(b.realise['entretien'], b.budget_entretien)"
-                           [style.width.%]="budgetBarWidth(b.realise['entretien'], b.budget_entretien)">
-                      </div>
-                    </div>
-                    <span class="bl-amounts">
-                      {{ formatFCFA(b.realise['entretien']) }} /
-                      {{ formatFCFA(b.budget_entretien) }}
-                    </span>
-                  </div>
-                }
-                @if (b.budget_assurances > 0) {
-                  <div class="budget-line">
-                    <span class="bl-name">Assurances</span>
-                    <div class="progress bl-progress">
-                      <div class="progress-bar"
-                           [class]="budgetBarClass(b.realise['assurances'], b.budget_assurances)"
-                           [style.width.%]="budgetBarWidth(b.realise['assurances'], b.budget_assurances)">
-                      </div>
-                    </div>
-                    <span class="bl-amounts">
-                      {{ formatFCFA(b.realise['assurances']) }} /
-                      {{ formatFCFA(b.budget_assurances) }}
-                    </span>
-                  </div>
+                  }
                 }
               </div>
             </div>
@@ -469,7 +441,7 @@
         </div>
 
         <div class="budget-form-grid">
-          @for (cat of categories; track cat.value) {
+          @for (cat of postes; track cat.value) {
             <div class="form-group">
               <label class="form-label">{{ cat.label }} (FCFA)</label>
               <input type="number" [formControlName]="'budget_' + cat.value"
@@ -536,8 +508,9 @@
           <div class="form-group">
             <label class="form-label">Catégorie *</label>
             <select formControlName="categorie" class="form-control">
-              @for (c of categories; track c.value) {
-                <option [value]="c.value">{{ c.label }}</option>
+              <option value="" disabled>-- Choisir --</option>
+              @for (c of categoriesSaisie(); track c.value) {
+                <option [value]="c.value">{{ c.label }}{{ c.actif ? '' : ' (désactivée)' }}</option>
               }
             </select>
             @if (df.categorie.value === 'carburant') {

@@ -131,7 +131,8 @@ class DashboardDGView(APIView):
             .annotate(total=Sum('montant'))
             .order_by('-total')
         )
-        categorie_labels = dict(DepenseVehicule.Categorie.choices)
+        from apps.parametrage.models import CategorieDepense, libelles
+        categorie_labels = libelles(CategorieDepense)
         repartition_couts = [
             {
                 'categorie': item['categorie'],
@@ -246,13 +247,16 @@ class RapportCoutsView(APIView):
         qs = DepenseVehicule.objects.filter(date_depense__year=annee)
         if agence_id:
             qs = qs.filter(agence_id=agence_id)
+        from apps.parametrage.models import CategorieDepense, libelles
+        noms_categories = libelles(CategorieDepense)
 
         return Response({
             'annee': annee,
             'total': qs.aggregate(total=Sum('montant'))['total'] or 0,
-            'par_categorie': list(
-                qs.values('categorie').annotate(total=Sum('montant'), nb=Count('id'))
-            ),
+            'par_categorie': [
+                {**r, 'libelle': noms_categories.get(r['categorie'], r['categorie'])}
+                for r in qs.values('categorie').annotate(total=Sum('montant'), nb=Count('id'))
+            ],
             'par_agence': list(
                 qs.values('agence__nom', 'agence__code')
                   .annotate(total=Sum('montant'))
@@ -360,11 +364,8 @@ class RapportSinistresView(APIView):
             qs.values('statut').annotate(nb=Count('id')).order_by('-nb')
         )
 
-        TYPE_LABELS = {
-            'accident': 'Accident', 'vol': 'Vol', 'incendie': 'Incendie',
-            'vandalisme': 'Vandalisme', 'bris_glace': 'Bris de glace',
-            'catastrophe': 'Catastrophe naturelle', 'autre': 'Autre',
-        }
+        from apps.parametrage.models import TypeSinistre, libelles
+        TYPE_LABELS = libelles(TypeSinistre)
         MOIS_LABELS = ['Jan','Fév','Mar','Avr','Mai','Jun',
                        'Jul','Aoû','Sep','Oct','Nov','Déc']
 

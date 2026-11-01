@@ -4,6 +4,19 @@ from rest_framework import serializers
 from .models import BudgetAnnuel, DepenseVehicule
 
 
+def realise_par_poste(lignes):
+    """Réalisé par poste du budget annuel (carburant, entretien, réparations,
+    assurances, pneumatiques, divers), d'après le poste de chaque catégorie de
+    dépense (Paramètres › Catégories de dépense) ; catégorie inconnue → divers."""
+    from apps.parametrage.models import CategorieDepense
+    postes = dict(CategorieDepense.objects.values_list('code', 'poste_budget'))
+    realise = {p: 0.0 for p in CategorieDepense.PosteBudget.values}
+    for ligne in lignes:
+        poste = postes.get(ligne['categorie'], CategorieDepense.PosteBudget.DIVERS)
+        realise[poste] += float(ligne['total'] or 0)
+    return realise
+
+
 class BudgetAnnuelSerializer(serializers.ModelSerializer):
     agence_nom = serializers.CharField(source='agence.nom', read_only=True)
     budget_total = serializers.DecimalField(max_digits=15, decimal_places=2, read_only=True)
@@ -24,7 +37,7 @@ class BudgetAnnuelSerializer(serializers.ModelSerializer):
             agence=obj.agence,
             date_depense__year=obj.annee
         ).values('categorie').annotate(total=Sum('montant'))
-        return {dep['categorie']: float(dep['total']) for dep in depenses}
+        return realise_par_poste(depenses)
 
 
 class DepenseSerializer(serializers.ModelSerializer):
@@ -48,6 +61,13 @@ class DepenseSerializer(serializers.ModelSerializer):
         """Dépense générée par une prise de carburant : elle se modifie par la prise."""
         from apps.carburant.depenses import REF_PRISE
         return obj.ref_objet_type == REF_PRISE
+
+    def validate_categorie(self, value):
+        from apps.core.referentiels import valider_code_referentiel
+        from apps.parametrage.models import CategorieDepense
+        return valider_code_referentiel(CategorieDepense, value,
+                                        self.instance.categorie if self.instance else None,
+                                        'Catégorie de dépense')
 
     def get_vehicule_immat(self, obj):
         return obj.vehicule.immatriculation if obj.vehicule else None

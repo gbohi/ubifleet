@@ -946,6 +946,16 @@ export class ParametrageApiService extends ApiBaseService {
     const params = filters ? this.buildParams(filters) : undefined;
     return this.http.get<any[]>(`${API}/parametrage/types-vehicule/`, { params });
   }
+  /** Catégories de dépense, types de sinistre / de contrat (Paramètres). */
+  getCategoriesDepense(): Observable<{ id: number; code: string; libelle: string; actif: boolean; poste_budget: string; systeme: boolean }[]> {
+    return this.http.get<any[]>(`${API}/parametrage/categories-depense/`);
+  }
+  getTypesSinistre(): Observable<{ id: number; code: string; libelle: string; actif: boolean }[]> {
+    return this.http.get<any[]>(`${API}/parametrage/types-sinistre/`);
+  }
+  getTypesContrat(): Observable<{ id: number; code: string; libelle: string; actif: boolean }[]> {
+    return this.http.get<any[]>(`${API}/parametrage/types-contrat/`);
+  }
   getTypesMouvement(filters?: { actif?: boolean }): Observable<any[]> {
     const params = filters ? this.buildParams(filters) : undefined;
     return this.http.get<any[]>(`${API}/parametrage/types-mouvement/`, { params });

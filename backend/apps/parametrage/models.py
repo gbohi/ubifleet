@@ -119,6 +119,79 @@ models.signals.post_save.connect(_vider_cache_types_vehicule, sender=TypeVehicul
 models.signals.post_delete.connect(_vider_cache_types_vehicule, sender=TypeVehicule)
 
 
+class ReferentielCode(models.Model):
+    """Base des listes paramétrables simples : la donnée métier enregistre le code."""
+    code    = models.SlugField(max_length=20, unique=True,
+                               help_text="Identifiant technique, enregistré sur les données.")
+    libelle = models.CharField(max_length=100)
+    ordre   = models.PositiveSmallIntegerField(default=0)
+    actif   = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+        ordering = ['ordre', 'libelle']
+
+    def __str__(self):
+        return self.libelle
+
+
+class CategorieDepense(ReferentielCode):
+    """Catégories des dépenses véhicule (budget & coûts)."""
+
+    class PosteBudget(models.TextChoices):
+        # Les postes du budget annuel (BudgetAnnuel.budget_<poste>) restent fixes
+        CARBURANT    = 'carburant', 'Carburant'
+        ENTRETIEN    = 'entretien', 'Entretien'
+        REPARATIONS  = 'reparations', 'Réparations'
+        ASSURANCES   = 'assurances', 'Assurances'
+        PNEUMATIQUES = 'pneumatiques', 'Pneumatiques'
+        DIVERS       = 'divers', 'Divers'
+
+    poste_budget = models.CharField(max_length=20, choices=PosteBudget.choices, default=PosteBudget.DIVERS,
+                                    help_text="Poste du budget annuel sur lequel la dépense est imputée.")
+    systeme = models.BooleanField(default=False, editable=False,
+                                  help_text="Catégorie utilisée par l'application (ne se supprime ni ne se désactive).")
+
+    class Meta(ReferentielCode.Meta):
+        verbose_name        = "Catégorie de dépense"
+        verbose_name_plural = "Catégories de dépense"
+
+
+class TypeSinistre(ReferentielCode):
+    class Meta(ReferentielCode.Meta):
+        verbose_name        = "Type de sinistre"
+        verbose_name_plural = "Types de sinistre"
+
+
+class TypeContratAssurance(ReferentielCode):
+    class Meta(ReferentielCode.Meta):
+        verbose_name        = "Type de contrat d'assurance"
+        verbose_name_plural = "Types de contrat d'assurance"
+
+
+CATEGORIE_CARBURANT = 'carburant'
+_LIBELLES = {}
+
+
+def libelles(modele):
+    """{code: libellé} d'un référentiel à code (en cache, vidé à chaque modification)."""
+    cle = modele._meta.label
+    if cle not in _LIBELLES:
+        _LIBELLES[cle] = dict(modele.objects.values_list('code', 'libelle'))
+    return _LIBELLES[cle]
+
+
+def _vider_cache_libelles(sender, **kwargs):
+    _LIBELLES.pop(sender._meta.label, None)
+
+
+for _m in (CategorieDepense, TypeSinistre, TypeContratAssurance):
+    models.signals.post_save.connect(_vider_cache_libelles, sender=_m)
+    models.signals.post_delete.connect(_vider_cache_libelles, sender=_m)
+
+
 class AffectationUsage(models.Model):
     """Types d'affectation / usage des véhicules."""
     code     = models.CharField(max_length=20, unique=True)

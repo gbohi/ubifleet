@@ -1,7 +1,7 @@
 """UbiFleet — Sinistres Serializers"""
 
 from rest_framework import serializers
-from apps.core.referentiels import NbUtilisationsField
+from apps.core.referentiels import NbUtilisationsField, valider_code_referentiel
 from .models import Sinistre, ContratAssurance, Assureur, PieceJointeSinistre
 
 
@@ -28,6 +28,12 @@ class ContratAssuranceSerializer(serializers.ModelSerializer):
             'date_debut', 'date_fin', 'prime_annuelle', 'franchise',
             'document', 'is_active', 'est_expire', 'jours_restants'
         ]
+
+    def validate_type_contrat(self, value):
+        from apps.parametrage.models import TypeContratAssurance
+        return valider_code_referentiel(TypeContratAssurance, value,
+                                        self.instance.type_contrat if self.instance else None,
+                                        'Type de contrat')
 
 
 class PieceJointeSerializer(serializers.ModelSerializer):
@@ -63,6 +69,12 @@ class SinistreSerializer(serializers.ModelSerializer):
             'pièces_jointes', 'created_at'
         ]
         read_only_fields = ['numero_dossier', 'created_at']
+
+    def validate_type_sinistre(self, value):
+        from apps.parametrage.models import TypeSinistre
+        return valider_code_referentiel(TypeSinistre, value,
+                                        self.instance.type_sinistre if self.instance else None,
+                                        'Type de sinistre')
 
     def get_chauffeur_nom(self, obj):
         return obj.chauffeur.nom_complet if obj.chauffeur else None

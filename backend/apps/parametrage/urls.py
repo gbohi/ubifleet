@@ -4,6 +4,7 @@ from .views import (
     ParametreViewSet, TourneeViewSet, FenetreSaisieView, CorrectionSaisieViewSet,
     AffectationUsageViewSet, StatutVehiculeViewSet,
     MarqueVehiculeViewSet, ModeleVehiculeViewSet, TypeMouvementViewSet, TypeVehiculeViewSet,
+    CategorieDepenseViewSet, TypeSinistreViewSet, TypeContratAssuranceViewSet,
 )
 
 router = DefaultRouter()
@@ -14,6 +15,9 @@ router.register('marques',     MarqueVehiculeViewSet,     basename='marque-vehic
 router.register('modeles',     ModeleVehiculeViewSet,     basename='modele-vehicule')
 router.register('types-mouvement', TypeMouvementViewSet,  basename='type-mouvement')
 router.register('types-vehicule', TypeVehiculeViewSet,    basename='type-vehicule')
+router.register('categories-depense', CategorieDepenseViewSet, basename='categorie-depense')
+router.register('types-sinistre', TypeSinistreViewSet,    basename='type-sinistre')
+router.register('types-contrat', TypeContratAssuranceViewSet, basename='type-contrat')
 router.register('corrections', CorrectionSaisieViewSet,  basename='correction-saisie')
 
 urlpatterns = [

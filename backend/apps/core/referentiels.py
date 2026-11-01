@@ -49,3 +49,18 @@ class SuppressionProtegeeMixin:
                            "Désactivez-le plutôt."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+
+def valider_code_referentiel(modele, code, actuel=None, libelle='Valeur'):
+    """Contrôle un code saisi pour un référentiel paramétrable : il doit exister
+    et être actif (une valeur désactivée reste acceptée si elle est déjà
+    enregistrée sur la donnée modifiée)."""
+    from rest_framework.exceptions import ValidationError
+    if code == actuel and code:
+        return code
+    obj = modele.objects.filter(code=code).first()
+    if not obj:
+        raise ValidationError(f"{libelle} inconnu(e) : « {code} ». Voir Paramètres.")
+    if not obj.actif:
+        raise ValidationError(f"{libelle} « {obj.libelle} » désactivé(e) dans Paramètres.")
+    return code

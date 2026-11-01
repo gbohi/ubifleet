@@ -204,7 +204,7 @@ export class RapportsComponent implements OnInit, OnDestroy {
       const cats = d.par_categorie;
       this.charts.push(new Chart(this.chartParCatCanvas!.nativeElement, {
         type: 'doughnut',
-        data: { labels: cats.map((c: any) => c.categorie || 'Autre'),
+        data: { labels: cats.map((c: any) => c.libelle || c.categorie || 'Autre'),
           datasets: [{ data: cats.map((c: any) => c.total),
             backgroundColor: CHART_COLORS.slice(0, cats.length), borderWidth: 2, borderColor: '#fff' }] },
         options: { responsive: true, maintainAspectRatio: false,

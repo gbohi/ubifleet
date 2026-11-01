@@ -234,7 +234,8 @@ export interface SuiviPneus {
 }
 
 // ── Sinistres ──
-export type TypeSinistre = 'accident' | 'vol' | 'incendie' | 'vandalisme' | 'bris_glace' | 'autre';
+/** Code de Paramètres › Types de sinistre. */
+export type TypeSinistre = string;
 export type StatutSinistre = 'declare' | 'en_instruction' | 'expertise' | 'reparation' | 'indemnise' | 'clos' | 'conteste';
 
 export interface Sinistre {

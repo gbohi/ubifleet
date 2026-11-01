@@ -24,7 +24,7 @@ class BudgetAnnuelSerializer:
 class DepenseFilter(FilterSet):
     agence = df.UUIDFilter()
     vehicule = df.UUIDFilter()
-    categorie = df.MultipleChoiceFilter(choices=DepenseVehicule.Categorie.choices)
+    categorie = df.BaseInFilter(field_name='categorie', lookup_expr='in')
     date_min = df.DateFilter(field_name='date_depense', lookup_expr='gte')
     date_max = df.DateFilter(field_name='date_depense', lookup_expr='lte')
     mois = df.NumberFilter(field_name='date_depense__month')
@@ -105,8 +105,14 @@ class BudgetViewSet(AgenceMixin, viewsets.ModelViewSet):
             entretien=Sum('budget_entretien'),
             reparations=Sum('budget_reparations'),
             assurances=Sum('budget_assurances'),
+            pneumatiques=Sum('budget_pneumatiques'),
             divers=Sum('budget_divers'),
         )
+        from apps.parametrage.models import CategorieDepense, libelles
+        from .serializers import realise_par_poste
+        noms = libelles(CategorieDepense)
+        for ligne in par_categorie:
+            ligne['libelle'] = noms.get(ligne['categorie'], ligne['categorie'])
         return Response({
             'annee': annee,
             'total_realise': global_agg['total'] or 0,
@@ -115,6 +121,7 @@ class BudgetViewSet(AgenceMixin, viewsets.ModelViewSet):
             'par_agence': par_agence,
             'top_vehicules': par_vehicule,
             'budgets_prevus': budget_total,
+            'realise_par_poste': realise_par_poste(par_categorie),
         })
 
 

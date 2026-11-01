@@ -1,5 +1,6 @@
 // UbiFleet — Budget & Comptabilité (Angular 18 + NgRx Signals Store)
 import {
+  computed,
   Component, inject, OnInit,
   ChangeDetectionStrategy, signal
 } from '@angular/core';
@@ -7,7 +8,7 @@ import { RouterLink } from '@angular/router';
 import { DecimalPipe, DatePipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { BudgetStore } from '../../../store/budget/budget.store';
-import { AgenceApiService, BudgetApiService } from '../../../core/services/api.service';
+import { AgenceApiService, BudgetApiService, ParametrageApiService } from '../../../core/services/api.service';
 import { Agence, BudgetAnnuel, Depense } from '../../../core/models';
 
 @Component({
@@ -23,6 +24,7 @@ export class BudgetListComponent implements OnInit {
   private fb          = inject(FormBuilder);
   private agenceApi   = inject(AgenceApiService);
   private budgetApi   = inject(BudgetApiService);
+  private parametrageApi = inject(ParametrageApiService);
 
   agences    = signal<Agence[]>([]);
   budgets    = signal<BudgetAnnuel[]>([]);
@@ -69,7 +71,7 @@ export class BudgetListComponent implements OnInit {
   depenseForm = this.fb.group({
     vehicule:        [''],
     agence:          ['', Validators.required],
-    categorie:       ['carburant', Validators.required],
+    categorie:       ['', Validators.required],
     date_depense:    [new Date().toISOString().split('T')[0], Validators.required],
     montant:         [0, [Validators.required, Validators.min(0.01)]],
     description:     ['', Validators.required],
@@ -90,20 +92,32 @@ export class BudgetListComponent implements OnInit {
     return [a, a-1, a-2, a-3];
   }
 
-  readonly categories = [
-    { value: 'carburant',  label: 'Carburant' },
-    { value: 'entretien',  label: 'Entretien préventif' },
-    { value: 'reparation', label: 'Réparation' },
-    { value: 'pneus',      label: 'Pneumatiques' },
-    { value: 'assurance',  label: 'Assurance' },
-    { value: 'sinistre',   label: 'Sinistre' },
-    { value: 'controle',   label: 'Contrôle technique' },
-    { value: 'peage',      label: 'Péage' },
-    { value: 'parking',    label: 'Parking' },
-    { value: 'divers',     label: 'Divers' },
+  /** Catégories de dépense : Paramètres › Catégories de dépense (toutes pour le filtre). */
+  categories = signal<{ value: string; label: string; actif: boolean }[]>([]);
+  /** Proposées à la saisie : actives, plus celle de la dépense modifiée. */
+  categoriesSaisie = computed(() => this.categories().filter(c => c.actif || c.value === this.categorieEditee()));
+  private categorieEditee = signal('');
+
+  /** Postes du budget annuel (fixes) ; chaque catégorie de dépense est imputée sur l'un d'eux. */
+  readonly postes = [
+    { value: 'carburant',    label: 'Carburant' },
+    { value: 'entretien',    label: 'Entretien' },
+    { value: 'reparations',  label: 'Réparations' },
+    { value: 'assurances',   label: 'Assurances' },
+    { value: 'pneumatiques', label: 'Pneumatiques' },
+    { value: 'divers',       label: 'Divers' },
   ];
 
+  /** Montant budgété d'un poste (budget_<poste>). */
+  montantPoste(b: BudgetAnnuel, poste: string): number {
+    return Number((b as any)['budget_' + poste] ?? 0);
+  }
+
   ngOnInit(): void {
+    this.parametrageApi.getCategoriesDepense().subscribe({
+      next: l => this.categories.set(l.map(c => ({ value: c.code, label: c.libelle, actif: c.actif }))),
+      error: () => {},
+    });
     this.store.loadTableauDeBord();
     this.store.loadDepenses();
     this.agenceApi.getAll().subscribe({
@@ -420,6 +434,7 @@ export class BudgetListComponent implements OnInit {
     this.depenseError.set('');
     if (depense) {
       this.editDepenseId.set(depense.id);
+      this.categorieEditee.set(depense.categorie);
       this.depenseForm.patchValue({
         vehicule:       depense.vehicule,
         agence:         depense.agence,
@@ -432,8 +447,10 @@ export class BudgetListComponent implements OnInit {
       });
     } else {
       this.editDepenseId.set(null);
+      this.categorieEditee.set('');
+      // Pas de catégorie par défaut : le carburant des prises est déjà reporté automatiquement
       this.depenseForm.reset({
-        categorie: 'carburant',
+        categorie: '',
         date_depense: new Date().toISOString().split('T')[0],
         montant: 0,
       });
@@ -495,11 +512,13 @@ export class BudgetListComponent implements OnInit {
 
   // ── Helpers ───────────────────────────────────────────────────────
   budgetBarWidth(realise: number, total: number): number {
-    if (!total) return 0;
+    realise = realise ?? 0;
+    if (!total) return realise > 0 ? 100 : 0;   // dépensé sans budget prévu
     return Math.min((realise / total) * 100, 100);
   }
   budgetBarClass(realise: number, total: number): string {
-    if (!total) return 'green';
+    realise = realise ?? 0;
+    if (!total) return realise > 0 ? 'danger' : 'green';
     const pct = (realise / total) * 100;
     if (pct >= 100) return 'danger';
     if (pct >= 80)  return 'warning';

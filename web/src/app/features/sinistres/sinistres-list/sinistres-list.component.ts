@@ -1,13 +1,13 @@
 // UbiFleet — Sinistres List Component (Angular 18 + NgRx Signals Store)
 import {
   Component, inject, OnInit,
-  ChangeDetectionStrategy, signal
+  ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { SinistresStore } from '../../../store/sinistres/sinistres.store';
-import { AgenceApiService, SinistreApiService, VehiculeApiService } from '../../../core/services/api.service';
+import { AgenceApiService, ParametrageApiService, SinistreApiService, VehiculeApiService } from '../../../core/services/api.service';
 import { Agence, Sinistre, ContratAssurance, StatutSinistre, TypeSinistre } from '../../../core/models';
 
 @Component({
@@ -25,6 +25,7 @@ export class SinistresListComponent implements OnInit {
   private agenceApi    = inject(AgenceApiService);
   private sinistreApi  = inject(SinistreApiService);
   private vehiculeApi  = inject(VehiculeApiService);
+  private parametrageApi = inject(ParametrageApiService);
 
   agences      = signal<Agence[]>([]);
   vehicules    = signal<{ id: string; immatriculation: string; designation: string }[]>([]);
@@ -45,7 +46,7 @@ export class SinistresListComponent implements OnInit {
     vehicule:       ['', Validators.required],
     assureur:       ['', Validators.required],
     numero_police:  ['', Validators.required],
-    type_contrat:   ['tiers_simple', Validators.required],
+    type_contrat:   ['', Validators.required],
     date_debut:     ['', Validators.required],
     date_fin:       ['', Validators.required],
     prime_annuelle: [0, [Validators.required, Validators.min(0)]],
@@ -54,11 +55,10 @@ export class SinistresListComponent implements OnInit {
 
   get cf() { return this.contratForm.controls; }
 
-  readonly typesContrat = [
-    { value: 'tous_risques',   label: 'Tous risques' },
-    { value: 'tiers_etendu',   label: 'Tiers étendu' },
-    { value: 'tiers_simple',   label: 'Tiers simple' },
-  ];
+  /** Paramètres › Types de contrat d'assurance (actifs, plus celui du contrat modifié). */
+  private typesContratTous = signal<{ value: string; label: string; actif: boolean }[]>([]);
+  private typeContratEdite = signal('');
+  typesContrat = computed(() => this.typesContratTous().filter(t => t.actif || t.value === this.typeContratEdite()));
 
   readonly statutChips = [
     { label: 'Tous',             value: '' },
@@ -70,14 +70,8 @@ export class SinistresListComponent implements OnInit {
     { label: 'Clos',             value: 'clos' },
   ];
 
-  readonly typesChips = [
-    { label: 'Tous',         value: '' },
-    { label: 'Accident',     value: 'accident' },
-    { label: 'Vol',          value: 'vol' },
-    { label: 'Incendie',     value: 'incendie' },
-    { label: 'Vandalisme',   value: 'vandalisme' },
-    { label: 'Bris de glace',value: 'bris_glace' },
-  ];
+  /** Filtre par type : Paramètres › Types de sinistre. */
+  typesChips = signal<{ label: string; value: string }[]>([{ label: 'Tous', value: '' }]);
 
   // Getters — pas de filter dans le template
   get nbEnCours(): number {
@@ -95,6 +89,15 @@ export class SinistresListComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.parametrageApi.getTypesSinistre().subscribe({
+      next: l => this.typesChips.set([{ label: 'Tous', value: '' },
+        ...l.filter(t => t.actif).map(t => ({ label: t.libelle, value: t.code }))]),
+      error: () => {},
+    });
+    this.parametrageApi.getTypesContrat().subscribe({
+      next: l => this.typesContratTous.set(l.map(t => ({ value: t.code, label: t.libelle, actif: t.actif }))),
+      error: () => {},
+    });
     this.store.loadSinistres();
     this.store.loadContratsExpirant();
     this.agenceApi.getAll().subscribe({
@@ -184,6 +187,7 @@ export class SinistresListComponent implements OnInit {
     this.contratSuccess.set('');
     if (contrat) {
       this.editContratId.set(contrat.id);
+      this.typeContratEdite.set(contrat.type_contrat);
       this.contratForm.patchValue({
         vehicule:       contrat.vehicule,
         assureur:       contrat.assureur,
@@ -196,7 +200,8 @@ export class SinistresListComponent implements OnInit {
       });
     } else {
       this.editContratId.set(null);
-      this.contratForm.reset({ type_contrat: 'tiers_simple', prime_annuelle: 0, franchise: 0 });
+      this.typeContratEdite.set('');
+      this.contratForm.reset({ type_contrat: '', prime_annuelle: 0, franchise: 0 });
     }
     this.showContratModal.set(true);
   }

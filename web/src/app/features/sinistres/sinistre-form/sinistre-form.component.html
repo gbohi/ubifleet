@@ -107,7 +107,7 @@
               <div class="form-group">
                 <label class="form-label">Type de sinistre *</label>
                 <select formControlName="type_sinistre" class="form-control">
-                  @for (t of typesSinistre; track t.value) {
+                  @for (t of typesSinistre(); track t.value) {
                     <option [value]="t.value">{{ t.label }}</option>
                   }
                 </select>

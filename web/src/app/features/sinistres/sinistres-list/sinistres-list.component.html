@@ -99,7 +99,7 @@
                 (click)="onStatutFilter(chip.value)">{{ chip.label }}</button>
       }
       <div style="width:1px;height:20px;background:var(--gray-200);margin:0 4px"></div>
-      @for (chip of typesChips; track chip.value) {
+      @for (chip of typesChips(); track chip.value) {
         <button class="chip chip-type"
                 [class.active]="store.filters().type_sinistre === chip.value"
                 (click)="onTypeFilter(chip.value)">{{ chip.label }}</button>
@@ -284,8 +284,9 @@
             <div class="form-group">
               <label class="form-label">Type de contrat *</label>
               <select formControlName="type_contrat" class="form-control">
-                @for (t of typesContrat; track t.value) {
-                  <option [value]="t.value">{{ t.label }}</option>
+                <option value="" disabled>-- Choisir --</option>
+                @for (t of typesContrat(); track t.value) {
+                  <option [value]="t.value">{{ t.label }}{{ t.actif ? '' : ' (désactivé)' }}</option>
                 }
               </select>
             </div>

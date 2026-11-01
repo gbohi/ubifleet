@@ -5,7 +5,7 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
-import { SinistreApiService, AgenceApiService, VehiculeApiService, ChauffeurApiService } from '../../../core/services/api.service';
+import { SinistreApiService, AgenceApiService, VehiculeApiService, ChauffeurApiService, ParametrageApiService } from '../../../core/services/api.service';
 import { Agence } from '../../../core/models';
 
 @Component({
@@ -25,6 +25,7 @@ export class SinistreFormComponent implements OnInit {
   private agenceApi   = inject(AgenceApiService);
   private vehiculeApi = inject(VehiculeApiService);
   private chauffeurApi= inject(ChauffeurApiService);
+  private parametrageApi = inject(ParametrageApiService);
 
   isEditMode = computed(() => !!this.id());
   agences    = signal<Agence[]>([]);
@@ -35,14 +36,8 @@ export class SinistreFormComponent implements OnInit {
   error      = signal('');
   success    = signal('');
 
-  readonly typesSinistre = [
-    { value: 'accident',   label: 'Accident de la route' },
-    { value: 'vol',        label: 'Vol de véhicule' },
-    { value: 'incendie',   label: 'Incendie' },
-    { value: 'vandalisme', label: 'Vandalisme' },
-    { value: 'bris_glace', label: 'Bris de glace' },
-    { value: 'autre',      label: 'Autre' },
-  ];
+  /** Paramètres › Types de sinistre (actifs). */
+  typesSinistre = signal<{ value: string; label: string }[]>([]);
 
   form = this.fb.group({
     vehicule:          ['', Validators.required],
@@ -60,6 +55,10 @@ export class SinistreFormComponent implements OnInit {
   get f() { return this.form.controls; }
 
   ngOnInit(): void {
+    this.parametrageApi.getTypesSinistre().subscribe({
+      next: l => this.typesSinistre.set(l.filter(t => t.actif).map(t => ({ value: t.code, label: t.libelle }))),
+      error: () => {},
+    });
     this.agenceApi.getAll().subscribe({
       next: (list) => this.agences.set(Array.isArray(list) ? list : []),
       error: () => {},

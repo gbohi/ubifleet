@@ -1,15 +1,23 @@
 // UbiFleet — Paramètres : référentiel simple (code, libellé, ordre, actif)
 //
-// Écran commun des listes paramétrables sans autre attribut (types de
-// véhicule…) : recherche, création, modification, activation, suppression
+// Écran commun des listes paramétrables à code (types de véhicule, catégories
+// de dépense, types de sinistre / contrat…) : recherche, création, modification, activation, suppression
 // (refusée par le serveur si l'élément est utilisé), export.
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { environment } from '@env/environment';
 import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 
-interface Element { id: number; code: string; libelle: string; ordre: number; actif: boolean; nb_utilisations: number; }
+interface Element {
+  id: number; code: string; libelle: string; ordre: number; actif: boolean; nb_utilisations: number;
+  /** Élément utilisé par l'application : ni suppression ni désactivation. */
+  systeme?: boolean;
+  [cle: string]: any;
+}
+
+/** Champ supplémentaire à liste de choix (ex. poste du budget d'une catégorie de dépense). */
+export interface ChampChoix { cle: string; libelle: string; options: { value: string; label: string }[]; aide?: string; }
 
 @Component({
   selector: 'ubi-referentiel-simple',
@@ -40,25 +48,30 @@ interface Element { id: number; code: string; libelle: string; ordre: number; ac
       <div class="p-table-wrap">
         <table class="p-table">
           <thead><tr><th class="num p-hide-m">Ordre</th><th>Libellé</th><th class="p-hide-m">Code</th>
+            @for (c of champs(); track c.cle) { <th class="p-hide-m">{{ c.libelle }}</th> }
             <th class="num">{{ colonneUtilisations() }}</th><th class="p-col-toggle">Actif</th><th class="p-col-actions"></th></tr></thead>
           <tbody>
             @for (x of filtres(); track x.id) {
               <tr [class.inactif]="!x.actif">
                 <td class="num muted p-hide-m">{{ x.ordre }}</td>
-                <td>{{ x.libelle }}</td>
+                <td>{{ x.libelle }}
+                  @if (x.systeme) { <i class="fas fa-lock muted" title="Utilisé par l'application : ni suppression ni désactivation"></i> }</td>
                 <td class="muted p-hide-m">{{ x.code }}</td>
+                @for (c of champs(); track c.cle) { <td class="p-hide-m">{{ libelleChoix(c, x[c.cle]) }}</td> }
                 <td class="num">{{ x.nb_utilisations }}</td>
-                <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.actif" [disabled]="!ecriture()" (click)="basculer(x)"></button></td>
+                <td class="p-col-toggle"><button class="p-toggle" [class.on]="x.actif" [disabled]="!ecriture() || x.systeme" (click)="basculer(x)"></button></td>
                 <td class="p-col-actions">
                   @if (ecriture()) {
                     <button class="p-icon-btn" title="Modifier" (click)="ouvrir(x)"><i class="fas fa-edit"></i></button>
-                    <button class="p-icon-btn danger" [title]="x.nb_utilisations ? 'Utilisé : désactivez-le plutôt' : 'Supprimer'"
-                            (click)="supprimer(x)"><i class="fas fa-trash"></i></button>
+                    @if (!x.systeme) {
+                      <button class="p-icon-btn danger" [title]="x.nb_utilisations ? 'Utilisé : désactivez-le plutôt' : 'Supprimer'"
+                              (click)="supprimer(x)"><i class="fas fa-trash"></i></button>
+                    }
                   }
                 </td>
               </tr>
             } @empty {
-              <tr><td colspan="6" class="p-empty">Aucun élément.</td></tr>
+              <tr><td [attr.colspan]="6 + champs().length" class="p-empty">Aucun élément.</td></tr>
             }
           </tbody>
         </table>
@@ -85,10 +98,20 @@ interface Element { id: number; code: string; libelle: string; ordre: number; ac
                 <small class="aide-dotation">Minuscules, chiffres, - ou _. Non modifiable ensuite.</small>
               </div>
             </div>
+            @for (c of champs(); track c.cle) {
+              <div class="form-group">
+                <label class="form-label" [for]="'rs-' + c.cle">{{ c.libelle }} *</label>
+                <select [id]="'rs-' + c.cle" class="form-control" [formControlName]="c.cle">
+                  @for (o of c.options; track o.value) { <option [value]="o.value">{{ o.label }}</option> }
+                </select>
+                @if (c.aide) { <small class="aide-dotation">{{ c.aide }}</small> }
+              </div>
+            }
             <div class="p-form-grid-2">
               <div class="form-group"><label class="form-label" for="rs-ordre">Ordre d'affichage</label>
                 <input id="rs-ordre" type="number" min="0" class="form-control" formControlName="ordre" /></div>
-              <div class="form-group"><label class="p-check" style="margin-top:26px"><input type="checkbox" formControlName="actif" /> Actif</label></div>
+              <div class="form-group"><label class="p-check" style="margin-top:26px"><input type="checkbox" formControlName="actif" /> Actif</label>
+                @if (edite()?.systeme) { <small class="aide-dotation">Utilisé par l'application : reste actif.</small> }</div>
             </div>
             <div class="p-modal-actions">
               <button type="button" class="btn btn-outline" (click)="edite.set(undefined)">Annuler</button>
@@ -109,6 +132,8 @@ export class ReferentielSimpleComponent implements OnInit {
   libelleNouveau = input('Nouvel élément');
   colonneUtilisations = input('Utilisations');
   ecriture = input(false);
+  /** Champs supplémentaires à liste de choix. */
+  champs = input<ChampChoix[]>([]);
   /** Nombre d'éléments, pour le menu de la page Paramètres. */
   compte = output<number>();
 
@@ -125,7 +150,7 @@ export class ReferentielSimpleComponent implements OnInit {
     return q ? this.elements().filter(x => `${x.libelle} ${x.code}`.toLowerCase().includes(q)) : this.elements();
   });
 
-  form = this.fb.group({
+  form: FormGroup = this.fb.group({
     libelle: ['', Validators.required],
     code: ['', [Validators.required, Validators.pattern(/^[a-z0-9_-]+$/)]],
     ordre: [0],
@@ -134,7 +159,14 @@ export class ReferentielSimpleComponent implements OnInit {
 
   private get url(): string { return `${environment.apiUrl}/parametrage/${this.ressource()}/`; }
 
-  ngOnInit(): void { this.charger(); }
+  ngOnInit(): void {
+    for (const c of this.champs()) this.form.addControl(c.cle, this.fb.control(c.options[0]?.value ?? '', Validators.required));
+    this.charger();
+  }
+
+  libelleChoix(c: ChampChoix, valeur: string): string {
+    return c.options.find(o => o.value === valeur)?.label ?? valeur ?? '—';
+  }
 
   charger(): void {
     this.http.get<Element[]>(this.url).subscribe({
@@ -145,16 +177,20 @@ export class ReferentielSimpleComponent implements OnInit {
 
   ouvrir(x: Element | null): void {
     this.erreur.set('');
-    this.form.reset(x ? { libelle: x.libelle, code: x.code, ordre: x.ordre, actif: x.actif }
-                      : { libelle: '', code: '', ordre: this.elements().length + 1, actif: true });
-    if (x) this.form.controls.code.disable(); else this.form.controls.code.enable();
+    const extra = Object.fromEntries(this.champs().map(c => [c.cle, x ? x[c.cle] : (c.options[0]?.value ?? '')]));
+    this.form.reset(x ? { libelle: x.libelle, code: x.code, ordre: x.ordre, actif: x.actif, ...extra }
+                      : { libelle: '', code: '', ordre: this.elements().length + 1, actif: true, ...extra });
+    if (x) this.form.controls['code'].disable(); else this.form.controls['code'].enable();
+    if (x?.systeme) this.form.controls['actif'].disable(); else this.form.controls['actif'].enable();
     this.edite.set(x);
   }
 
   enregistrer(): void {
     const x = this.edite();
-    const req = x ? this.http.patch(`${this.url}${x.id}/`, this.form.getRawValue())
-                  : this.http.post(this.url, this.form.getRawValue());
+    const valeurs = this.form.getRawValue();
+    if (x) delete valeurs.code;
+    const req = x ? this.http.patch(`${this.url}${x.id}/`, valeurs)
+                  : this.http.post(this.url, valeurs);
     req.subscribe({
       next: () => { this.edite.set(undefined); this.charger(); },
       error: err => this.erreur.set(messageErreurApi(err, "Erreur lors de l'enregistrement.")),
@@ -178,8 +214,9 @@ export class ReferentielSimpleComponent implements OnInit {
   }
 
   exporter(): void {
-    const lignes = [['Ordre', 'Libellé', 'Code', this.colonneUtilisations(), 'Actif'],
-      ...this.elements().map(x => [x.ordre, x.libelle, x.code, x.nb_utilisations, x.actif ? 'oui' : 'non'])];
+    const lignes = [['Ordre', 'Libellé', 'Code', ...this.champs().map(c => c.libelle), this.colonneUtilisations(), 'Actif'],
+      ...this.elements().map(x => [x.ordre, x.libelle, x.code, ...this.champs().map(c => this.libelleChoix(c, x[c.cle])),
+                                   x.nb_utilisations, x.actif ? 'oui' : 'non'])];
     const csv = '﻿' + lignes.map(l => l.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));

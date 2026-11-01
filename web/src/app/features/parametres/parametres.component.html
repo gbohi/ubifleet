@@ -284,6 +284,25 @@
             [ecriture]="ecritureReferentiels()" (compte)="nbTypesVehicule.set($event)" />
         }
 
+        @case ('categories_depense') {
+          <ubi-referentiel-simple ressource="categories-depense" titre="Catégories de dépense"
+            description="Nature des dépenses véhicule. Chaque catégorie est imputée sur un poste du budget annuel. « Carburant » est alimentée automatiquement par les prises de carburant : elle ne peut être ni supprimée ni désactivée."
+            [utiliseDans]="['Budget', 'Coût au km', 'Rapports']" libelleNouveau="Nouvelle catégorie" colonneUtilisations="Dépenses"
+            [champs]="champsCategorie" [ecriture]="ecritureReferentiels()" (compte)="majCompte('categories_depense', $event)" />
+        }
+        @case ('types_sinistre') {
+          <ubi-referentiel-simple ressource="types-sinistre" titre="Types de sinistre"
+            description="Nature des sinistres déclarés (accident, vol, bris de glace…). Un type utilisé ne peut pas être supprimé : désactivez-le pour ne plus le proposer."
+            [utiliseDans]="['Sinistres', 'Rapports']" libelleNouveau="Nouveau type" colonneUtilisations="Sinistres"
+            [ecriture]="ecritureReferentiels()" (compte)="majCompte('types_sinistre', $event)" />
+        }
+        @case ('types_contrat') {
+          <ubi-referentiel-simple ressource="types-contrat" titre="Types de contrat d'assurance"
+            description="Garanties des contrats d'assurance (responsabilité civile, tous risques…). Un type utilisé ne peut pas être supprimé : désactivez-le pour ne plus le proposer."
+            [utiliseDans]="['Assurances']" libelleNouveau="Nouveau type" colonneUtilisations="Contrats"
+            [ecriture]="ecritureReferentiels()" (compte)="majCompte('types_contrat', $event)" />
+        }
+
         <!-- ════ AFFECTATIONS / USAGES ════ -->
         @case ('affectations') {
           <section class="p-panel">

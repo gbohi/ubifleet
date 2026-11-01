@@ -42,18 +42,6 @@ class BudgetAnnuel(UbiFleetBaseModel):
 class DepenseVehicule(UbiFleetBaseModel):
     """Ligne de dépense liée à un véhicule (pour rapport comptable)."""
 
-    class Categorie(models.TextChoices):
-        CARBURANT = 'carburant', 'Carburant'
-        ENTRETIEN = 'entretien', 'Entretien préventif'
-        REPARATION = 'reparation', 'Réparation'
-        PNEUS = 'pneus', 'Pneumatiques'
-        ASSURANCE = 'assurance', 'Assurance'
-        SINISTRE = 'sinistre', 'Sinistre'
-        CONTROLE = 'controle', 'Contrôle technique'
-        PEAGE = 'peage', 'Péage'
-        PARKING = 'parking', 'Parking'
-        DIVERS = 'divers', 'Divers'
-
     vehicule = models.ForeignKey(
         'vehicules.Vehicule', on_delete=models.SET_NULL,
         related_name='depenses', null=True, blank=True
@@ -62,7 +50,8 @@ class DepenseVehicule(UbiFleetBaseModel):
         'accounts.Agence', on_delete=models.PROTECT,
         related_name='depenses'
     )
-    categorie = models.CharField(max_length=20, choices=Categorie.choices)
+    # Code d'une catégorie de Paramètres › Catégories de dépense
+    categorie = models.CharField(max_length=20)
     date_depense = models.DateField()
     montant = models.DecimalField(max_digits=12, decimal_places=2)
     description = models.CharField(max_length=300)
@@ -81,4 +70,9 @@ class DepenseVehicule(UbiFleetBaseModel):
         ordering = ['-date_depense']
 
     def __str__(self):
-        return f"{self.vehicule.immatriculation} — {self.get_categorie_display()} — {self.montant} FCFA"
+        immat = self.vehicule.immatriculation if self.vehicule else '—'
+        return f"{immat} — {self.get_categorie_display()} — {self.montant} FCFA"
+
+    def get_categorie_display(self):
+        from apps.parametrage.models import CategorieDepense, libelles
+        return libelles(CategorieDepense).get(self.categorie, self.categorie)

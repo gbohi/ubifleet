@@ -661,3 +661,100 @@ class CorrectionSaisieViewSet(viewsets.ReadOnlyModelViewSet):
         if p.get('vehicule'):
             qs = qs.filter(vehicule_id=p['vehicule'])
         return qs
+
+
+# ── Référentiels à code : catégories de dépense, types de sinistre / contrat ──
+from .models import CategorieDepense, TypeContratAssurance, TypeSinistre
+
+
+class ReferentielCodeSerializer(drf_s2.ModelSerializer):
+    """Code non modifiable (enregistré sur les données) ; un élément « système »
+    (utilisé par l'application) ne se désactive pas."""
+    nb_utilisations = NbUtilisationsField()
+
+    class Meta:
+        fields = ['id', 'code', 'libelle', 'ordre', 'actif', 'nb_utilisations']
+
+    def validate_code(self, value):
+        if self.instance and self.instance.code != value:
+            raise drf_s2.ValidationError(
+                "Le code ne peut pas être modifié : il est enregistré sur les données.")
+        return value
+
+    def validate_actif(self, value):
+        if self.instance and getattr(self.instance, 'systeme', False) and not value:
+            raise drf_s2.ValidationError(
+                "Élément utilisé par l'application : il ne peut pas être désactivé.")
+        return value
+
+
+class CategorieDepenseSerializer(ReferentielCodeSerializer):
+    poste_budget_display = drf_s2.CharField(source='get_poste_budget_display', read_only=True)
+
+    class Meta(ReferentielCodeSerializer.Meta):
+        model  = CategorieDepense
+        fields = ReferentielCodeSerializer.Meta.fields + ['poste_budget', 'poste_budget_display', 'systeme']
+        read_only_fields = ['systeme']
+
+
+class TypeSinistreSerializer(ReferentielCodeSerializer):
+    class Meta(ReferentielCodeSerializer.Meta):
+        model = TypeSinistre
+
+
+class TypeContratAssuranceSerializer(ReferentielCodeSerializer):
+    class Meta(ReferentielCodeSerializer.Meta):
+        model = TypeContratAssurance
+
+
+class ReferentielCodeViewSet(SuppressionProtegeeMixin, ReferentielPermissionMixin, viewsets.ModelViewSet):
+    """Liste paramétrable dont les données enregistrent le code.
+    `utilise_par` : (chemin du modèle « app.Modele », champ, libellé au pluriel)."""
+    pagination_class = None
+    modele = None
+    utilise_par = None
+
+    def _donnees(self):
+        from django.apps import apps as django_apps
+        app_modele, champ, libelle = self.utilise_par
+        return django_apps.get_model(app_modele), champ, libelle
+
+    def get_queryset(self):
+        from django.db.models.functions import Coalesce
+        donnee, champ, _ = self._donnees()
+        compte = (donnee.objects.filter(**{champ: OuterRef('code')}).order_by()
+                  .values(champ).annotate(n=_Count('pk')).values('n'))
+        qs = self.modele.objects.annotate(nb_utilisations=Coalesce(
+            Subquery(compte, output_field=IntegerField()), 0))
+        actif = self.request.query_params.get('actif')
+        if actif is not None:
+            qs = qs.filter(actif=(actif.lower() == 'true'))
+        return qs
+
+    def utilisations(self, obj):
+        donnee, champ, libelle = self._donnees()
+        return [(donnee.objects.filter(**{champ: obj.code}).count(), libelle)]
+
+    def destroy(self, request, *args, **kwargs):
+        if getattr(self.get_object(), 'systeme', False):
+            return Response({'detail': "Élément utilisé par l'application : il ne peut pas être supprimé."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
+
+
+class CategorieDepenseViewSet(ReferentielCodeViewSet):
+    serializer_class = CategorieDepenseSerializer
+    modele = CategorieDepense
+    utilise_par = ('budget.DepenseVehicule', 'categorie', 'dépense(s)')
+
+
+class TypeSinistreViewSet(ReferentielCodeViewSet):
+    serializer_class = TypeSinistreSerializer
+    modele = TypeSinistre
+    utilise_par = ('sinistres.Sinistre', 'type_sinistre', 'sinistre(s)')
+
+
+class TypeContratAssuranceViewSet(ReferentielCodeViewSet):
+    serializer_class = TypeContratAssuranceSerializer
+    modele = TypeContratAssurance
+    utilise_par = ('sinistres.ContratAssurance', 'type_contrat', 'contrat(s)')
