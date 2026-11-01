@@ -1019,6 +1019,11 @@ export class TotalImportApiService extends ApiBaseService {
     return this.http.get<any>(`${API}/total-import/transactions/stats/`, { params });
   }
 
+  /** Supprime un import et ses transactions (fichier importé par erreur). */
+  deleteImport(id: string): Observable<any> {
+    return this.http.delete<any>(`${API}/total-import/historique/${id}/`);
+  }
+
   /** Plaques et chauffeurs présents dans les transactions (listes des filtres). */
   getValeursFiltres(): Observable<{ immatriculations: string[]; chauffeurs: { numero: string; nom: string }[] }> {
     return this.http.get<any>(`${API}/total-import/transactions/valeurs/`);

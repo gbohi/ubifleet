@@ -403,12 +403,15 @@ class AnalysesCarburantTests(UtilisateursMixin, APITestCase):
 
     def transaction(self, jour, heure, litres, km, code, plaque='56317WW-CI', chauffeur='0005', carte='111'):
         from apps.total_import.models import ImportTotal, TransactionCarburant
+        from apps.total_import.annulations import marquer_annulations
         imp = ImportTotal.objects.get_or_create(fichier_nom='t.csv')[0]
-        return TransactionCarburant.objects.create(
+        t = TransactionCarburant.objects.create(
             import_source=imp, numero_client='132', immatriculation=plaque, numero_chauffeur=chauffeur,
             numero_moyen_paiement=f'="{carte}"', date_transaction=self.d + datetime.timedelta(days=jour),
             heure_transaction=datetime.time(*heure), volume=litres, montant=litres * 675,
             kilometrage_actuel=km, numero_ticket=str(code), code_autorisation=str(code))
+        marquer_annulations()   # comme après un import
+        return t
 
     def get(self, action, **params):
         self.client.force_authenticate(self.responsable_flotte)

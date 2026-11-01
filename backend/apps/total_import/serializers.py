@@ -5,9 +5,19 @@ from .models import TransactionCarburant, ImportTotal
 
 
 class TransactionCarburantSerializer(serializers.ModelSerializer):
+    vehicule_connu = serializers.SerializerMethodField()
+
     class Meta:
         model  = TransactionCarburant
         fields = '__all__'
+
+    def get_vehicule_connu(self, obj):
+        """Plaque présente dans le parc UbiFleet (comparaison normalisée)."""
+        plaques = self.context.get('plaques_parc')
+        if plaques is None:
+            return None
+        from apps.carburant.analyses import normaliser_immat
+        return normaliser_immat(obj.immatriculation) in plaques
 
 
 class ImportTotalSerializer(serializers.ModelSerializer):

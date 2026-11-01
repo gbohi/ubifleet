@@ -91,6 +91,10 @@ class TransactionCarburant(models.Model):
     code_autorisation        = models.CharField(max_length=100, blank=True, db_index=True)
     statut_transaction       = models.CharField(max_length=100, blank=True)
 
+    # Annulations (cf. annulations.py) : volume négatif / vente annulée par une annulation
+    est_annulation = models.BooleanField(default=False, db_index=True)
+    est_annulee    = models.BooleanField(default=False, db_index=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

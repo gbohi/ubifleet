@@ -24,8 +24,8 @@
     </button>
     <button class="tab" [class.active]="activeTab()==='transactions'"    (click)="onTabChange('transactions')">
       <i class="fas fa-list"></i> Transactions
-      @if (transactionsTotal() > 0) {
-        <span class="tab-badge">{{ transactionsTotal() | number }}</span>
+      @if (stats()?.nb_transactions) {
+        <span class="tab-badge">{{ stats()!.nb_transactions | number }}</span>
       }
     </button>
     <a class="tab tab-lien" routerLink="/carburant" title="Consommation, évolution et rapprochement avec les prises déclarées : page Carburant">
@@ -46,12 +46,16 @@
                 <div class="dropzone-text">
                   <strong>Glissez votre fichier ici</strong>
                   <span>ou cliquez pour sélectionner</span>
-                  <span class="dropzone-hint">CSV, XLSX, XLS — extrait TotalEnergies</span>
+                  <span class="dropzone-hint">CSV ou Excel (.xlsx) — extrait « Rapport de transaction » TotalEnergies</span>
                 </div>
-                <label class="btn btn-outline btn-sm" style="cursor:pointer">
-                  <i class="fas fa-folder-open"></i> Parcourir
-                  <input type="file" accept=".csv,.xlsx,.xls" style="display:none" (change)="onFileInput($event)" />
-                </label>
+                @if (toutesAgences) {
+                  <label class="btn btn-outline btn-sm" style="cursor:pointer">
+                    <i class="fas fa-folder-open"></i> Parcourir
+                    <input type="file" accept=".csv,.xlsx" style="display:none" (change)="onFileInput($event)" />
+                  </label>
+                } @else {
+                  <span class="dropzone-hint">L'import concerne toutes les agences : réservé aux utilisateurs « Toutes les agences ».</span>
+                }
               </div>
             } @else {
               <div class="file-selected">
@@ -74,7 +78,7 @@
             </div>
           }
           <div style="display:flex;justify-content:flex-end;margin-top:16px">
-            <button class="btn btn-green" [disabled]="!selectedFile() || uploading()" (click)="startImport()">
+            <button class="btn btn-green" [disabled]="!selectedFile() || uploading() || !toutesAgences" (click)="startImport()">
               @if (uploading()) { <i class="fas fa-circle-notch fa-spin"></i> Import en cours... }
               @else { <i class="fas fa-play"></i> Lancer l'importation }
             </button>
@@ -116,7 +120,9 @@
           </div>
           <div class="format-note">
             <i class="fas fa-shield-alt"></i>
-            Doublons détectés automatiquement (ticket + code autorisation + date).
+            Colonnes reconnues même avec des majuscules, accents ou espaces différents ; un fichier sans les colonnes
+            indispensables (date, ticket, plaque, volume, montant, code d'autorisation) est refusé.
+            Doublons ignorés (ticket + code d'autorisation + date). Annulations repérées automatiquement.
           </div>
         </div>
       }
@@ -143,9 +149,14 @@
               <div class="result-stat-label"><i class="fas fa-times"></i> Erreurs</div>
             </div>
           </div>
+          @if (r.colonnes_ignorees?.length) {
+            <div class="info-colonnes"><i class="fas fa-info-circle"></i> Colonnes non reconnues, ignorées :
+              {{ r.colonnes_ignorees!.join(', ') }}</div>
+          }
           @if (r.lignes_erreur.length > 0) {
             <div class="error-lines">
-              <div class="error-lines-title"><i class="fas fa-exclamation-triangle"></i> Erreurs ({{ r.lignes_erreur.length }})</div>
+              <div class="error-lines-title"><i class="fas fa-exclamation-triangle"></i> Lignes rejetées
+                ({{ r.erreurs }}{{ r.erreurs > r.lignes_erreur.length ? ', ' + r.lignes_erreur.length + ' premières affichées' : '' }})</div>
               <table class="ubi-table" style="margin-top:8px">
                 <thead><tr><th>Ligne</th><th>Immatriculation</th><th>Erreur</th></tr></thead>
                 <tbody>
@@ -174,6 +185,7 @@
     <div class="card">
       <div class="card-header">
         <div class="card-title">Historique des imports</div>
+        @if (suppressionMsg()) { <span class="muted">{{ suppressionMsg() }}</span> }
         <button class="btn btn-outline btn-sm" (click)="loadHistorique()"><i class="fas fa-sync-alt"></i> Actualiser</button>
       </div>
       @if (historiqueLoad()) { <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i> Chargement...</div> }
@@ -185,6 +197,7 @@
               <tr>
                 <th>Fichier</th><th>Date import</th><th>Importé par</th>
                 <th>Total</th><th>Importées</th><th>Doublons</th><th>Erreurs</th><th>Taux</th>
+                @if (toutesAgences) { <th></th> }
               </tr>
             </thead>
             <tbody>
@@ -205,12 +218,32 @@
                       </div>
                     }
                   </td>
+                  @if (toutesAgences) {
+                    <td><button class="btn btn-icon btn-icon-danger" title="Supprimer cet import et ses transactions"
+                                (click)="demanderSuppression(h)"><i class="fas fa-trash"></i></button></td>
+                  }
                 </tr>
               }
             </tbody>
           </table>
         </div>
       }
+    </div>
+  }
+
+  @if (suppression(); as h) {
+    <div class="modal-backdrop" (click)="suppression.set(null)">
+      <div class="modal-container" style="max-width:480px" (click)="$event.stopPropagation()">
+        <div class="modal-header"><div class="modal-title">Supprimer l'import ?</div></div>
+        <p>« {{ h.fichier_nom }} » du {{ h.date_import | date:'dd/MM/yyyy HH:mm' }} :
+          ses <strong>{{ h.nb_importees | number }}</strong> transaction(s) seront supprimées.
+          Les rapprochements et la consommation facturée seront recalculés sans elles.</p>
+        @if (suppressionMsg()) { <div class="alert-error">{{ suppressionMsg() }}</div> }
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button class="btn btn-outline" (click)="suppression.set(null)">Annuler</button>
+          <button class="btn btn-danger" (click)="confirmerSuppression()"><i class="fas fa-trash"></i> Supprimer</button>
+        </div>
+      </div>
     </div>
   }
 
@@ -221,7 +254,7 @@
         <div class="filters-left">
           <div class="filter-item filter-search">
             <i class="fas fa-search"></i>
-            <input type="text" placeholder="Ticket, code d'autorisation, station…" (input)="onTransSearch($event)" />
+            <input type="text" placeholder="Ticket, code d'autorisation, station…" [value]="transSearch()" (input)="onTransSearch($event)" />
           </div>
           <div class="filter-sr">
             <ubi-select-recherche placeholder="Plaque…" [options]="plaquesFiltre()" [selection]="transImmat()"
@@ -233,12 +266,24 @@
           </div>
           <div class="filter-item">
             <i class="fas fa-calendar" style="font-size:11px"></i>
-            <input type="date" (change)="onTransDateDebut($event)" title="Date début" />
+            <input type="date" [value]="transDateDebut()" (change)="onTransDateDebut($event)" title="Date début" />
           </div>
           <div class="filter-item">
             <span style="font-size:11px;color:var(--gray-400)">au</span>
-            <input type="date" (change)="onTransDateFin($event)" title="Date fin" />
+            <input type="date" [value]="transDateFin()" (change)="onTransDateFin($event)" title="Date fin" />
           </div>
+          @if (toutesAgences && agences().length > 1) {
+            <select class="filter-select" (change)="onTransAgence($event)" title="Agence (numéro client Total)">
+              <option value="" [selected]="!transAgence()">Toutes les agences</option>
+              @for (a of agences(); track a.id) { <option [value]="a.id" [selected]="transAgence() === a.id">{{ a.nom }}</option> }
+            </select>
+          }
+          <select class="filter-select" (change)="onTransAnnulations($event)" title="Annulations">
+            <option value="masquer" [selected]="transAnnulations() === 'masquer'">Ventes effectives</option>
+            <option value="" [selected]="transAnnulations() === ''">Toutes les transactions</option>
+            <option value="seulement" [selected]="transAnnulations() === 'seulement'">Annulations seulement</option>
+          </select>
+          <button class="btn btn-outline btn-sm" (click)="reinitialiserFiltres()" title="Réinitialiser les filtres"><i class="fas fa-undo"></i> Réinitialiser</button>
         </div>
         <div class="filters-right">
           <span class="filter-count">{{ transactionsTotal() | number }} transaction(s)</span>
@@ -265,6 +310,36 @@
         </div>
       </div>
 
+      @if (stats(); as s) {
+        <div class="synthese-total">
+          <div class="st-item"><div class="st-val">{{ s.nb_effectives | number }}</div><div class="st-lbl">Ventes effectives</div></div>
+          <div class="st-item"><div class="st-val">{{ s.volume | number:'1.0-0' }} L</div><div class="st-lbl">Volume</div></div>
+          <div class="st-item"><div class="st-val">{{ s.montant | number:'1.0-0' }}</div><div class="st-lbl">Montant (FCFA)</div></div>
+          <div class="st-item"><div class="st-val">{{ s.nb_annulations | number }}</div><div class="st-lbl">Annulations (et {{ s.nb_annulees }} ventes annulées)</div></div>
+          <button type="button" class="st-item st-alerte" [class.st-ok]="!s.plaques_inconnues.length"
+                  [disabled]="!s.plaques_inconnues.length" (click)="showInconnues.set(!showInconnues())"
+                  title="Plaques des transactions absentes du parc UbiFleet : non rapprochées">
+            <div class="st-val">{{ s.plaques_inconnues.length }}</div><div class="st-lbl">Plaques inconnues du parc</div>
+          </button>
+          @if (s.periode.debut) {
+            <div class="st-item"><div class="st-val st-petit">{{ s.periode.debut | date:'dd/MM/yyyy' }} → {{ s.periode.fin | date:'dd/MM/yyyy' }}</div><div class="st-lbl">Période</div></div>
+          }
+        </div>
+        @if (showInconnues() && s.plaques_inconnues.length) {
+          <div class="card inconnues">
+            <p class="muted">Ces plaques n'existent pas dans le parc UbiFleet (ou sont saisies autrement) : leurs transactions ne
+              sont pas rapprochées des prises. Créez le véhicule ou corrigez son immatriculation.</p>
+            <div class="inconnues-liste">
+              @for (p of s.plaques_inconnues; track p.immatriculation) {
+                <button type="button" class="chip-plaque" (click)="filtrerPlaque(p.immatriculation)" title="Afficher ses transactions">
+                  <span class="immat-badge">{{ p.immatriculation }}</span> {{ p.nb }} tx · {{ p.volume | number:'1.0-0' }} L
+                </button>
+              }
+            </div>
+          </div>
+        }
+      }
+
       @if (transactionsLoad()) { <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div> }
       @else if (transactions().length === 0) { <div class="empty-state"><i class="fas fa-inbox"></i><p>Aucune transaction.</p></div> }
       @else {
@@ -280,17 +355,20 @@
               </thead>
               <tbody>
                 @for (t of transactions(); track t.id) {
-                  <tr>
+                  <tr [class.tx-annulee]="t.est_annulation || t.est_annulee">
                     @for (col of allColumns; track col.key) {
                       @if (isColVisible(col.key)) {
                         @if (col.key === 'immatriculation') {
-                          <td><span class="immat-badge">{{ t.immatriculation || '—' }}</span></td>
+                          <td><span class="immat-badge">{{ t.immatriculation || '—' }}</span>
+                            @if (t.vehicule_connu === false) { <span class="badge badge-warning" title="Plaque absente du parc UbiFleet">Inconnue</span> }</td>
                         } @else if (col.key === 'date_transaction') {
                           <td>{{ t.date_transaction | date:'dd/MM/yyyy' }}</td>
                         } @else if (col.key === 'heure_transaction') {
                           <td style="font-family:monospace;font-size:12px">{{ t.heure_transaction ? t.heure_transaction.substring(0,5) || '—' : '' }}</td>
                         } @else if (col.key === 'statut_transaction') {
-                          <td><span class="badge" [class]="statutClass(t.statut_transaction)">{{ t.statut_transaction ? t.statut_transaction.substring(0,20) || '—' : '' }}</span></td>
+                          <td><span class="badge" [class]="statutClass(t.statut_transaction)" [title]="t.statut_transaction">{{ t.statut_transaction ? t.statut_transaction.substring(0,20) || '—' : '' }}</span>
+                            @if (t.est_annulation) { <span class="badge badge-danger">Annulation</span> }
+                            @if (t.est_annulee) { <span class="badge badge-danger" title="Vente annulée par une annulation : non comptée">Vente annulée</span> }</td>
                         } @else if (col.key === 'nom_produit') {
                           <td><span class="badge badge-navy">{{ t.nom_produit || '—' }}</span></td>
                         } @else if (isNumericCol(col.key)) {

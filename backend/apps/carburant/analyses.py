@@ -197,12 +197,8 @@ def evolution_agences(prises, tournees_effectuees, debut, fin):
 # ── Rapprochement TotalEnergies ───────────────────────────────────────
 
 def transactions_effectives(transactions):
-    """Ventes non annulées : une annulation (volume négatif) porte le code
-    d'autorisation de la vente annulée, précédé d'un « - »."""
-    annules = {t.code_autorisation.lstrip('-') for t in transactions
-               if (t.volume or 0) < 0 and t.code_autorisation}
-    return [t for t in transactions
-            if (t.volume or 0) > 0 and not (t.code_autorisation and t.code_autorisation in annules)]
+    """Ventes non annulées (annulations repérées à l'import, cf. total_import.annulations)."""
+    return [t for t in transactions if (t.volume or 0) > 0 and not t.est_annulee]
 
 
 def _quand_prise(p):
