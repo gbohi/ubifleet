@@ -14,9 +14,11 @@
     }
   </nav>
 
-  <!-- Filtres globaux -->
+  <!-- Filtres de période (rapports mensuels / annuels ; les autres ont leurs propres filtres) -->
+  @if (avecFiltresPeriode()) {
   <div class="global-filters card">
     <div class="filters-row">
+      @if (activeTab() === 'dashboard' || activeTab() === 'carburant') {
       <div class="filter-item">
         <i class="fas fa-calendar"></i>
         <select (change)="onFiltre('mois',$event)">
@@ -25,6 +27,7 @@
           }
         </select>
       </div>
+      }
       <div class="filter-item">
         <i class="fas fa-calendar-alt"></i>
         <select (change)="onFiltre('annee',$event)">
@@ -33,20 +36,23 @@
           }
         </select>
       </div>
+      @if (activeTab() !== 'multiagences') {
       <div class="filter-item">
         <i class="fas fa-building"></i>
         <select (change)="onFiltre('agence',$event)">
           <option value="">Toutes les agences</option>
           @for (a of agences(); track a.id) {
-            <option [value]="a.id">{{ a.nom }}</option>
+            <option [value]="a.id" [selected]="a.id === filtreAgence()">{{ a.nom }}</option>
           }
         </select>
       </div>
+      }
       <button class="btn btn-green btn-sm" (click)="refreshCurrent()">
         <i class="fas fa-sync-alt"></i> Actualiser
       </button>
     </div>
   </div>
+  }
 
   <!-- ══ DASHBOARD ══ -->
   @if (activeTab() === 'dashboard') {
@@ -56,6 +62,9 @@
       <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ dashError() }}</div>
     } @else {
       @if (dashData(); as d) {
+        <div class="rapport-actions">
+          <button class="btn btn-excel btn-sm" (click)="exporterDashboard()"><i class="fas fa-file-excel"></i> Excel</button>
+        </div>
 
         <!-- KPIs parc -->
         <div class="kpi-grid-4">
@@ -104,6 +113,12 @@
                 <div class="stat-row"><span>En cours</span><strong>{{ d.entretien.en_cours }}</strong></div>
                 <div class="stat-row"><span>Coût total</span><strong>{{ dispatcheur(d.entretien.cout) | number:'1.0-0' }} FCFA</strong></div>
               </div>
+              @if ((d.assurances_expirees ?? 0) > 0) {
+                <div class="alert-warn alert-rouge">
+                  <i class="fas fa-shield-alt"></i>
+                  {{ d.assurances_expirees }} véhicule(s) avec une assurance expirée
+                </div>
+              }
               @if (d.assurances_critiques > 0) {
                 <div class="alert-warn">
                   <i class="fas fa-shield-alt"></i>
@@ -412,6 +427,9 @@
       <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ maError() }}</div>
     } @else {
       @if (maData(); as d) {
+        <div class="rapport-actions">
+          <button class="btn btn-excel btn-sm" (click)="exporterMultiAgences()"><i class="fas fa-file-excel"></i> Excel</button>
+        </div>
 
         <div class="card">
           <div class="card-header">
@@ -481,8 +499,8 @@
         </div>
         <div class="filter-group">
           <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-          <input type="text" class="form-control" placeholder="ex: AA-940-NG"
-                 [value]="filtreImmat()" (input)="onFiltre2('immat',$event)" />
+          <ubi-select-recherche [options]="vehiculesImmat()" placeholder="Immatriculation…"
+                                [selection]="filtreImmat() || null" (choix)="filtreImmat.set($event ?? '')" />
         </div>
         <div class="filter-group">
           <label class="form-label"><i class="fas fa-building"></i> Agence</label>
@@ -512,14 +530,19 @@
       <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ sinError() }}</div>
     } @else {
       @if (sinData(); as d) {
+        <div class="rapport-actions">
+          <button class="btn btn-excel btn-sm" (click)="exporterSinistres()"><i class="fas fa-file-excel"></i> Excel</button>
+        </div>
         <!-- KPIs -->
         <div class="kpi-grid-4" style="margin-bottom:12px">
           <div class="kpi-card"><div class="kpi-icon red"><i class="fas fa-car-crash"></i></div>
-            <div class="kpi-info"><div class="kpi-val">{{ d.total }}</div><div class="kpi-label">Total sinistres</div></div></div>
-          @for (t of d.par_type.slice(0,3); track $index) {
-            <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-exclamation"></i></div>
-              <div class="kpi-info"><div class="kpi-val">{{ t.nb }}</div><div class="kpi-label">{{ t.libelle }}</div></div></div>
-          }
+            <div class="kpi-info"><div class="kpi-val">{{ d.total }}</div><div class="kpi-label">Total sinistres · {{ d.en_cours }} en cours</div></div></div>
+          <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-tools"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.cout_total | number:'1.0-0' }}</div><div class="kpi-label">Coût des réparations (FCFA)</div></div></div>
+          <div class="kpi-card"><div class="kpi-icon green"><i class="fas fa-hand-holding-usd"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.indemnisation_total | number:'1.0-0' }}</div><div class="kpi-label">Indemnisations reçues (FCFA)</div></div></div>
+          <div class="kpi-card"><div class="kpi-icon navy"><i class="fas fa-wallet"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ d.reste_a_charge | number:'1.0-0' }}</div><div class="kpi-label">Reste à la charge (FCFA)</div></div></div>
         </div>
 
         <div class="section-grid-2">
@@ -528,13 +551,15 @@
             <div class="card-header"><div class="card-title"><i class="fas fa-tags"></i> Par type de sinistre</div></div>
             <div class="table-container">
               <table class="ubi-table">
-                <thead><tr><th>Type</th><th style="text-align:center">Nb</th><th style="text-align:right">Coût (FCFA)</th></tr></thead>
+                <thead><tr><th>Type</th><th style="text-align:center">Nb</th><th class="num">Réparation</th><th class="num">Indemnisé</th><th class="num">Reste à charge</th></tr></thead>
                 <tbody>
                   @for (t of d.par_type; track $index) {
                     <tr>
                       <td><strong>{{ t.libelle }}</strong></td>
                       <td style="text-align:center"><span class="badge badge-danger">{{ t.nb }}</span></td>
-                      <td style="text-align:right">{{ t.cout | number:'1.0-0' }}</td>
+                      <td class="num">{{ t.cout | number:'1.0-0' }}</td>
+                      <td class="num">{{ t.indemnisation | number:'1.0-0' }}</td>
+                      <td class="num"><strong>{{ t.reste_a_charge | number:'1.0-0' }}</strong></td>
                     </tr>
                   }
                 </tbody>
@@ -549,7 +574,7 @@
                 <thead><tr><th>Statut</th><th style="text-align:center">Nb</th></tr></thead>
                 <tbody>
                   @for (s of d.par_statut; track $index) {
-                    <tr><td>{{ s.statut }}</td><td style="text-align:center">{{ s.nb }}</td></tr>
+                    <tr><td>{{ s.libelle }}</td><td style="text-align:center">{{ s.nb }}</td></tr>
                   }
                 </tbody>
               </table>
@@ -596,8 +621,8 @@
         </div>
         <div class="filter-group">
           <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-          <input type="text" class="form-control" placeholder="ex: AA-940-NG"
-                 [value]="filtreImmat()" (input)="onFiltre2('immat',$event)" />
+          <ubi-select-recherche [options]="vehiculesImmat()" placeholder="Immatriculation…"
+                                [selection]="filtreImmat() || null" (choix)="filtreImmat.set($event ?? '')" />
         </div>
         <div class="filter-group">
           <label class="form-label"><i class="fas fa-building"></i> Agence</label>
@@ -632,15 +657,19 @@
       <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ intError() }}</div>
     } @else {
       @if (intData(); as d) {
+        <div class="rapport-actions">
+          <button class="btn btn-excel btn-sm" (click)="exporterInterventions()"><i class="fas fa-file-excel"></i> Excel</button>
+        </div>
         <div class="kpi-grid-4" style="margin-bottom:12px">
           <div class="kpi-card"><div class="kpi-icon blue"><i class="fas fa-tools"></i></div>
             <div class="kpi-info"><div class="kpi-val">{{ d.total }}</div><div class="kpi-label">Total interventions</div></div></div>
           <div class="kpi-card"><div class="kpi-icon green"><i class="fas fa-coins"></i></div>
             <div class="kpi-info"><div class="kpi-val">{{ dispatcheur(d.cout_total) | number:'1.0-0' }}</div><div class="kpi-label">Coût total (FCFA)</div></div></div>
-          @for (s of d.par_statut.slice(0,2); track $index) {
-            <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-wrench"></i></div>
-              <div class="kpi-info"><div class="kpi-val">{{ s.nb }}</div><div class="kpi-label">{{ s.statut }}</div></div></div>
-          }
+          <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-calculator"></i></div>
+            <div class="kpi-info"><div class="kpi-val">{{ dispatcheur(d.cout_estime_total) | number:'1.0-0' }}</div><div class="kpi-label">Coût estimé (FCFA, hors annulées)</div></div></div>
+          <div class="kpi-card"><div class="kpi-icon navy"><i class="fas fa-tasks"></i></div>
+            <div class="kpi-info"><div class="kpi-val kpi-statuts">@for (s of d.par_statut; track s.statut) { <span>{{ s.nb }} {{ s.libelle }}</span> }</div>
+              <div class="kpi-label">Par statut</div></div></div>
         </div>
 
         <div class="section-grid-2">
@@ -672,7 +701,7 @@
                   @for (t of d.par_type; track $index) {
                     <tr>
                       <td>{{ t.type_intervention__nom }}</td>
-                      <td style="font-size:11px;color:var(--gray-400)">{{ t.type_intervention__categorie }}</td>
+                      <td style="font-size:11px;color:var(--gray-400)">{{ t.categorie_libelle }}</td>
                       <td style="text-align:center">{{ t.nb }}</td>
                       <td style="text-align:right">{{ t.cout | number:'1.0-0' }}</td>
                     </tr>
@@ -722,8 +751,8 @@
         </div>
         <div class="filter-group">
           <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-          <input type="text" class="form-control" placeholder="ex: AA-940-NG"
-                 [value]="filtreImmat()" (input)="onFiltre2('immat',$event)" />
+          <ubi-select-recherche [options]="vehiculesImmat()" placeholder="Immatriculation…"
+                                [selection]="filtreImmat() || null" (choix)="filtreImmat.set($event ?? '')" />
         </div>
         <div class="filter-group">
           <label class="form-label"><i class="fas fa-building"></i> Agence</label>
@@ -746,6 +775,9 @@
       <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ pnError() }}</div>
     } @else {
       @if (pnData(); as d) {
+        <div class="rapport-actions">
+          <button class="btn btn-excel btn-sm" (click)="exporterPneus()"><i class="fas fa-file-excel"></i> Excel</button>
+        </div>
         <div class="kpi-grid-4" style="margin-bottom:12px">
           <div class="kpi-card"><div class="kpi-icon blue"><i class="fas fa-circle-notch"></i></div>
             <div class="kpi-info"><div class="kpi-val">{{ d.total }}</div><div class="kpi-label">Total pneus</div></div></div>

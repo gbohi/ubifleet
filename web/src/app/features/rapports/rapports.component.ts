@@ -6,6 +6,8 @@ import {
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { GroupeHub, HubCartesComponent } from '../../shared/hub-cartes/hub-cartes.component';
+import { OptionRecherche, SelectRechercheComponent } from '../../shared/select-recherche/select-recherche.component';
+import { OptionsSaisieService } from '../../core/services/options-saisie.service';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import {
   RapportApiService, AgenceApiService, ChauffeurApiService
@@ -22,7 +24,7 @@ const CHART_COLORS = ['#092440','#5bd988','#3b82f6','#f59e0b','#ef4444',
 @Component({
   selector: 'ubi-rapports',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, HubCartesComponent],
+  imports: [RouterLink, DatePipe, DecimalPipe, HubCartesComponent, SelectRechercheComponent],
   templateUrl: './rapports.component.html',
   styleUrls: ['./rapports.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -58,7 +60,7 @@ export class RapportsComponent implements OnInit, OnDestroy {
     restitution:      { route: '/restitution-mensuelle' },
     utilisation:      { route: '/releves-km', params: { onglet: 'utilisation' } },
     etat_depenses:    { route: '/budget', params: { onglet: 'depenses' } },
-    budget:           { route: '/budget', params: { onglet: 'tableau' } },
+    budget:           { route: '/budget', params: { onglet: 'budgets' } },
     etat_parc:        { route: '/etat-parc' },
   };
 
@@ -140,6 +142,11 @@ export class RapportsComponent implements OnInit, OnDestroy {
   filtreDebut  = signal('');
   filtreFin    = signal('');
   filtreImmat  = signal('');
+  /** Véhicules proposés au filtre d'immatriculation (valeur = immatriculation). */
+  vehiculesImmat = signal<OptionRecherche[]>([]);
+  private options = inject(OptionsSaisieService);
+  /** Rapports filtrés par mois / année / agence (les autres ont leurs propres filtres). */
+  avecFiltresPeriode = computed(() => ['dashboard', 'carburant', 'couts', 'multiagences'].includes(this.activeTab() ?? ''));
   filtreAgence2= signal('');
   filtreChauff = signal('');
   filtreCateg  = signal('');
@@ -169,6 +176,10 @@ export class RapportsComponent implements OnInit, OnDestroy {
       next: (res: any) => this.chauffeurs.set((res.results ?? []).map((c: any) => ({
         id: c.id, nom_complet: c.nom_complet
       }))),
+      error: () => {},
+    });
+    this.options.vehicules().subscribe({
+      next: l => this.vehiculesImmat.set(l.map(v => ({ value: v.label, label: v.label }))),   // label = immatriculation
       error: () => {},
     });
     // Rapport de l'URL (?rapport=…), suivi aussi par « Précédent / Suivant »
@@ -482,20 +493,152 @@ export class RapportsComponent implements OnInit, OnDestroy {
     return Math.max(...arr.map(a => Number(a[key] || 0))) || 1;
   }
 
+  // ── Exports Excel (CSV ; séparateur « ; », décimales à la virgule) ──
+  /** Un fichier en sections : titre, en-têtes puis lignes, séparées par une ligne vide. */
+  private exporterSections(fichier: string, titre: string, sections: { titre?: string; entetes: string[]; lignes: any[][] }[],
+                           resume?: string): void {
+    const cell = (v: any) => {
+      const t = typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',')) : String(v ?? '');
+      return `"${t.replace(/"/g, '""')}"`;
+    };
+    const ligne = (cols: any[]) => cols.map(cell).join(';');
+    const contenu: string[] = [ligne([titre]), ligne([resume ?? this.resumeFiltresRapport()]), ''];
+    for (const sct of sections) {
+      if (sct.titre) contenu.push(ligne([sct.titre]));
+      contenu.push(ligne(sct.entetes), ...sct.lignes.map(ligne), '');
+    }
+    this.downloadCsv('\uFEFF' + contenu.join('\r\n'), fichier);
+  }
+
+  private nombre(v: any): number { return Number(v) || 0; }
+
+  /** Filtres appliqués au rapport ouvert, pour l'en-tête des exports. */
+  private resumeFiltresRapport(): string {
+    const agence = (id: string) => this.agences().find((a: any) => a.id === id)?.nom;
+    if (this.avecFiltresPeriode()) {
+      const t = this.activeTab();
+      const periode = t === 'dashboard' || t === 'carburant' ? `${MOIS[this.filtreMois() - 1]} ${this.filtreAnnee()}` : `Année ${this.filtreAnnee()}`;
+      return [periode, t !== 'multiagences' ? (agence(this.filtreAgence()) ?? 'Toutes les agences') : ''].filter(Boolean).join(' · ');
+    }
+    const fr = (d: string) => d.split('-').reverse().join('/');
+    const morceaux = [
+      this.filtreDebut() || this.filtreFin() ? `Du ${this.filtreDebut() ? fr(this.filtreDebut()) : '…'} au ${this.filtreFin() ? fr(this.filtreFin()) : '…'}` : 'Toutes dates',
+      this.filtreImmat() ? `Véhicule ${this.filtreImmat()}` : '',
+      agence(this.filtreAgence2()) ?? '',
+      this.chauffeurs().find(c => c.id === this.filtreChauff())?.nom_complet ?? '',
+    ];
+    return morceaux.filter(Boolean).join(' · ');
+  }
+
+  exporterDashboard(): void {
+    const d = this.dashData() as any;
+    if (!d) return;
+    const n = (v: any) => this.nombre(v);
+    this.exporterSections(`tableau_de_bord_${this.filtreMois()}_${this.filtreAnnee()}.csv`, 'Tableau de bord UbiFleet', [
+      { titre: 'Parc', entetes: ['Indicateur', 'Valeur'], lignes: [
+        ['Véhicules actifs', d.parc.total], ['En service', d.parc.en_service], ['En révision', d.parc.en_revision],
+        ['Immobilisés / en panne / accidentés', d.parc.immobilises], ['Sinistres en cours', d.sinistres.en_cours],
+        ['Sinistres de l\'année', d.sinistres.annee], ['Alertes actives', d.alertes.total],
+        ['Assurances expirant dans 30 jours', d.assurances_critiques], ['Véhicules avec assurance expirée', d.assurances_expirees ?? 0]] },
+      { titre: 'Carburant du mois', entetes: ['Indicateur', 'Valeur'], lignes: [
+        ['Volume (L)', n(d.carburant.volume)], ['Montant (FCFA)', n(d.carburant.montant)],
+        ['Prises de carburant', d.carburant.nb_pleins], ['Consommation moyenne (L/100 km)', n(d.carburant.conso_moy)],
+        ['Anomalies', d.carburant.anomalies]] },
+      { titre: 'Entretien du mois', entetes: ['Indicateur', 'Valeur'], lignes: [
+        ['Interventions planifiées', d.entretien.planifiees], ['Terminées', d.entretien.terminees],
+        ['En cours', d.entretien.en_cours], ['Coût des interventions terminées (FCFA)', n(d.entretien.cout)]] },
+      { titre: 'Coûts — 12 derniers mois', entetes: ['Mois', 'Montant (FCFA)'],
+        lignes: (d.cout_mensuel ?? []).map((m: any) => [`${MOIS[m.mois - 1]} ${m.annee}`, n(m.total)]) },
+      { titre: 'Répartition des coûts du mois', entetes: ['Catégorie', 'Montant (FCFA)'],
+        lignes: (d.repartition_couts ?? []).map((r: any) => [r.label, n(r.montant)]) },
+      { titre: 'Véhicules les plus consommateurs', entetes: ['Immatriculation', 'Marque', 'Modèle', 'Litres', 'Montant (FCFA)'],
+        lignes: (d.top_consommation ?? []).map((v: any) => [v.vehicule__immatriculation, v.vehicule__marque__libelle ?? '',
+          v.vehicule__modele__libelle ?? '', n(v.litres), n(v.montant)]) },
+      { titre: 'Écarts à la consommation de référence', entetes: ['Immatriculation', 'Conso (L/100 km)', 'Référence', 'Écart (%)', 'Litres'],
+        lignes: (d.top_ecart_conso ?? []).map((v: any) => [v.vehicule__immatriculation, n(v.conso), n(v.reference), n(v.ecart_pct), n(v.litres)]) },
+    ]);
+  }
+
+  exporterMultiAgences(): void {
+    const d = this.maData();
+    if (!d) return;
+    const total = (d.agences ?? []).reduce((a: number, x: any) => a + this.nombre(x.cout_total), 0);
+    this.exporterSections(`comparatif_agences_${d.annee}.csv`, `Comparatif des agences — ${d.annee}`, [{
+      entetes: ['Agence', 'Code', 'Véhicules', 'Coût total (FCFA)', 'Coût / véhicule (FCFA)', 'Carburant (L)', 'Carburant (FCFA)', 'Part du coût (%)'],
+      lignes: (d.agences ?? []).map((a: any) => [a.agence_nom, a.agence_code, a.nb_vehicules, this.nombre(a.cout_total),
+        this.nombre(a.cout_par_vehicule), this.nombre(a.carburant_litres), this.nombre(a.carburant_fcfa),
+        total ? Math.round(this.nombre(a.cout_total) * 1000 / total) / 10 : 0]),
+    }]);
+  }
+
+  exporterSinistres(): void {
+    const d = this.sinData();
+    if (!d) return;
+    this.exporterSections('rapport_sinistres.csv', 'Rapport des sinistres', [
+      { titre: 'Synthèse', entetes: ['Indicateur', 'Valeur'], lignes: [
+        ['Sinistres', d.total], ['En cours', d.en_cours], ['Coût des réparations (FCFA)', this.nombre(d.cout_total)],
+        ['Indemnisations reçues (FCFA)', this.nombre(d.indemnisation_total)], ['Reste à la charge (FCFA)', this.nombre(d.reste_a_charge)]] },
+      { titre: 'Par type', entetes: ['Type', 'Nb', 'Réparation (FCFA)', 'Indemnisé (FCFA)', 'Reste à charge (FCFA)'],
+        lignes: d.par_type.map((t: any) => [t.libelle, t.nb, t.cout, t.indemnisation, t.reste_a_charge]) },
+      { titre: 'Par statut', entetes: ['Statut', 'Nb'], lignes: d.par_statut.map((x: any) => [x.libelle, x.nb]) },
+      { titre: 'Par mois', entetes: ['Mois', 'Nb', 'Réparation (FCFA)'],
+        lignes: d.par_mois.map((m: any) => [`${m.mois_nom} ${m.date_sinistre__year}`, m.nb, m.cout]) },
+    ]);
+  }
+
+  exporterInterventions(): void {
+    const d = this.intData();
+    if (!d) return;
+    this.exporterSections('rapport_interventions.csv', 'Rapport des interventions', [
+      { titre: 'Synthèse', entetes: ['Indicateur', 'Valeur'], lignes: [
+        ['Interventions', d.total], ['Coût réel des terminées (FCFA)', this.nombre(d.cout_total)],
+        ['Coût estimé hors annulées (FCFA)', this.nombre(d.cout_estime_total)]] },
+      { titre: 'Par statut', entetes: ['Statut', 'Nb'], lignes: d.par_statut.map((x: any) => [x.libelle, x.nb]) },
+      { titre: 'Par catégorie', entetes: ['Catégorie', 'Nb', 'Coût (FCFA)'],
+        lignes: d.par_categorie.map((c: any) => [c.libelle, c.nb, c.cout]) },
+      { titre: "Par type d'intervention", entetes: ['Type', 'Catégorie', 'Nb', 'Coût (FCFA)'],
+        lignes: d.par_type.map((t: any) => [t.type_intervention__nom, t.categorie_libelle, t.nb, t.cout]) },
+      { titre: 'Par mois (date planifiée)', entetes: ['Mois', 'Nb', 'Coût (FCFA)'],
+        lignes: d.par_mois.map((m: any) => [`${m.mois_nom} ${m.date_planifiee__year}`, m.nb, m.cout]) },
+    ]);
+  }
+
+  exporterPneus(): void {
+    const d = this.pnData();
+    if (!d) return;
+    this.exporterSections('rapport_pneus.csv', 'Rapport des pneus', [
+      { titre: 'Synthèse', entetes: ['Indicateur', 'Valeur'], lignes: [['Pneus', d.total], ['Coût total (FCFA)', this.nombre(d.cout_total)]] },
+      { titre: 'Par statut', entetes: ['Statut', 'Nb', 'Coût (FCFA)'], lignes: d.par_statut.map((x: any) => [x.libelle, x.nb, x.cout]) },
+      { titre: 'Par position', entetes: ['Position', 'Nb', 'Coût (FCFA)'], lignes: d.par_position.map((x: any) => [x.libelle, x.nb, x.cout]) },
+      { titre: 'Par marque', entetes: ['Marque', 'Nb', 'Coût (FCFA)'], lignes: d.par_marque.map((x: any) => [x.marque, x.nb, x.cout]) },
+      { titre: 'Montages par mois', entetes: ['Mois', 'Nb', 'Coût (FCFA)'],
+        lignes: d.par_mois.map((m: any) => [`${m.mois_nom} ${m.date_montage__year}`, m.nb, m.cout]) },
+      { titre: 'Pneus à changer', entetes: ['Véhicule', 'Position', 'Marque', 'Km de remplacement'],
+        lignes: d.urgents.map((u: any) => [u.vehicule__immatriculation, u.position_libelle, u.marque, u.kilometrage_remplacement ?? '']) },
+    ]);
+  }
+
   exportCarburantCsv(): void {
     const d = this.carbData();
     if (!d) return;
-    const sep = ';'; const eol = '\r\n';
-    const hdrs = ['Immatriculation','Marque','Modèle','Agence','Volume (L)',
-                  'Montant (FCFA)','Nb prises de carburant','Conso moy (L/100km)','Conso de référence','Écart %'].join(sep);
-    const rows = (d.par_vehicule ?? []).map((r: any) =>
-      [r.vehicule__immatriculation, r.vehicule__marque__libelle, r.vehicule__modele__libelle,
-       r.agence__nom ?? '', r.total_litres, r.total_fcfa, r.nb_pleins, r.conso_moy ?? '',
-       r.conso_reference ?? '', r.ecart_pct ?? ''].join(sep)
-    ).join(eol);
-    this.downloadCsv('\uFEFF' + hdrs + eol + rows,
-      `carburant_${this.filtreMois()}_${this.filtreAnnee()}.csv`);
+    const n = (v: any) => (v === null || v === undefined ? '' : this.nombre(v));
+    this.exporterSections(`carburant_${this.filtreMois()}_${this.filtreAnnee()}.csv`, 'Synthèse carburant', [
+      { titre: 'Synthèse', entetes: ['Indicateur', 'Valeur'], lignes: [
+        ['Litres', n(d.global?.total_litres)], ['Montant (FCFA)', n(d.global?.total_fcfa)],
+        ['Prises de carburant', d.global?.nb_pleins ?? 0], ['Consommation moyenne (L/100 km)', n(d.global?.conso_moy)]] },
+      { titre: 'Par véhicule', entetes: ['Immatriculation', 'Marque', 'Modèle', 'Agence', 'Volume (L)', 'Montant (FCFA)',
+          'Prises', 'Conso (L/100 km)', 'Référence', 'Écart (%)'],
+        lignes: (d.par_vehicule ?? []).map((r: any) => [r.vehicule__immatriculation, r.vehicule__marque__libelle ?? '',
+          r.vehicule__modele__libelle ?? '', r.agence__nom ?? '', n(r.total_litres), n(r.total_fcfa), r.nb_pleins,
+          n(r.conso_moy), n(r.conso_reference), n(r.ecart_pct)]) },
+      { titre: 'Par station', entetes: ['Station', 'Litres', 'Montant (FCFA)'],
+        lignes: (d.par_station ?? []).map((r: any) => [r.station__nom, n(r.litres), n(r.total)]) },
+      { titre: 'Anomalies', entetes: ['Véhicule', 'Date', 'Volume (L)', 'Montant (FCFA)', 'Conso calculée (L/100 km)'],
+        lignes: (d.anomalies ?? []).map((r: any) => [r.vehicule__immatriculation, String(r.date_plein).split('-').reverse().join('/'),
+          n(r.volume_litres), n(r.montant_fcfa), n(r.consommation_calculee)]) },
+    ]);
   }
+
 
   private destroyChartByRef(ref?: ElementRef): void {
     if (!ref) return;
@@ -564,13 +707,11 @@ export class RapportsComponent implements OnInit, OnDestroy {
   exportEffectifCsv(): void {
     const d = this.effData();
     if (!d) return;
-    const sep = ';'; const eol = '\r\n';
-    let csv = 'Groupement' + sep + 'Valeur' + sep + 'Nombre' + sep + 'Pourcentage' + eol;
-    this.effGroupes().forEach(g => {
-      g.rows.forEach((r: any) => {
-        csv += [g.titre, r.label, r.nb, r.pct + '%'].join(sep) + eol;
-      });
-    });
-    this.downloadCsv('\uFEFF' + csv, 'effectif_parc.csv');
+    const agence = this.agences().find((a: any) => a.id === this.effAgence())?.nom ?? 'Toutes les agences';
+    this.exporterSections('effectif_parc.csv', `Effectif du parc — ${d.total} véhicule(s)`,
+      this.effGroupes().map(g => ({ titre: g.titre, entetes: ['Valeur', 'Nombre', 'Part (%)'],
+                                    lignes: g.rows.map((r: any) => [r.label, r.nb, Number(r.pct)]) })),
+      `${agence} · ${this.effActif() === 'true' ? 'véhicules actifs' : 'actifs et archivés'}`);
   }
+
 }

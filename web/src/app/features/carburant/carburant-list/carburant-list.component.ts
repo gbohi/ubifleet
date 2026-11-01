@@ -13,6 +13,8 @@ import { ConsommationVehiculesComponent } from '../analyses/consommation-vehicul
 import { ClassementChauffeursComponent } from '../analyses/classement-chauffeurs.component';
 import { EvolutionAgencesComponent } from '../analyses/evolution-agences.component';
 import { RapprochementTotalComponent } from '../analyses/rapprochement-total.component';
+import { exporterCsv } from '../analyses/filtres-analyse.component';
+import { Observable, map, of, switchMap } from 'rxjs';
 import { OptionVehicule, OptionsSaisieService } from '../../../core/services/options-saisie.service';
 import { OptionRecherche, SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
 import { TypesMouvementService } from '../../../core/services/types-mouvement.service';
@@ -62,6 +64,48 @@ export class CarburantListComponent implements OnInit {
     if (m >= 1_000_000) return `${(m / 1_000_000).toFixed(1)}M FCFA`;
     if (m >= 1_000)     return `${(m / 1_000).toFixed(0)} K FCFA`;
     return `${m} FCFA`;
+  }
+
+  exportEnCours = signal(false);
+
+  /** Colonnes communes aux exports de prises de carburant. */
+  private lignesPrises(prises: PleinCarburant[]): any[][] {
+    const fr = (d?: string | null) => d ? d.split('-').reverse().join('/') : '';
+    return prises.map((p: any) => [
+      fr(p.date_plein), p.heure_plein ? String(p.heure_plein).substring(0, 5) : '', p.vehicule_immat ?? '',
+      p.chauffeur_nom ?? '', p.agence_nom ?? '', p.type_display ?? '', p.tournee_code ?? '',
+      Number(p.volume_litres) || 0, p.prix_litre != null ? Number(p.prix_litre) : '', Number(p.montant_fcfa) || 0,
+      p.kilometrage_depart ?? '', p.kilometrage_releve ?? '',
+      p.consommation_calculee != null ? Number(p.consommation_calculee) : '',
+      p.station_nom ?? '', p.bon_carburant ?? '', p.statut_validation === 'anomalie' ? 'Oui' : '', p.motif_anomalie ?? '',
+    ]);
+  }
+  private readonly entetesPrises = ['Date', 'Heure', 'Véhicule', 'Chauffeur', 'Agence', 'Type', 'Tournée', 'Litres',
+    'Prix du litre', 'Montant (FCFA)', 'Km départ', 'Km relevé', 'Conso (L/100 km)', 'Station', 'N° bon', 'Anomalie', 'Motif'];
+
+  /** Toutes les prises filtrées (toutes les pages), en Excel. */
+  exporterPrises(): void {
+    if (this.exportEnCours()) return;
+    const f = this.store.filters();
+    const params: Record<string, any> = Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '' && v != null));
+    const page = (n: number): Observable<PleinCarburant[]> =>
+      this.carburantApi.getPleins({ ...params, page: n, page_size: 1000 }).pipe(switchMap((res: any) => {
+        const lignes = Array.isArray(res) ? res : (res.results ?? []);
+        return res.next ? page(n + 1).pipe(map(suite => [...lignes, ...suite])) : of(lignes);
+      }));
+    this.exportEnCours.set(true);
+    page(1).subscribe({
+      next: prises => {
+        this.exportEnCours.set(false);
+        exporterCsv(`prises_carburant_${new Date().toISOString().slice(0, 10)}.csv`, this.entetesPrises, this.lignesPrises(prises));
+      },
+      error: () => this.exportEnCours.set(false),
+    });
+  }
+
+  exporterAnomalies(): void {
+    exporterCsv(`anomalies_carburant_${new Date().toISOString().slice(0, 10)}.csv`, this.entetesPrises,
+                this.lignesPrises(this.store.anomalies()));
   }
 
   ngOnInit(): void {

@@ -12,8 +12,9 @@
       </p>
     </div>
     <div class="header-actions">
-      <button class="btn btn-outline btn-sm">
-        <i class="fas fa-download"></i> Exporter
+      <button class="btn btn-outline btn-sm" [disabled]="exportEnCours()" (click)="exporterPrises()"
+              title="Exporte toutes les prises correspondant aux filtres de la liste">
+        <i class="fas fa-file-excel"></i> {{ exportEnCours() ? 'Export…' : 'Exporter' }}
       </button>
       <button class="btn btn-green" (click)="goToNew()">
         <i class="fas fa-plus"></i> Saisir une prise de carburant
@@ -296,6 +297,9 @@
         <p>Toutes les consommations sont dans les limites normales.</p>
       </div>
     } @else {
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="btn btn-outline btn-sm" (click)="exporterAnomalies()"><i class="fas fa-file-excel"></i> Exporter</button>
+      </div>
       <div class="card">
         <div class="table-container">
           <table class="ubi-table">

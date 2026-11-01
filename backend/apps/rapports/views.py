@@ -3,6 +3,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.db.models.functions import Coalesce
 from django.db.models import Sum, Avg, Count, Q, F
 from django.utils import timezone
 import datetime
@@ -83,9 +84,10 @@ class DashboardDGView(APIView):
             'planifiees': interventions.count(),
             'terminees': interventions.filter(statut='termine').count(),
             'en_cours': interventions.filter(statut='en_cours').count(),
-            'cout': interventions.filter(statut='termine').aggregate(
-                total=Sum('cout_reel')
-            )['total'] or 0,
+            # Coût des interventions terminées dans le mois (date de fin, sinon date planifiée)
+            'cout': Intervention.objects.filter(statut='termine', **agence_filter).annotate(
+                fin=Coalesce('date_fin', 'date_planifiee')).filter(fin__month=mois, fin__year=annee)
+                .aggregate(total=Sum('cout_reel'))['total'] or 0,
         }
 
         # Sinistres
@@ -105,15 +107,19 @@ class DashboardDGView(APIView):
             'hautes': alertes_qs.filter(priorite='haute').count(),
         }
 
-        # Coûts mensuels (12 derniers mois)
-        cout_mensuel = []
-        for i in range(11, -1, -1):
-            d = timezone.now().date().replace(day=1) - datetime.timedelta(days=i * 30)
-            m, a = d.month, d.year
-            total = DepenseVehicule.objects.filter(
-                date_depense__month=m, date_depense__year=a, **agence_filter
-            ).aggregate(total=Sum('montant'))['total'] or 0
-            cout_mensuel.append({'mois': m, 'annee': a, 'total': float(total)})
+        # Coûts mensuels : les 12 mois qui se terminent au mois choisi (une requête)
+        mois_liste = []
+        a, m = annee, mois
+        for _ in range(12):
+            mois_liste.append((a, m))
+            a, m = (a - 1, 12) if m == 1 else (a, m - 1)
+        mois_liste.reverse()
+        debut_fenetre = datetime.date(mois_liste[0][0], mois_liste[0][1], 1)
+        fin_fenetre = (datetime.date(annee + (mois == 12), mois % 12 + 1, 1) - datetime.timedelta(days=1))
+        totaux = {(r['date_depense__year'], r['date_depense__month']): float(r['t'] or 0)
+                  for r in DepenseVehicule.objects.filter(date_depense__range=(debut_fenetre, fin_fenetre), **agence_filter)
+                  .order_by().values('date_depense__year', 'date_depense__month').annotate(t=Sum('montant'))}
+        cout_mensuel = [{'mois': m, 'annee': a, 'total': totaux.get((a, m), 0.0)} for a, m in mois_liste]
 
         # Consommation top 10 véhicules
         top_conso = list(
@@ -143,12 +149,13 @@ class DashboardDGView(APIView):
         ]
 
         # Assurances expirant
-        horizon_30 = timezone.now().date() + datetime.timedelta(days=30)
-        assurances_critiques = ContratAssurance.objects.filter(
-            date_fin__lte=horizon_30,
-            is_active=True,
-            vehicule__agence_id__in=vehicules.values_list('agence_id', flat=True)
-        ).count()
+        aujourd_hui = timezone.localdate()
+        contrats = ContratAssurance.objects.filter(is_active=True, vehicule__in=vehicules)
+        # Contrat expiré : sans contrat plus récent sur le même véhicule
+        assurances_critiques = contrats.filter(
+            date_fin__range=(aujourd_hui, aujourd_hui + datetime.timedelta(days=30))).count()
+        assurances_expirees = contrats.filter(date_fin__lt=aujourd_hui).exclude(
+            vehicule__contrats_assurance__date_fin__gte=aujourd_hui).values('vehicule').distinct().count()
 
         return Response({
             'periode': {'mois': mois, 'annee': annee},
@@ -162,6 +169,7 @@ class DashboardDGView(APIView):
             'top_ecart_conso': top_ecart_conso,
             'repartition_couts': repartition_couts,
             'assurances_critiques': assurances_critiques,
+            'assurances_expirees': assurances_expirees,
         })
 
 
@@ -397,10 +405,10 @@ class RapportSinistresView(APIView):
         if chauffeur_id:
             qs = qs.filter(chauffeur_id=chauffeur_id)
 
-        # Par type
+        # Par type : coût de réparation, indemnisation reçue et reste à la charge de l'entreprise
         par_type = list(
             qs.values('type_sinistre')
-              .annotate(nb=Count('id'), cout=Sum('cout_reparation'))
+              .annotate(nb=Count('id'), cout=Sum('cout_reparation'), indemnisation=Sum('indemnisation_recue'))
               .order_by('-nb')
         )
 
@@ -412,9 +420,9 @@ class RapportSinistresView(APIView):
         )
 
         # Par statut
-        par_statut = list(
-            qs.values('statut').annotate(nb=Count('id')).order_by('-nb')
-        )
+        statuts = dict(Sinistre.Statut.choices)
+        par_statut = [{**r, 'libelle': statuts.get(r['statut'], r['statut'])}
+                      for r in qs.values('statut').annotate(nb=Count('id')).order_by('-nb')]
 
         from apps.parametrage.models import TypeSinistre, libelles
         TYPE_LABELS = libelles(TypeSinistre)
@@ -424,12 +432,19 @@ class RapportSinistresView(APIView):
         for r in par_type:
             r['libelle'] = TYPE_LABELS.get(r['type_sinistre'], r['type_sinistre'])
             r['cout'] = float(r['cout'] or 0)
+            r['indemnisation'] = float(r['indemnisation'] or 0)
+            r['reste_a_charge'] = max(r['cout'] - r['indemnisation'], 0)
         for r in par_mois:
             r['mois_nom'] = MOIS_LABELS[r['date_sinistre__month'] - 1]
             r['cout'] = float(r['cout'] or 0)
+        cout = sum(r['cout'] for r in par_type)
+        indemnisation = sum(r['indemnisation'] for r in par_type)
 
         return Response({
             'total': qs.count(),
+            'en_cours': qs.filter(statut__in=['declare', 'en_instruction', 'expertise', 'reparation']).count(),
+            'cout_total': cout, 'indemnisation_total': indemnisation,
+            'reste_a_charge': sum(r['reste_a_charge'] for r in par_type),
             'par_type': par_type,
             'par_mois': par_mois,
             'par_statut': par_statut,
@@ -484,6 +499,7 @@ class RapportInterventionsView(APIView):
         )
         for r in par_type:
             r['cout'] = float(r['cout'] or 0)
+            r['categorie_libelle'] = CAT_LABELS.get(r['type_intervention__categorie'] or '', 'Autre')
 
         # Par mois
         par_mois = list(
@@ -498,12 +514,13 @@ class RapportInterventionsView(APIView):
             r['cout'] = float(r['cout'] or 0)
 
         # Par statut
-        par_statut = list(
-            qs.values('statut').annotate(nb=Count('id')).order_by('-nb')
-        )
+        statuts = dict(Intervention.Statut.choices)
+        par_statut = [{**r, 'libelle': statuts.get(r['statut'], r['statut'])}
+                      for r in qs.values('statut').annotate(nb=Count('id')).order_by('-nb')]
 
         return Response({
             'total': qs.count(),
+            'cout_estime_total': float(qs.exclude(statut='annule').aggregate(t=Sum('cout_estime'))['t'] or 0),
             'cout_total': float(qs.filter(statut='termine')
                                   .aggregate(t=Sum('cout_reel'))['t'] or 0),
             'par_categorie': par_categorie,
@@ -600,6 +617,15 @@ class RapportPneusView(APIView):
         })
 
 
+def grouper_modeles(qs, total):
+    """Effectif par modèle, libellé « Marque Modèle » (deux marques peuvent avoir un modèle du même nom)."""
+    out = []
+    for r in qs.values('modele__id', 'marque__libelle', 'modele__libelle').annotate(nb=Count('id')).order_by('-nb'):
+        label = ' '.join(x for x in (r['marque__libelle'], r['modele__libelle']) if x) or 'Non renseigné'
+        out.append({'label': label, 'nb': r['nb'], 'pct': round(r['nb'] / total * 100, 1) if total else 0})
+    return out
+
+
 class RapportEffectifParcView(APIView):
     """
     GET /rapports/effectif-parc/
@@ -645,8 +671,9 @@ class RapportEffectifParcView(APIView):
                 })
             return out
 
-        # Types véhicule / carburant : mapper les codes vers les libellés display
-        type_labels = dict(Vehicule._meta.get_field('type_vehicule').choices or [])
+        # Types véhicule (Paramètres) / carburant : codes → libellés
+        from apps.parametrage.models import libelles_types_vehicule
+        type_labels = libelles_types_vehicule()
         carb_labels = dict(Vehicule._meta.get_field('type_carburant').choices or [])
 
         par_type = grouper(qs, 'type_vehicule')
@@ -661,7 +688,7 @@ class RapportEffectifParcView(APIView):
             'total': total,
             'par_agence':    grouper(qs, 'agence__id',      'agence__nom'),
             'par_marque':    grouper(qs, 'marque__id',      'marque__libelle'),
-            'par_modele':    grouper(qs, 'modele__id',      'modele__libelle'),
+            'par_modele':    grouper_modeles(qs, total),
             'par_type':      par_type,
             'par_carburant': par_carburant,
             'par_statut':    grouper(qs, 'statut__id',      'statut__libelle'),
