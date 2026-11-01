@@ -235,43 +235,95 @@ class RapportCarburantView(APIView):
 
 
 class RapportCoutsView(APIView):
-    """Rapport coûts global par poste, véhicule, agence."""
+    """Coûts annuels : total et comparaison avec l'année précédente, évolution
+    mensuelle, budget prévu / réalisé par poste, répartition par catégorie,
+    origine et agence, véhicules les plus coûteux (détail par poste)."""
     permission_classes = [IsOperateur]
 
     def get(self, request):
-        from apps.budget.models import DepenseVehicule
+        from apps.budget.etat import postes_des_categories, recapitulatif
+        from apps.budget.models import BudgetAnnuel, DepenseVehicule
+        from apps.parametrage.models import CategorieDepense
+        from apps.vehicules.models import Vehicule
 
         annee = int(request.query_params.get('annee', timezone.now().year))
         agence_id = agence_autorisee(request)
-
-        qs = DepenseVehicule.objects.filter(date_depense__year=annee)
+        base = DepenseVehicule.objects.all()
+        budgets = BudgetAnnuel.objects.filter(annee=annee)
+        vehicules = Vehicule.objects.filter(is_active=True)
         if agence_id:
-            qs = qs.filter(agence_id=agence_id)
-        from apps.parametrage.models import CategorieDepense, libelles
-        noms_categories = libelles(CategorieDepense)
+            base = base.filter(agence_id=agence_id)
+            budgets = budgets.filter(agence_id=agence_id)
+            vehicules = vehicules.filter(agence_id=agence_id)
+        qs = base.filter(date_depense__year=annee)
+        qs_prec = base.filter(date_depense__year=annee - 1)
+        recap = recapitulatif(qs)
+        total = recap['total']
+        total_prec = float(qs_prec.aggregate(t=Sum('montant'))['t'] or 0)
 
+        # Évolution mensuelle, avec l'année précédente et le cumul
+        def par_mois(q):
+            return {r['date_depense__month']: float(r['t'] or 0)
+                    for r in q.order_by().values('date_depense__month').annotate(t=Sum('montant'))}
+        mois_n, mois_p = par_mois(qs), par_mois(qs_prec)
+        aujourd_hui = timezone.localdate()
+        cumul = 0.0
+        evolution = []
+        for m in range(1, 13):
+            cumul += mois_n.get(m, 0.0)
+            a_venir = annee > aujourd_hui.year or (annee == aujourd_hui.year and m > aujourd_hui.month)
+            evolution.append({'mois': m, 'total': mois_n.get(m, 0.0), 'total_precedent': mois_p.get(m, 0.0),
+                              'cumul': None if a_venir else cumul})   # pas de cumul sur les mois à venir
+
+        # Budget prévu / réalisé par poste
+        postes = CategorieDepense.PosteBudget
+        prevus = budgets.aggregate(**{p: Sum(f'budget_{p}') for p in postes.values})
+        realises = {p['poste']: p['total'] for p in recap['par_poste']}
+        budget = []
+        for code, libelle in postes.choices:
+            prevu, realise = float(prevus.get(code) or 0), realises.get(code, 0.0)
+            budget.append({'poste': code, 'libelle': libelle, 'prevu': prevu, 'realise': realise,
+                           'ecart': prevu - realise, 'taux': round(realise * 100 / prevu, 1) if prevu else None})
+        budget_total = sum(b['prevu'] for b in budget)
+
+        # Véhicules les plus coûteux, détaillés par poste
+        poste_de = postes_des_categories()
+        detail = {}
+        for r in qs.exclude(vehicule=None).order_by().values(
+                'vehicule_id', 'vehicule__immatriculation', 'vehicule__marque__libelle',
+                'vehicule__modele__libelle', 'categorie').annotate(t=Sum('montant')):
+            v = detail.setdefault(r['vehicule_id'], {
+                'immatriculation': r['vehicule__immatriculation'],
+                'designation': ' '.join(x for x in (r['vehicule__marque__libelle'], r['vehicule__modele__libelle']) if x),
+                'total': 0.0, 'postes': {}})
+            montant = float(r['t'] or 0)
+            poste = poste_de.get(r['categorie'], 'divers')
+            v['total'] += montant
+            v['postes'][poste] = v['postes'].get(poste, 0.0) + montant
+        top = sorted(detail.values(), key=lambda v: -v['total'])[:15]
+        nb_vehicules = vehicules.count()
+
+        par_agence = [{'agence': r['agence__nom'], 'code': r['agence__code'], 'nb': r['nb'], 'total': float(r['t'] or 0),
+                       'part': round(float(r['t'] or 0) * 100 / total, 1) if total else 0}
+                      for r in qs.order_by().values('agence__nom', 'agence__code')
+                                 .annotate(nb=Count('id'), t=Sum('montant')).order_by('-t')]
         return Response({
             'annee': annee,
-            'total': qs.aggregate(total=Sum('montant'))['total'] or 0,
-            'par_categorie': [
-                {**r, 'libelle': noms_categories.get(r['categorie'], r['categorie'])}
-                for r in qs.values('categorie').annotate(total=Sum('montant'), nb=Count('id'))
-            ],
-            'par_agence': list(
-                qs.values('agence__nom', 'agence__code')
-                  .annotate(total=Sum('montant'))
-                  .order_by('-total')
-            ),
-            'par_mois': list(
-                qs.values('date_depense__month')
-                  .annotate(total=Sum('montant'))
-                  .order_by('date_depense__month')
-            ),
-            'top_vehicules': list(
-                qs.values('vehicule__immatriculation', 'vehicule__marque__libelle', 'vehicule__modele__libelle')
-                  .annotate(total=Sum('montant'))
-                  .order_by('-total')[:15]
-            ),
+            'total': total, 'nb': recap['nb'],
+            'total_precedent': total_prec,
+            'variation': round((total - total_prec) * 100 / total_prec, 1) if total_prec else None,
+            'budget_total': budget_total,
+            'taux_budget': round(total * 100 / budget_total, 1) if budget_total else None,
+            'nb_vehicules': nb_vehicules,
+            'cout_moyen_vehicule': round(total / nb_vehicules) if nb_vehicules else None,
+            'evolution': evolution,
+            'budget': budget,
+            'par_poste': recap['par_poste'],
+            'par_categorie': recap['par_categorie'],
+            'par_origine': recap['par_origine'],
+            'par_agence': par_agence,
+            'top_vehicules': top,
+            'postes': [{'poste': c, 'libelle': l} for c, l in postes.choices],
         })
 
 

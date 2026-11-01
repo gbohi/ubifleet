@@ -191,3 +191,18 @@ select.form-control {
   .fil-sep { color: var(--gray-300); }
   .fil-courant { color: var(--navy); font-weight: 700; }
 }
+
+// ── Rapport des coûts annuels ──────────────────────────────────────────
+.couts-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.muted { color: var(--gray-500); font-size: 12px; }
+.num { text-align: right !important; white-space: nowrap; }
+.txt-rouge { color: var(--danger, #c8453a) !important; }
+.txt-vert { color: var(--green-dark, #2f9e5b) !important; }
+.kpi-val small { font-size: 12px; font-weight: 600; color: var(--gray-500); }
+.kpi-icon.navy { background: var(--navy-alpha, #09244015); color: var(--navy, #092440); }
+.chart-container.chart-lg { height: 300px; }
+.couts-colonne { min-width: 0; }
+.barre-budget { display: inline-block; width: calc(100% - 60px); height: 7px; margin-right: 8px; vertical-align: middle;
+  background: var(--gray-100); border-radius: 4px; overflow: hidden;
+  span { display: block; height: 100%; background: var(--green, #5bd988);
+    &.alerte { background: #f59e0b; } &.depasse { background: var(--danger, #c8453a); } } }

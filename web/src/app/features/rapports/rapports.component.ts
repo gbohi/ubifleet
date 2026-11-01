@@ -30,6 +30,7 @@ const CHART_COLORS = ['#092440','#5bd988','#3b82f6','#f59e0b','#ef4444',
 export class RapportsComponent implements OnInit, OnDestroy {
   @ViewChild('chartCoutsCanvas')   chartCoutsCanvas?:  ElementRef<HTMLCanvasElement>;
   @ViewChild('chartParCatCanvas')  chartParCatCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('chartEvolCoutsCanvas') chartEvolCoutsCanvas?: ElementRef<HTMLCanvasElement>;
   @ViewChild('chartSinCanvas')     chartSinCanvas?:    ElementRef<HTMLCanvasElement>;
   @ViewChild('chartIntCanvas')     chartIntCanvas?:    ElementRef<HTMLCanvasElement>;
   @ViewChild('chartPneusCanvas')   chartPneusCanvas?:  ElementRef<HTMLCanvasElement>;
@@ -289,22 +290,85 @@ export class RapportsComponent implements OnInit, OnDestroy {
 
   renderCoutsChart(): void {
     this.destroyChartByRef(this.chartParCatCanvas);
+    this.destroyChartByRef(this.chartEvolCoutsCanvas);
     const d = this.coutsData();
-    if (!d?.par_categorie?.length || !this.chartParCatCanvas?.nativeElement) return;
+    if (!d) return;
     this.loadChartJs(() => {
       const Chart = (window as any)['Chart'];
       if (!Chart) return;
-      const cats = d.par_categorie;
-      this.charts.push(new Chart(this.chartParCatCanvas!.nativeElement, {
-        type: 'doughnut',
-        data: { labels: cats.map((c: any) => c.libelle || c.categorie || 'Autre'),
-          datasets: [{ data: cats.map((c: any) => c.total),
-            backgroundColor: CHART_COLORS.slice(0, cats.length), borderWidth: 2, borderColor: '#fff' }] },
-        options: { responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { position: 'right', labels: { font: { size: 11 } } } } },
-      }));
+      const fcfa = (v: number) => Math.round(v).toLocaleString('fr-FR');
+      if (this.chartEvolCoutsCanvas?.nativeElement && d.evolution?.length) {
+        this.charts.push(new Chart(this.chartEvolCoutsCanvas.nativeElement, {
+          data: {
+            labels: d.evolution.map((m: any) => MOIS[m.mois - 1]),
+            datasets: [
+              { type: 'bar', label: String(d.annee), data: d.evolution.map((m: any) => m.total),
+                backgroundColor: '#5bd988', borderRadius: 4, order: 2 },
+              { type: 'bar', label: String(d.annee - 1), data: d.evolution.map((m: any) => m.total_precedent),
+                backgroundColor: '#c9d3df', borderRadius: 4, order: 3 },
+              { type: 'line', label: `Cumul ${d.annee}`, data: d.evolution.map((m: any) => m.cumul), yAxisID: 'cumul',
+                borderColor: '#092440', backgroundColor: '#092440', borderWidth: 2, pointRadius: 2, tension: 0.3, order: 1 },
+            ],
+          },
+          options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } },
+                       tooltip: { callbacks: { label: (c: any) => `${c.dataset.label} : ${fcfa(c.raw)} FCFA` } } },
+            scales: { y: { beginAtZero: true, ticks: { callback: (v: number) => fcfa(v) } },
+                      cumul: { position: 'right', beginAtZero: true, grid: { display: false },
+                               ticks: { callback: (v: number) => fcfa(v) } } } },
+        }));
+      }
+      const cats = d.par_categorie ?? [];
+      if (this.chartParCatCanvas?.nativeElement && cats.length) {
+        this.charts.push(new Chart(this.chartParCatCanvas.nativeElement, {
+          type: 'doughnut',
+          data: { labels: cats.map((c: any) => c.libelle || c.categorie || 'Autre'),
+            datasets: [{ data: cats.map((c: any) => c.total),
+              backgroundColor: CHART_COLORS.slice(0, cats.length), borderWidth: 2, borderColor: '#fff' }] },
+          options: { responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'right', labels: { font: { size: 11 } } },
+                       tooltip: { callbacks: { label: (c: any) => `${c.label} : ${fcfa(c.raw)} FCFA` } } } },
+        }));
+      }
     });
   }
+
+  /** Rapport des coûts en CSV (Excel) : indicateurs, budget par poste, répartitions, mois, véhicules. */
+  exporterCouts(): void {
+    const d = this.coutsData();
+    if (!d) return;
+    const cell = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const ligne = (...cols: any[]) => cols.map(cell).join(';');
+    const n = (v: any) => String(Math.round(Number(v) || 0));
+    const p = (v: any) => v === null || v === undefined ? '' : String(v).replace('.', ',');
+    const agence = this.agences().find((a: any) => a.id === this.filtreAgence())?.nom ?? 'Toutes les agences';
+    const lignes = [
+      ligne(`Coûts annuels ${d.annee} — ${agence}`), '',
+      ligne('Coût total (FCFA)', n(d.total)), ligne('Nombre de dépenses', d.nb),
+      ligne(`Coût total ${d.annee - 1} (FCFA)`, n(d.total_precedent)), ligne('Variation (%)', p(d.variation)),
+      ligne('Budget prévu (FCFA)', n(d.budget_total)), ligne('Budget consommé (%)', p(d.taux_budget)),
+      ligne('Coût moyen par véhicule (FCFA)', n(d.cout_moyen_vehicule)), '',
+      ligne('Poste', 'Prévu', 'Réalisé', 'Écart', 'Consommé (%)'),
+      ...d.budget.map((b: any) => ligne(b.libelle, n(b.prevu), n(b.realise), n(b.ecart), p(b.taux))), '',
+      ligne('Mois', String(d.annee), String(d.annee - 1), `Cumul ${d.annee}`),
+      ...d.evolution.map((m: any) => ligne(MOIS[m.mois - 1], n(m.total), n(m.total_precedent), n(m.cumul))), '',
+      ligne('Catégorie', 'Poste', 'Nb', 'Montant', 'Part (%)'),
+      ...d.par_categorie.map((c: any) => ligne(c.libelle, c.poste_libelle, c.nb, n(c.total), p(c.part))), '',
+      ligne('Origine', 'Nb', 'Montant', 'Part (%)'),
+      ...d.par_origine.map((o: any) => ligne(o.libelle, o.nb, n(o.total), p(o.part))), '',
+      ligne('Agence', 'Nb', 'Montant', 'Part (%)'),
+      ...d.par_agence.map((a: any) => ligne(a.agence, a.nb, n(a.total), p(a.part))), '',
+      ligne('Véhicule', 'Désignation', ...d.postes.map((x: any) => x.libelle), 'Total'),
+      ...d.top_vehicules.map((v: any) => ligne(v.immatriculation, v.designation,
+        ...d.postes.map((x: any) => n(v.postes[x.poste])), n(v.total))),
+    ];
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\uFEFF' + lignes.join('\r\n')], { type: 'text/csv;charset=utf-8;' }));
+    a.download = `couts-${d.annee}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
 
   // ── Multi-agences ──────────────────────────────────────────────────
   loadMultiAgences(): void {
@@ -444,12 +508,10 @@ export class RapportsComponent implements OnInit, OnDestroy {
     this.charts = [];
   }
 
+  /** Chart.js chargé à la demande depuis l'application (pas de CDN). */
   private loadChartJs(cb: () => void): void {
     if ((window as any)['Chart']) { cb(); return; }
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-    s.onload = cb;
-    document.head.appendChild(s);
+    import('chart.js/auto').then(m => { (window as any)['Chart'] = m.default; cb(); });
   }
 
   private downloadCsv(csv: string, filename: string): void {

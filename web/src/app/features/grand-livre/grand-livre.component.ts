@@ -407,10 +407,8 @@ export class GrandLivreComponent implements OnInit, OnDestroy {
 
   loadChartJs(cb: () => void): void {
     if ((window as any)['Chart']) { cb(); return; }
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-    s.onload = cb;
-    document.head.appendChild(s);
+    // Chart.js chargé à la demande depuis l'application (pas de CDN)
+    import('chart.js/auto').then(m => { (window as any)['Chart'] = m.default; cb(); });
   }
 
   getColor(i: number): string { return CHART_COLORS[i % CHART_COLORS.length]; }

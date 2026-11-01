@@ -241,57 +241,159 @@
     } @else {
       @if (coutsData(); as d) {
 
-        <div class="kpi-full card" style="margin-bottom:16px">
-          <div class="kpi-icon green"><i class="fas fa-coins"></i></div>
-          <div class="kpi-info">
-            <div class="kpi-val-xl">{{ dispatcheur(d.total) | number:'1.0-0' }} FCFA</div>
-            <div class="kpi-label">Coût total {{ d.annee }}</div>
+        <div class="couts-actions">
+          <span class="muted">Année {{ d.annee }} · toutes les dépenses (saisies et reportées automatiquement)</span>
+          <button class="btn btn-excel btn-sm" (click)="exporterCouts()"><i class="fas fa-file-excel"></i> Excel</button>
+        </div>
+
+        <!-- Indicateurs -->
+        <div class="kpi-grid-4">
+          <div class="kpi-card">
+            <div class="kpi-icon green"><i class="fas fa-coins"></i></div>
+            <div class="kpi-info">
+              <div class="kpi-val">{{ d.total | number:'1.0-0' }} <small>FCFA</small></div>
+              <div class="kpi-label">Coût total {{ d.annee }} · {{ d.nb }} dépense(s)</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon blue"><i class="fas fa-history"></i></div>
+            <div class="kpi-info">
+              @if (d.variation !== null) {
+                <div class="kpi-val" [class.txt-rouge]="d.variation > 0" [class.txt-vert]="d.variation < 0">
+                  {{ d.variation > 0 ? '+' : '' }}{{ d.variation | number:'1.1-1' }} %</div>
+              } @else { <div class="kpi-val">—</div> }
+              <div class="kpi-label">vs {{ d.annee - 1 }} ({{ d.total_precedent | number:'1.0-0' }} FCFA)</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon orange"><i class="fas fa-wallet"></i></div>
+            <div class="kpi-info">
+              @if (d.taux_budget !== null) {
+                <div class="kpi-val" [class.txt-rouge]="d.taux_budget > 100">{{ d.taux_budget | number:'1.0-1' }} %</div>
+                <div class="kpi-label">du budget consommé ({{ d.budget_total | number:'1.0-0' }} FCFA)</div>
+              } @else {
+                <div class="kpi-val">—</div><div class="kpi-label">Aucun budget annuel saisi</div>
+              }
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon navy"><i class="fas fa-car"></i></div>
+            <div class="kpi-info">
+              <div class="kpi-val">{{ d.cout_moyen_vehicule | number:'1.0-0' }} <small>FCFA</small></div>
+              <div class="kpi-label">Coût moyen par véhicule ({{ d.nb_vehicules }} actifs)</div>
+            </div>
           </div>
         </div>
 
-        <div class="section-grid-2">
+        <!-- Évolution mensuelle -->
+        <div class="card" style="margin-top:12px">
+          <div class="card-header"><div class="card-title"><i class="fas fa-chart-bar"></i> Évolution mensuelle — {{ d.annee }} comparé à {{ d.annee - 1 }}</div></div>
+          <div class="chart-container chart-lg"><canvas #chartEvolCoutsCanvas></canvas></div>
+        </div>
+
+        <!-- Budget prévu / réalisé -->
+        <div class="card" style="margin-top:12px">
+          <div class="card-header"><div class="card-title"><i class="fas fa-wallet"></i> Budget prévu / réalisé par poste</div></div>
+          <div class="table-container">
+            <table class="ubi-table">
+              <thead><tr><th>Poste</th><th class="num">Prévu</th><th class="num">Réalisé</th><th class="num">Écart</th><th style="width:30%">Consommé</th></tr></thead>
+              <tbody>
+                @for (b of d.budget; track b.poste) {
+                  @if (b.prevu || b.realise) {
+                    <tr>
+                      <td><strong>{{ b.libelle }}</strong></td>
+                      <td class="num">{{ b.prevu | number:'1.0-0' }}</td>
+                      <td class="num"><strong>{{ b.realise | number:'1.0-0' }}</strong></td>
+                      <td class="num" [class.txt-rouge]="b.ecart < 0" [class.txt-vert]="b.ecart > 0">{{ b.ecart | number:'1.0-0' }}</td>
+                      <td>
+                        @if (b.taux !== null) {
+                          <div class="barre-budget"><span [style.width.%]="b.taux > 100 ? 100 : b.taux"
+                               [class.depasse]="b.taux > 100" [class.alerte]="b.taux >= 80 && b.taux <= 100"></span></div>
+                          <span class="muted">{{ b.taux | number:'1.0-1' }} %</span>
+                        } @else { <span class="muted">Pas de budget prévu</span> }
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Répartitions -->
+        <div class="section-grid-2" style="margin-top:12px">
           <div class="card">
             <div class="card-header"><div class="card-title"><i class="fas fa-chart-pie"></i> Par catégorie</div></div>
             <div class="chart-container"><canvas #chartParCatCanvas></canvas></div>
-          </div>
-          <div class="card">
-            <div class="card-header"><div class="card-title"><i class="fas fa-building"></i> Par agence</div></div>
             <div class="table-container">
               <table class="ubi-table">
-                <thead><tr><th>Agence</th><th style="text-align:right">Total (FCFA)</th><th>Part</th></tr></thead>
+                <thead><tr><th>Catégorie</th><th>Poste</th><th class="num">Nb</th><th class="num">Montant</th><th class="num">Part</th></tr></thead>
                 <tbody>
-                  @for (a of d.par_agence; track $index) {
-                    <tr>
-                      <td><strong>{{ a.agence__nom }}</strong>
-                        @if (a.agence__code) { <span style="font-size:10px;color:var(--gray-400)"> ({{ a.agence__code }})</span> }
-                      </td>
-                      <td style="text-align:right;font-weight:700">{{ dispatcheur(a.total) | number:'1.0-0' }}</td>
-                      <td>
-                        <div class="mini-bar">
-                          <div class="mini-fill" [style.background]="getColor($index)"
-                               [style.width.%]="d.total > 0 ? (a.total / d.total) * 100 : 0"></div>
-                        </div>
-                      </td>
-                    </tr>
+                  @for (c of d.par_categorie; track c.categorie) {
+                    <tr><td><strong>{{ c.libelle }}</strong></td><td class="muted">{{ c.poste_libelle }}</td>
+                      <td class="num">{{ c.nb }}</td><td class="num">{{ c.total | number:'1.0-0' }}</td><td class="num">{{ c.part }} %</td></tr>
                   }
                 </tbody>
               </table>
             </div>
           </div>
+          <div class="couts-colonne">
+            <div class="card">
+              <div class="card-header"><div class="card-title"><i class="fas fa-random"></i> Par origine</div></div>
+              <div class="table-container">
+                <table class="ubi-table">
+                  <thead><tr><th>Origine</th><th class="num">Nb</th><th class="num">Montant</th><th style="width:34%">Part</th></tr></thead>
+                  <tbody>
+                    @for (o of d.par_origine; track o.origine; let i = $index) {
+                      <tr><td><strong>{{ o.libelle }}</strong></td><td class="num">{{ o.nb }}</td>
+                        <td class="num">{{ o.total | number:'1.0-0' }}</td>
+                        <td><div class="mini-bar"><div class="mini-fill" [style.background]="getColor(i)" [style.width.%]="o.part"></div></div>
+                          <span class="muted">{{ o.part }} %</span></td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card" style="margin-top:12px">
+              <div class="card-header"><div class="card-title"><i class="fas fa-building"></i> Par agence</div></div>
+              <div class="table-container">
+                <table class="ubi-table">
+                  <thead><tr><th>Agence</th><th class="num">Nb</th><th class="num">Montant</th><th style="width:34%">Part</th></tr></thead>
+                  <tbody>
+                    @for (a of d.par_agence; track $index) {
+                      <tr><td><strong>{{ a.agence }}</strong>
+                          @if (a.code) { <span class="muted" style="font-size:10px"> ({{ a.code }})</span> }</td>
+                        <td class="num">{{ a.nb }}</td><td class="num">{{ a.total | number:'1.0-0' }}</td>
+                        <td><div class="mini-bar"><div class="mini-fill" [style.background]="getColor($index)" [style.width.%]="a.part"></div></div>
+                          <span class="muted">{{ a.part }} %</span></td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- Véhicules les plus coûteux -->
         <div class="card" style="margin-top:12px">
-          <div class="card-header"><div class="card-title"><i class="fas fa-car"></i> Top véhicules les plus coûteux</div></div>
+          <div class="card-header"><div class="card-title"><i class="fas fa-car"></i> Véhicules les plus coûteux — détail par poste</div></div>
           <div class="table-container">
             <table class="ubi-table">
-              <thead><tr><th>Immatriculation</th><th style="text-align:right">Coût total (FCFA)</th></tr></thead>
+              <thead><tr><th>Véhicule</th>
+                @for (p of d.postes; track p.poste) { <th class="num">{{ p.libelle }}</th> }
+                <th class="num">Total</th></tr></thead>
               <tbody>
-                @for (v of d.top_vehicules; track $index) {
+                @for (v of d.top_vehicules; track v.immatriculation) {
                   <tr>
-                    <td><span class="immat-badge">{{ v.vehicule__immatriculation }}</span>
-                      <span style="font-size:11px;color:var(--gray-400);margin-left:8px">{{ v.vehicule__marque__libelle }} {{ v.vehicule__modele__libelle }}</span></td>
-                    <td style="text-align:right;font-weight:700;color:var(--navy)">{{ dispatcheur(v.total) | number:'1.0-0' }}</td>
+                    <td><span class="immat-badge">{{ v.immatriculation }}</span>
+                      <span class="muted" style="font-size:11px;margin-left:8px">{{ v.designation }}</span></td>
+                    @for (p of d.postes; track p.poste) {
+                      <td class="num" [class.muted]="!v.postes[p.poste]">{{ v.postes[p.poste] ? (v.postes[p.poste] | number:'1.0-0') : '—' }}</td>
+                    }
+                    <td class="num"><strong>{{ v.total | number:'1.0-0' }}</strong></td>
                   </tr>
+                } @empty {
+                  <tr><td [attr.colspan]="d.postes.length + 2" class="td-empty">Aucune dépense rattachée à un véhicule.</td></tr>
                 }
               </tbody>
             </table>
