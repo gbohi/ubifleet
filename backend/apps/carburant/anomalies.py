@@ -10,6 +10,14 @@ La référence est la consommation moyenne des AUTRES prises du véhicule
 (litres ÷ km), pour que la prise contrôlée ne se compare pas à elle-même ;
 il en faut au moins MIN_PRISES_REFERENCE pour juger.
 
+Un kilométrage incohérent est lui-même une anomalie : compteur inférieur à
+celui de la prise précédente, ou plus de KM_MAX_INTERVALLE km depuis (erreur
+de saisie probable). Ces intervalles n'entrent pas dans la référence (un seul
+compteur erroné la faussait pour toutes les prises du véhicule) ; la prise
+suivante se calcule depuis la dernière prise au kilométrage cohérent. Les
+consommations hors de [CONSO_MIN, CONSO_MAX] L/100 km ne comptent pas non
+plus dans la référence.
+
 Chaque prise anormale ouvre une alerte « Consommation anormale » pour son
 agence ; l'alerte est mise à jour si la prise est corrigée, et clôturée
 automatiquement si la consommation redevient normale.
@@ -21,6 +29,8 @@ from datetime import datetime, time as datetime_time, timezone as dt_timezone
 from django.utils import timezone
 
 MIN_PRISES_REFERENCE = 3
+KM_MAX_INTERVALLE = 2000          # km entre deux prises au-delà desquels le compteur est jugé erroné
+CONSO_MIN, CONSO_MAX = 2.0, 60.0  # L/100 km plausibles pour entrer dans la référence
 
 
 @dataclass
@@ -30,12 +40,17 @@ class Evaluation:
     conso: float | None         # L/100 km
     reference: float | None     # consommation de référence du véhicule
     motif: str                  # vide si la consommation est normale
+    km_incoherent: bool = False  # compteur incohérent avec la prise précédente
 
 
 def ordre_chronologique(p):
     """Clé de tri des prises : date, heure (sans heure = en fin de journée), saisie."""
     return (p.date_plein, p.heure_plein is None, p.heure_plein or datetime_time.min,
             p.created_at or datetime.max.replace(tzinfo=dt_timezone.utc))
+
+
+def _km(x):
+    return f"{x:,} km".replace(',', ' ')
 
 
 def _nombre(x):
@@ -47,36 +62,57 @@ def evaluer(prises):
     from apps.carburant.models import PleinsCarburant
     from apps.parametrage.echeances import seuil_conso_anomalie
 
-    intervalles, precedent = [], None
+    # Intervalles : depuis la dernière prise au kilométrage cohérent ; les litres
+    # d'une prise écartée sont reportés sur l'intervalle suivant (ils ont été
+    # consommés sur ces km).
+    intervalles, precedent, reportes = [], None, 0.0
     for p in prises:
-        km = None
-        if precedent and p.kilometrage_releve > precedent.kilometrage_releve:
-            km = p.kilometrage_releve - precedent.kilometrage_releve
-        intervalles.append((p, precedent.kilometrage_releve if precedent else None, km))
-        precedent = p
+        km, incoherent = None, ''
+        if precedent:
+            ecart = p.kilometrage_releve - precedent.kilometrage_releve
+            if not p.kilometrage_releve:
+                incoherent = "Kilométrage non renseigné (0 km) : saisissez le compteur relevé à la prise."
+            elif ecart < 0:
+                incoherent = (f"Kilométrage saisi ({_km(p.kilometrage_releve)}) inférieur à celui de la prise "
+                              f"précédente ({_km(precedent.kilometrage_releve)}) : vérifiez le compteur.")
+            elif ecart > KM_MAX_INTERVALLE:
+                incoherent = (f"{_km(ecart)} parcourus depuis la prise précédente ({_km(precedent.kilometrage_releve)}) : "
+                              f"kilométrage probablement erroné (plus de {_km(KM_MAX_INTERVALLE)}), vérifiez le compteur.")
+            elif ecart > 0:
+                km = ecart
+        litres = float(p.volume_litres)
+        if incoherent:
+            reportes += litres
+        elif km:
+            litres, reportes = litres + reportes, 0.0
+        intervalles.append((p, precedent.kilometrage_releve if precedent else None, km, incoherent, litres))
+        if not incoherent:
+            precedent = p
 
-    # Prises qui entrent dans la référence (une prise rejetée n'en fait pas partie)
-    comptees = {p.pk: (float(p.volume_litres), km) for p, _, km in intervalles
-                if km and p.statut_validation != PleinsCarburant.StatutValidation.REJETE}
+    # Prises qui entrent dans la référence : intervalle cohérent, consommation plausible,
+    # prise non rejetée
+    comptees = {p.pk: (litres, km) for p, _, km, _, litres in intervalles
+                if km and CONSO_MIN <= litres / km * 100 <= CONSO_MAX
+                and p.statut_validation != PleinsCarburant.StatutValidation.REJETE}
     total_litres = sum(v for v, _ in comptees.values())
     total_km = sum(k for _, k in comptees.values())
     seuil = seuil_conso_anomalie()
 
     resultat = {}
-    for p, depart, km in intervalles:
-        conso = round(float(p.volume_litres) / km * 100, 2) if km else None
+    for p, depart, km, incoherent, litres_intervalle in intervalles:
+        conso = round(litres_intervalle / km * 100, 2) if km else None
         litres, km_ref, n = total_litres, total_km, len(comptees)
         if p.pk in comptees:
             litres -= comptees[p.pk][0]
             km_ref -= comptees[p.pk][1]
             n -= 1
         reference = round(litres / km_ref * 100, 2) if n >= MIN_PRISES_REFERENCE and km_ref > 0 else None
-        motif = ''
-        if conso is not None and reference and conso > reference * (1 + seuil / 100):
+        motif = incoherent
+        if not motif and conso is not None and reference and conso > reference * (1 + seuil / 100):
             ecart = round((conso / reference - 1) * 100)
             motif = (f"Consommation de {_nombre(conso)} L/100 km, soit {ecart} % au-dessus de la "
                      f"moyenne du véhicule ({_nombre(reference)} L/100 km ; seuil : {seuil:g} %).")
-        resultat[p.pk] = Evaluation(depart, km, conso, reference, motif)
+        resultat[p.pk] = Evaluation(depart, km, conso, reference, motif, bool(incoherent))
     return resultat
 
 
@@ -113,15 +149,19 @@ def synchroniser_alerte(prise, ev):
 
     v = prise.vehicule
     quand = f"{prise.date_plein:%d/%m/%Y}" + (f" à {prise.heure_plein:%H:%M}" if prise.heure_plein else '')
-    km = f"{ev.km:,}".replace(',', ' ')
-    constat = (f"Prise de carburant du {quand} : {_nombre(float(prise.volume_litres))} L pour "
-               f"{km} km parcourus depuis la prise précédente.")
-    message = (f"{constat} {prise.motif_anomalie} Vérifiez le volume et le kilométrage saisis ; "
-               "s'ils sont exacts, recherchez une fuite, une panne ou une utilisation anormale.")
+    if ev.km_incoherent or not ev.km:
+        constat = f"Prise de carburant du {quand} : {_nombre(float(prise.volume_litres))} L, compteur {_km(prise.kilometrage_releve)}."
+        message = f"{constat} {prise.motif_anomalie}"
+    else:
+        constat = (f"Prise de carburant du {quand} : {_nombre(float(prise.volume_litres))} L pour "
+                   f"{_km(ev.km)} parcourus depuis la prise précédente.")
+        message = (f"{constat} {prise.motif_anomalie} Vérifiez le volume et le kilométrage saisis ; "
+                   "s'ils sont exacts, recherchez une fuite, une panne ou une utilisation anormale.")
     champs = {
         'type_alerte': Alerte.TypeAlerte.CONSO_ANORMALE,
         'priorite': Alerte.Priorite.HAUTE,
-        'titre': f"Consommation anormale — {v.immatriculation}",
+        'titre': (f"Kilométrage incohérent — {v.immatriculation}" if ev.km_incoherent
+                  else f"Consommation anormale — {v.immatriculation}"),
         'message': message,
         'vehicule': v,
         'chauffeur': prise.chauffeur,

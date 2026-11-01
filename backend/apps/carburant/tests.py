@@ -122,6 +122,34 @@ class AnomalieConsommationTests(UtilisateursMixin, APITestCase):
         self.assertIn('13,60 L/100 km', p.motif_anomalie)
         self.assertIn('10,', p.motif_anomalie)
 
+    def _evaluer(self):
+        from .anomalies import evaluer, prises_du_vehicule
+        prises = prises_du_vehicule(self.vehicule)
+        return prises, evaluer(prises)
+
+    def test_compteur_errone_ne_fausse_pas_la_reference(self):
+        # Donnée existante (import, saisie ancienne) : un compteur à +100 000 km au milieu
+        # de l'historique est signalé, n'entre pas dans la référence, et la prise suivante
+        # se calcule depuis la dernière prise cohérente.
+        self.historique_normal()
+        derniere = self.prise(5, 12500, 68)                  # 13,6 L/100 km pour 10 de moyenne
+        prises, ev = self._evaluer()
+        PleinsCarburant.objects.filter(pk=prises[3].pk).update(kilometrage_releve=111500)
+        prises, ev = self._evaluer()
+        self.assertIn('kilométrage probablement erroné', ev[prises[3].pk].motif)
+        self.assertTrue(ev[prises[3].pk].km_incoherent)
+        self.assertEqual(ev[prises[4].pk].depart, 11000)      # depuis la prise 2 (cohérente)
+        self.assertEqual(ev[derniere.pk].reference, 10.0)      # référence non faussée
+        self.assertTrue(ev[derniere.pk].motif)                 # l'anomalie réelle reste détectée
+
+    def test_compteur_inferieur_signale(self):
+        self.historique_normal()
+        prises, _ = self._evaluer()
+        PleinsCarburant.objects.filter(pk=prises[4].pk).update(kilometrage_releve=9000)
+        prises, ev = self._evaluer()
+        self.assertIn('inférieur à celui de la prise précédente', ev[prises[4].pk].motif)
+        self.assertIsNone(ev[prises[4].pk].conso)
+
     def test_alerte_ouverte_puis_cloturee_apres_correction(self):
         self.historique_normal()
         p = self.prise(5, 12500, 90)
