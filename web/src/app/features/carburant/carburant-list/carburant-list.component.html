@@ -12,10 +12,12 @@
       </p>
     </div>
     <div class="header-actions">
-      <button class="btn btn-outline btn-sm" [disabled]="exportEnCours()" (click)="exporterPrises()"
-              title="Exporte toutes les prises correspondant aux filtres de la liste">
-        <i class="fas fa-file-excel"></i> {{ exportEnCours() ? 'Export…' : 'Exporter' }}
-      </button>
+      @if (activeTab() === 'pleins') {
+        <button class="btn btn-outline btn-sm" [disabled]="exportEnCours()" (click)="exporterPrises()"
+                title="Exporte toutes les prises correspondant aux filtres de la liste">
+          <i class="fas fa-file-excel"></i> {{ exportEnCours() ? 'Export…' : 'Exporter' }}
+        </button>
+      }
       <button class="btn btn-green" (click)="goToNew()">
         <i class="fas fa-plus"></i> Saisir une prise de carburant
       </button>
