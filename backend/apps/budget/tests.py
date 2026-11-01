@@ -51,8 +51,9 @@ class DepensesAutomatiquesTests(UtilisateursMixin, APITestCase):
                                         date_debut='2026-01-01', date_fin='2026-12-31', prime_annuelle=Decimal('300000'))
         d = self.depense('contrat_assurance')
         self.assertEqual((d.categorie, d.montant, d.agence_id, d.fournisseur), ('assurance', Decimal('300000'), self.agence_a.id, 'NSIA'))
+        # Pneu : coût informatif, compté par l'intervention (pas de double compte)
         SuiviPneus.objects.create(vehicule=self.v, position='av_gauche', date_montage='2026-02-01', cout=Decimal('60000'))
-        self.assertEqual(self.depense('pneu').categorie, 'pneus')
+        self.assertIsNone(self.depense('pneu'))
         # Sinistre : réparation − indemnisation reçue
         s = Sinistre.objects.create(vehicule=self.v, agence=self.agence_a, type_sinistre='accident',
                                     date_sinistre='2026-05-01', description='Choc')

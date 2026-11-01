@@ -7,9 +7,12 @@ comptent ainsi tous les coûts sans ressaisie.
 
   prise de carburant   → « Carburant »             montant de la prise
   intervention terminée → selon le type d'intervention, coût réel
-  pneu                 → « Pneumatiques »          coût du pneu, au montage
   contrat d'assurance  → « Assurance »             prime, au début du contrat
   sinistre             → « Sinistre »              coût de réparation − indemnisation reçue
+
+Le coût saisi dans le suivi des pneus reste informatif : un changement de
+pneus est compté par son intervention (type « pneus »), pour ne pas le
+compter deux fois.
 
 Les fonctions `champs_*` ne lisent que des champs : elles servent aussi à la
 reprise des données existantes (migration).
@@ -19,19 +22,19 @@ from decimal import Decimal
 
 REF_PRISE        = 'prise_carburant'
 REF_INTERVENTION = 'intervention'
-REF_PNEU         = 'pneu'
+REF_PNEU         = 'pneu'   # ancienne source, retirée (cf. migration 0004)
 REF_CONTRAT      = 'contrat_assurance'
 REF_SINISTRE     = 'sinistre'
 
 #: Origine affichée dans l'état des dépenses ; '' = saisie manuelle
 ORIGINES = {
-    REF_PRISE: 'Prise de carburant', REF_INTERVENTION: 'Intervention', REF_PNEU: 'Pneu',
+    REF_PRISE: 'Prise de carburant', REF_INTERVENTION: 'Intervention',
     REF_CONTRAT: "Contrat d'assurance", REF_SINISTRE: 'Sinistre',
 }
 #: Où modifier une dépense automatique
 MODIFIER_DANS = {
     REF_PRISE: 'la prise de carburant (Carburant)', REF_INTERVENTION: "l'intervention (Entretiens)",
-    REF_PNEU: 'le suivi des pneus (Entretiens)', REF_CONTRAT: "le contrat d'assurance (Sinistres & Assurances)",
+    REF_CONTRAT: "le contrat d'assurance (Sinistres & Assurances)",
     REF_SINISTRE: 'le sinistre (Sinistres & Assurances)',
 }
 
@@ -77,18 +80,6 @@ def champs_intervention(i):
         'date_depense': i.date_fin or i.date_debut or i.date_planifiee, 'montant': i.cout_reel,
         'description': f"Intervention — {type_i.nom}",
         'fournisseur': i.prestataire.nom if i.prestataire_id else '', 'numero_facture': '',
-    }
-
-
-def champs_pneu(p):
-    if not _positif(p.cout):
-        return None
-    return {
-        'vehicule_id': p.vehicule_id, 'agence_id': p.vehicule.agence_id, 'categorie': 'pneus',
-        'date_depense': p.date_montage, 'montant': p.cout,
-        'description': f"Pneu {p.position.replace('_', ' ')}" + (f" — {p.marque}" if p.marque else '')
-                       + (f" {p.dimension}" if p.dimension else ''),
-        'fournisseur': '', 'numero_facture': '',
     }
 
 
@@ -140,12 +131,11 @@ def supprimer(ref_type, source_pk):
 def connecter_signaux():
     """Branche le report automatique sur les modèles sources (BudgetConfig.ready)."""
     from django.db.models.signals import post_delete, post_save
-    from apps.entretien.models import Intervention, SuiviPneus
+    from apps.entretien.models import Intervention
     from apps.sinistres.models import ContratAssurance, Sinistre
     from .models import DepenseVehicule
 
     for modele, ref, champs in ((Intervention, REF_INTERVENTION, champs_intervention),
-                                (SuiviPneus, REF_PNEU, champs_pneu),
                                 (ContratAssurance, REF_CONTRAT, champs_contrat),
                                 (Sinistre, REF_SINISTRE, champs_sinistre)):
         def enregistre(sender, instance, raw=False, _ref=ref, _champs=champs, **kwargs):

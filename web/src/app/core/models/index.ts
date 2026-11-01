@@ -339,7 +339,7 @@ export interface Depense {
   automatique?: boolean;
   ref_objet_id?: string | null;
   ref_objet_type?: string;
-  /** Prise de carburant, Intervention, Pneu, Contrat d'assurance, Sinistre ou Saisie manuelle. */
+  /** Prise de carburant, Intervention, Contrat d'assurance, Sinistre ou Saisie manuelle. */
   origine?: string;
 }
 

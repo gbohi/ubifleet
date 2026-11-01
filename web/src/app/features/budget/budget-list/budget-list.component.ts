@@ -44,7 +44,6 @@ export class BudgetListComponent implements OnInit {
     { value: 'manuelle',          label: 'Saisie manuelle' },
     { value: 'prise_carburant',   label: 'Prise de carburant' },
     { value: 'intervention',      label: 'Intervention' },
-    { value: 'pneu',              label: 'Pneu' },
     { value: 'contrat_assurance', label: "Contrat d'assurance" },
     { value: 'sinistre',          label: 'Sinistre' },
   ];
@@ -181,8 +180,7 @@ export class BudgetListComponent implements OnInit {
       case 'prise_carburant': return ['/carburant', d.ref_objet_id, 'modifier'];
       case 'intervention':    return ['/entretien', d.ref_objet_id];
       case 'sinistre':        return ['/sinistres', d.ref_objet_id];
-      case 'contrat_assurance':
-      case 'pneu':            return d.vehicule ? ['/vehicules', d.vehicule] : null;
+      case 'contrat_assurance': return d.vehicule ? ['/vehicules', d.vehicule] : null;
       default:                return null;
     }
   }

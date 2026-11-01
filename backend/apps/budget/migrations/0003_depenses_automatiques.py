@@ -1,4 +1,4 @@
-"""Interventions terminées, pneus, contrats d'assurance et sinistres reportés
+"""Interventions terminées, contrats d'assurance et sinistres reportés
 dans les dépenses ; les catégories qu'ils alimentent deviennent « système »."""
 
 from django.db import migrations
@@ -11,7 +11,6 @@ def reprendre(apps, schema_editor):
     Depense = apps.get_model('budget', 'DepenseVehicule')
     sources = (
         (apps.get_model('entretien', 'Intervention'), a.REF_INTERVENTION, a.champs_intervention),
-        (apps.get_model('entretien', 'SuiviPneus'), a.REF_PNEU, a.champs_pneu),
         (apps.get_model('sinistres', 'ContratAssurance'), a.REF_CONTRAT, a.champs_contrat),
         (apps.get_model('sinistres', 'Sinistre'), a.REF_SINISTRE, a.champs_sinistre),
     )
