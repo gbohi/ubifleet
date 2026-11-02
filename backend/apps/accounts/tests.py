@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from apps.parametrage.models import Parametre
-from .models import Role, User
+from .models import PermissionRole, Role, User
 
 
 class SecuriteComptesTests(APITestCase):
@@ -199,3 +199,61 @@ class MesAccesTests(APITestCase):
         PermissionRole.objects.create(role=self.roles['chauffeur'], module='vehicules',
                                       action='list', autorise=True)
         self.assertTrue(self.acces('chauffeur')['vehicules'])
+
+
+from apps.core.testing import UtilisateursMixin
+
+
+class AdministrationTests(UtilisateursMixin, APITestCase):
+    """Garde-fous des comptes, rôles système et matrice des permissions."""
+
+    def test_garde_fous_comptes(self):
+        self.client.force_authenticate(self.super_admin)
+        url = f'/api/v1/auth/users/{self.super_admin.id}/'
+        # Dernier super admin : ni rétrogradé, ni désactivé, ni supprimé ; pas de suppression de soi
+        r = self.client.patch(url, {'role': str(self.roles['dg'].id)}, format='json')
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.client.delete(url).status_code, 403)
+        # Création : e-mail en minuscules, unique sans casse, identifiant dérivé
+        data = {'email': 'Nouveau@Test.ci', 'first_name': 'N', 'last_name': 'U', 'password': 'Motdepasse!2026',
+                'password2': 'Motdepasse!2026', 'role': str(self.roles['operateur'].id)}
+        r = self.client.post('/api/v1/auth/users/', data, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        u = User.objects.get(email='nouveau@test.ci')
+        self.assertEqual(u.username, 'nouveau')
+        self.assertEqual(self.client.post('/api/v1/auth/users/', {**data, 'email': 'NOUVEAU@test.ci'}, format='json').status_code, 400)
+        # Mot de passe faible refusé à la réinitialisation
+        r = self.client.post(f'/api/v1/auth/users/{u.id}/reset_password/', {'new_password': '12345678'}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_roles_systeme(self):
+        self.client.force_authenticate(self.super_admin)
+        r = self.client.patch(f"/api/v1/auth/roles/{self.roles['dg'].id}/", {'niveau': 3}, format='json')
+        self.assertEqual(r.status_code, 400)
+        r = self.client.post('/api/v1/auth/roles/', {'code': 'chef', 'nom': 'Chef', 'niveau': 10}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_matrice_effective_et_regles(self):
+        self.client.force_authenticate(self.super_admin)
+        op = str(self.roles['operateur'].id)
+        meta = self.client.get('/api/v1/auth/permissions/meta/').data
+        # Sans règle : droit par défaut du niveau (opérateur consulte les véhicules, ne les supprime pas)
+        self.assertEqual(meta['effectifs'][op]['vehicules']['list'], {'autorise': True, 'defaut': True, 'regle': False})
+        self.assertFalse(meta['effectifs'][op]['vehicules']['destroy']['autorise'])
+        self.assertNotIn('roles', meta['module_actions'])
+        # Écart au défaut : règle créée ; retour au défaut : règle supprimée
+        bulk = '/api/v1/auth/permissions/bulk/'
+        self.client.post(bulk, [{'role': op, 'module': 'vehicules', 'action': 'destroy', 'autorise': True}], format='json')
+        self.assertTrue(PermissionRole.objects.filter(role_id=op, module='vehicules', action='destroy').exists())
+        self.client.post(bulk, [{'role': op, 'module': 'vehicules', 'action': 'destroy', 'autorise': False}], format='json')
+        self.assertFalse(PermissionRole.objects.filter(role_id=op, module='vehicules', action='destroy').exists())
+        r = self.client.post(bulk, [{'role': op, 'module': 'vehicules', 'action': 'inconnue', 'autorise': True}], format='json')
+        self.assertEqual(r.status_code, 400)
+        # Les règles « utilisateurs » sont désormais appliquées par l'API
+        self.client.post(bulk, [{'role': op, 'module': 'users', 'action': 'list', 'autorise': True}], format='json')
+        self.client.force_authenticate(self.operateur)
+        self.assertEqual(self.client.get('/api/v1/auth/users/').status_code, 200)
+        self.client.force_authenticate(self.super_admin)
+        self.client.post('/api/v1/auth/permissions/reinitialiser/', {'role': op}, format='json')
+        self.client.force_authenticate(self.operateur)
+        self.assertEqual(self.client.get('/api/v1/auth/users/').status_code, 403)

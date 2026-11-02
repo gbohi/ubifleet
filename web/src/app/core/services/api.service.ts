@@ -157,6 +157,9 @@ export class UserApiService extends ApiBaseService {
   bulkUpdatePermissions(data: any[]): Observable<any> {
     return this.http.post(`${API}/auth/permissions/bulk/`, data);
   }
+  reinitialiserPermissions(roleId: string): Observable<any> {
+    return this.http.post(`${API}/auth/permissions/reinitialiser/`, { role: roleId });
+  }
   updatePermission(id: string, data: any): Observable<any> {
     return this.http.patch(`${API}/auth/permissions/${id}/`, data);
   }

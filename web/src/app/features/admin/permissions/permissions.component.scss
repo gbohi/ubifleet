@@ -136,3 +136,16 @@
     font-size: 12px; font-weight: 600;
   }
 }
+
+.role-tab small { font-size: 10px; opacity: .65; margin-left: 4px; }
+.role-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  .role-perso { font-size: 12px; color: var(--gray-500); }
+  .reset-confirm { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--danger); } }
+.info-super { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 14px;
+  background: #fffbeb; color: #92400e; border-left: 3px solid #f59e0b; border-radius: var(--radius-md); font-size: 13px; }
+.module-card.verrouille .perm-row { cursor: default; opacity: .8; }
+.module-card.verrouille .module-header-actions { display: none; }
+.module-compte { font-size: 11px; font-weight: 500; opacity: .7; margin-left: 4px; }
+.perso-tag { margin-left: auto; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 99px;
+  background: #ede9fe; color: #6d28d9; white-space: nowrap; }
+.perm-row .pending-dot { margin-left: 6px; }

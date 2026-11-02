@@ -69,3 +69,20 @@
   &:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .pagination-info { font-size: 12px; color: var(--gray-400); margin-left: 8px; }
+
+.filtres-card { padding: 14px 18px; margin-bottom: 14px; }
+.filtres-us {
+  display: grid; gap: 10px 12px; align-items: end;
+  grid-template-columns: minmax(220px, 1.6fr) repeat(3, minmax(0, 1fr));
+  &.sans-agence { grid-template-columns: minmax(220px, 1.6fr) repeat(2, minmax(0, 1fr)); }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .filter-label { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .5px;
+    display: flex; align-items: center; gap: 5px; i { font-size: 10px; color: var(--gray-400); } }
+  .form-control { height: 36px; padding: 0 10px; font-size: 13px; width: 100%; box-sizing: border-box; }
+  @media (max-width: 900px) { &, &.sans-agence { grid-template-columns: 1fr 1fr; } .fu-recherche { grid-column: 1 / -1; } }
+  @media (max-width: 480px) { &, &.sans-agence { grid-template-columns: 1fr; } }
+}
+.filtres-pied { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-100); min-height: 30px;
+  .fp-sep { flex: 1; } .fp-compte { font-size: 13px; color: var(--gray-500); } }
+.toutes-agences { font-size: 12px; color: var(--navy); font-weight: 600; }
+.jamais { color: var(--gray-400); font-size: 12px; }

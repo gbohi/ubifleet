@@ -7,6 +7,7 @@ import { RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { UserApiService, AgenceApiService, RoleApiService } from '../../../core/services/api.service';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { UbiUser, Role, Agence } from '../../../core/models';
 
@@ -38,6 +39,12 @@ export class UsersComponent implements OnInit {
   searchVal    = signal('');
   filterRole   = signal('');
   filterActif  = signal('');
+  filterAgence = signal('');
+  private minuterie?: ReturnType<typeof setTimeout>;
+  private minuterieMsg?: ReturnType<typeof setTimeout>;
+  moi = computed(() => this.auth.currentUser());
+  nbFiltresActifs = computed(() =>
+    [this.searchVal(), this.filterRole(), this.filterActif(), this.filterAgence()].filter(v => !!v).length);
 
   showModal    = signal(false);
   editUserId   = signal<string | null>(null);
@@ -56,13 +63,21 @@ export class UsersComponent implements OnInit {
     return this.rolesDb().map(r => ({ value: r.id, label: r.nom }));
   }
 
+  /** Rôles attribuables : actifs et de niveau inférieur au sien (tous pour le super admin). */
+  rolesAttribuables = computed(() => {
+    const monNiveau = (this.moi() as any)?.role_detail?.niveau ?? 0;
+    return this.rolesDb()
+      .filter(r => r.is_active && (monNiveau >= 10 || r.niveau < monNiveau))
+      .sort((a, b) => b.niveau - a.niveau);
+  });
+
   userForm = this.fb.group({
     email:      ['', [Validators.required, Validators.email]],
-    username:   ['', Validators.required],
+    username:   [''],
     first_name: ['', Validators.required],
     last_name:  ['', Validators.required],
-    role:       [null as string | null],
-    agence:     [null as string | null],
+    role:       ['' as string, Validators.required],
+    agence:     ['' as string],
     telephone:  [''],
     password:   [''],
     password2:  [''],
@@ -96,6 +111,7 @@ export class UsersComponent implements OnInit {
     if (this.searchVal())   filters['search']    = this.searchVal();
     if (this.filterRole())  filters['role']      = this.filterRole();
     if (this.filterActif()) filters['is_active'] = this.filterActif();
+    if (this.filterAgence()) filters['agence']   = this.filterAgence();
 
     this.userApi.getAll(filters).subscribe({
       next: (res: any) => {
@@ -108,8 +124,22 @@ export class UsersComponent implements OnInit {
   }
 
   onSearch(e: Event): void {
-    this.searchVal.set((e.target as HTMLInputElement).value);
+    const v = (e.target as HTMLInputElement).value.trim();
+    clearTimeout(this.minuterie);
+    this.minuterie = setTimeout(() => { this.searchVal.set(v); this.page.set(1); this.loadUsers(); }, 350);
+  }
+  onAgenceFilter(e: Event): void {
+    this.filterAgence.set((e.target as HTMLSelectElement).value);
     this.page.set(1); this.loadUsers();
+  }
+  reinitialiserFiltres(): void {
+    this.searchVal.set(''); this.filterRole.set(''); this.filterActif.set(''); this.filterAgence.set('');
+    this.page.set(1); this.loadUsers();
+  }
+  private afficher(msg: string): void {
+    this.modalSuccess.set(msg);
+    clearTimeout(this.minuterieMsg);
+    this.minuterieMsg = setTimeout(() => this.modalSuccess.set(''), 5000);
   }
   onRoleFilter(e: Event): void {
     this.filterRole.set((e.target as HTMLSelectElement).value);
@@ -130,8 +160,8 @@ export class UsersComponent implements OnInit {
         username:   user.username,
         first_name: user.first_name,
         last_name:  user.last_name,
-        role:       user.role,
-        agence:     user.agence,
+        role:       user.role ?? '',
+        agence:     user.agence ?? '',
         telephone:  user.telephone,
         password:   '',
         password2:  '',
@@ -140,7 +170,8 @@ export class UsersComponent implements OnInit {
       this.f['password2'].clearValidators();
     } else {
       this.editUserId.set(null);
-      this.userForm.reset({ role: null });
+      // Rattaché à une agence : le nouveau compte est dans la même agence
+      this.userForm.reset({ role: '', agence: this.peutChoisirToutesAgences() ? '' : ((this.moi() as any)?.agence ?? '') });
       this.f['password'].setValidators([Validators.required, Validators.minLength(8)]);
       this.f['password2'].setValidators([Validators.required]);
     }
@@ -152,7 +183,11 @@ export class UsersComponent implements OnInit {
   closeModal(): void { this.showModal.set(false); }
 
   saveUser(): void {
-    if (this.userForm.invalid || this.saving()) return;
+    this.userForm.markAllAsTouched();
+    if (this.userForm.invalid || this.saving()) {
+      if (this.userForm.invalid) this.modalError.set('Renseignez les champs obligatoires (*).');
+      return;
+    }
     const raw = this.userForm.value;
 
     if (!this.editUserId() && raw.password !== raw.password2) {
@@ -164,14 +199,15 @@ export class UsersComponent implements OnInit {
     this.modalError.set('');
 
     const payload: Record<string, any> = {
-      email:      raw.email,
-      username:   raw.username,
-      first_name: raw.first_name,
-      last_name:  raw.last_name,
-      role:       raw.role,
+      email:      (raw.email ?? '').trim(),
+      first_name: (raw.first_name ?? '').trim(),
+      last_name:  (raw.last_name ?? '').trim(),
+      role:       raw.role || null,
       telephone:  raw.telephone ?? '',
+      // Vide = « Toutes les agences » (contrôlé par le serveur)
+      agence:     raw.agence || null,
     };
-    if (raw.agence) payload['agence'] = raw.agence;
+    if (raw.username?.trim()) payload['username'] = raw.username.trim();
     if (!this.editUserId()) {
       payload['password']  = raw.password;
       payload['password2'] = raw.password2;
@@ -184,28 +220,24 @@ export class UsersComponent implements OnInit {
     req.subscribe({
       next: () => {
         this.saving.set(false);
-        this.modalSuccess.set(this.editUserId() ? 'Utilisateur modifié.' : 'Utilisateur créé.');
+        this.afficher(this.editUserId() ? 'Utilisateur modifié.' : 'Utilisateur créé.');
         this.closeModal();
         this.loadUsers();
       },
       error: (err) => {
         this.saving.set(false);
-        if (err?.error && typeof err.error === 'object') {
-          const msgs = Object.entries(err.error)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-            .join(' | ');
-          this.modalError.set(msgs);
-        } else {
-          this.modalError.set("Erreur lors de l'enregistrement.");
-        }
+        this.modalError.set(messageErreurApi(err, "Erreur lors de l'enregistrement."));
       },
     });
   }
 
+  actionErreur = signal('');
+
   toggleActive(user: UbiUser): void {
+    this.actionErreur.set('');
     this.userApi.toggleActive(user.id).subscribe({
-      next: () => this.loadUsers(),
-      error: () => {},
+      next: (r: any) => { this.afficher(r?.detail ?? 'Statut modifié.'); this.loadUsers(); },
+      error: err => this.actionErreur.set(messageErreurApi(err, 'Action impossible.')),
     });
   }
 
@@ -214,8 +246,8 @@ export class UsersComponent implements OnInit {
 
   doDelete(id: string): void {
     this.userApi.delete(id).subscribe({
-      next: () => { this.deleteUserId.set(null); this.loadUsers(); },
-      error: () => this.deleteUserId.set(null),
+      next: () => { this.deleteUserId.set(null); this.afficher('Utilisateur supprimé.'); this.loadUsers(); },
+      error: err => { this.deleteUserId.set(null); this.actionErreur.set(messageErreurApi(err, 'Suppression impossible.')); },
     });
   }
 
@@ -235,12 +267,20 @@ export class UsersComponent implements OnInit {
     }
     this.pwdSaving.set(true);
     this.userApi.resetPassword(this.pwdUserId()!, this.newPwd()).subscribe({
-      next: () => { this.pwdSaving.set(false); this.closePwdModal(); },
+      next: () => { this.pwdSaving.set(false); this.closePwdModal(); this.afficher('Mot de passe réinitialisé.'); },
       error: (err) => {
         this.pwdSaving.set(false);
-        this.pwdError.set(err?.error?.detail ?? 'Erreur.');
+        this.pwdError.set(messageErreurApi(err, 'Réinitialisation impossible.'));
       },
     });
+  }
+
+  estAttribuable(id: string): boolean { return this.rolesAttribuables().some(r => r.id === id); }
+  nomRole(id: string): string { return this.rolesDb().find(r => r.id === id)?.nom ?? '—'; }
+
+  nomUtilisateur(id: string | null): string {
+    const u = this.users().find(x => x.id === id);
+    return u ? `${u.first_name} ${u.last_name}`.trim() || u.email : '';
   }
 
   onPageChange(p: number): void { this.page.set(p); this.loadUsers(); }

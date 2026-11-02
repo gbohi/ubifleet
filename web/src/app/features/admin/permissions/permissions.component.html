@@ -8,7 +8,7 @@
         Permissions par rôle
       </h1>
       <p class="page-subtitle">
-        Cliquez sur une permission pour l'activer ou la désactiver, puis sauvegardez.
+        Droits réellement appliqués à chaque rôle. Sans réglage particulier, un rôle suit les droits de son niveau.
       </p>
     </div>
     <a routerLink="/admin/users" class="btn btn-outline btn-sm">
@@ -35,11 +35,11 @@
 
     <!-- Sélecteur de rôle -->
     <div class="role-tabs">
-      @for (r of roles; track r.value) {
+      @for (r of meta()!.roles; track r.id) {
         <button class="role-tab"
-                [class.active]="selectedRole() === r.value"
-                (click)="selectRole(r.value)">
-          {{ r.label }}
+                [class.active]="selectedRole() === r.id"
+                (click)="selectRole(r.id)">
+          {{ r.nom }} <small>niv. {{ r.niveau }}</small>
         </button>
       }
     </div>
@@ -81,22 +81,45 @@
     <!-- Rôle sélectionné — titre -->
     <div class="role-title">
       <i class="fas fa-user-tag"></i>
-      Permissions du rôle :
-      <strong>{{ getRoleLabel(selectedRole()) }}</strong>
+      Permissions du rôle : <strong>{{ roleCourant()?.nom }}</strong>
+      @if (!estSuperAdmin()) {
+        <span class="role-perso">
+          @if (nbPersonnalises()) { {{ nbPersonnalises() }} droit(s) personnalisé(s) } @else { droits par défaut du niveau {{ roleCourant()?.niveau }} }
+        </span>
+        @if (nbPersonnalises()) {
+          @if (confirmReset()) {
+            <span class="reset-confirm">Supprimer les {{ nbPersonnalises() }} réglage(s) ?
+              <button class="btn btn-danger btn-sm" (click)="reinitialiserRole()">Confirmer</button>
+              <button class="btn btn-outline btn-sm" (click)="confirmReset.set(false)">Annuler</button>
+            </span>
+          } @else {
+            <button class="btn btn-outline btn-sm" (click)="confirmReset.set(true)"><i class="fas fa-undo"></i> Rétablir les droits par défaut</button>
+          }
+        }
+      }
     </div>
+
+    @if (estSuperAdmin()) {
+      <div class="info-super"><i class="fas fa-crown"></i> Le super administrateur a tous les droits ; ils ne sont pas réglables.
+        Les écrans Rôles et Permissions lui sont réservés.</div>
+    }
 
     <!-- Grille par module -->
     <div class="modules-grid">
-      @for (moduleKey of moduleKeys(); track moduleKey) {
-        <div class="module-card">
+      @for (m of modules(); track m.value) {
+        @let moduleKey = m.value;
+        <div class="module-card" [class.verrouille]="estSuperAdmin()">
 
           <!-- En-tête module avec toggle global -->
           <div class="module-header">
             <span>
               <i class="fas fa-cube"></i>
-              {{ getModuleLabel(moduleKey) }}
+              {{ m.label }} <small class="module-compte">{{ compteModule(moduleKey) }}</small>
             </span>
             <div class="module-header-actions">
+              <button class="mini-btn" title="Valeurs par défaut du niveau" (click)="defautModule(moduleKey)">
+                <i class="fas fa-undo"></i>
+              </button>
               <button class="mini-btn mini-btn-green"
                       title="Tout autoriser"
                       (click)="toggleModule(moduleKey, true)">
@@ -112,14 +135,14 @@
 
           <!-- Actions -->
           <div class="module-body">
-            @for (action of getActionsForModule(moduleKey); track action.value) {
+            @for (action of meta()!.module_actions[moduleKey]; track action.value) {
               <div class="perm-row"
-                   [class.allowed]="isAllowed(selectedRole(), moduleKey, action.value)"
-                   [class.pending]="pending().has(selectedRole() + '::' + moduleKey + '::' + action.value)"
+                   [class.allowed]="isAllowed(moduleKey, action.value)"
+                   [class.pending]="estEnAttente(moduleKey, action.value)"
                    (click)="toggle(moduleKey, action.value)">
 
                 <span class="perm-toggle">
-                  @if (isAllowed(selectedRole(), moduleKey, action.value)) {
+                  @if (isAllowed(moduleKey, action.value)) {
                     <i class="fas fa-toggle-on toggle-on"></i>
                   } @else {
                     <i class="fas fa-toggle-off toggle-off"></i>
@@ -128,7 +151,10 @@
 
                 <span class="perm-action">{{ action.label }}</span>
 
-                @if (pending().has(selectedRole() + '::' + moduleKey + '::' + action.value)) {
+                @if (estPersonnalise(moduleKey, action.value)) {
+                  <span class="perso-tag" title="Différent du droit par défaut de ce niveau">personnalisé</span>
+                }
+                @if (estEnAttente(moduleKey, action.value)) {
                   <span class="pending-dot" title="Modification non sauvegardée"></span>
                 }
 
@@ -154,21 +180,12 @@
         <span class="pending-dot"></span>
         Modification non sauvegardée
       </div>
+      <div class="legend-item"><span class="perso-tag">personnalisé</span> différent du droit par défaut du niveau</div>
       <div class="legend-item" style="margin-left:auto;font-size:11px;color:var(--gray-400)">
         <i class="fas fa-check-double" style="color:var(--green-dark)"></i> = tout autoriser •
         <i class="fas fa-ban" style="color:var(--danger)"></i> = tout interdire
       </div>
     </div>
-
-    <!-- Aucune permission en DB -->
-    @if (rules().length === 0) {
-      <div class="init-hint">
-        <i class="fas fa-info-circle"></i>
-        Aucune permission n'est encore configurée en base de données.
-        Lancez <code>python manage.py init_permissions</code> pour initialiser
-        les permissions par défaut, puis rechargez la page.
-      </div>
-    }
 
   }
 

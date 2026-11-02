@@ -8,6 +8,7 @@ import { DatePipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { RoleApiService } from '../../../core/services/api.service';
 import { Role } from '../../../core/models';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 
 @Component({
   selector: 'ubi-roles',
@@ -30,6 +31,8 @@ export class RolesComponent implements OnInit {
   modalSuccess= signal('');
   deleteId    = signal<string | null>(null);
   deleteError = signal('');
+  /** Rôle système : niveau et activation figés (ils portent les droits par défaut). */
+  editSysteme = signal(false);
 
   roleForm = this.fb.group({
     code:        ['', [Validators.required, Validators.pattern(/^[a-z0-9_]+$/)]],
@@ -63,10 +66,16 @@ export class RolesComponent implements OnInit {
       });
       // Code non modifiable après création
       this.f['code'].disable();
+      // Rôle système ou super administrateur (niveau 10) : niveau figé
+      this.editSysteme.set(role.is_system || role.niveau >= 10);
+      if (this.editSysteme()) { this.f['niveau'].disable(); this.f['is_active'].disable(); }
+      else { this.f['niveau'].enable(); this.f['is_active'].enable(); }
     } else {
       this.editRoleId.set(null);
       this.roleForm.reset({ niveau: 2, is_active: true });
       this.f['code'].enable();
+      this.editSysteme.set(false);
+      this.f['niveau'].enable(); this.f['is_active'].enable();
     }
     this.showModal.set(true);
   }
@@ -74,16 +83,19 @@ export class RolesComponent implements OnInit {
   closeModal(): void { this.showModal.set(false); }
 
   saveRole(): void {
-    if (this.roleForm.invalid || this.saving()) return;
+    this.roleForm.markAllAsTouched();
+    if (this.roleForm.invalid || this.saving()) {
+      if (this.roleForm.invalid) this.modalError.set('Renseignez le code (minuscules, chiffres, _) et le nom.');
+      return;
+    }
     this.saving.set(true);
     this.modalError.set('');
 
     const raw = this.roleForm.getRawValue();
-    const payload = {
-      code: raw.code ?? '', nom: raw.nom ?? '',
-      niveau: raw.niveau ?? 2, description: raw.description ?? '',
-      is_active: raw.is_active ?? true,
+    const payload: Record<string, any> = {
+      code: raw.code ?? '', nom: (raw.nom ?? '').trim(), description: raw.description ?? '',
     };
+    if (!this.editSysteme()) { payload['niveau'] = raw.niveau ?? 2; payload['is_active'] = raw.is_active ?? true; }
 
     const req = this.editRoleId()
       ? this.roleApi.update(this.editRoleId()!, payload)
@@ -98,14 +110,7 @@ export class RolesComponent implements OnInit {
       },
       error: (err) => {
         this.saving.set(false);
-        if (err?.error && typeof err.error === 'object') {
-          const msgs = Object.entries(err.error)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-            .join(' | ');
-          this.modalError.set(msgs);
-        } else {
-          this.modalError.set("Erreur lors de l'enregistrement.");
-        }
+        this.modalError.set(messageErreurApi(err, "Erreur lors de l'enregistrement."));
       },
     });
   }
@@ -120,7 +125,7 @@ export class RolesComponent implements OnInit {
     this.roleApi.delete(id).subscribe({
       next: () => { this.deleteId.set(null); this.loadRoles(); },
       error: (err) => {
-        this.deleteError.set(err?.error?.detail ?? "Impossible de supprimer ce rôle.");
+        this.deleteError.set(messageErreurApi(err, "Impossible de supprimer ce rôle."));
       },
     });
   }

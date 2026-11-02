@@ -21,5 +21,6 @@ urlpatterns = [
     path('me/acces/',          views.MesAccesView.as_view(),        name='mes_acces'),
     path('permissions/meta/',  views.PermissionMetaView.as_view(),  name='permissions-meta'),
     path('permissions/bulk/',  views.PermissionBulkView.as_view(),  name='permissions-bulk'),
+    path('permissions/reinitialiser/', views.PermissionResetView.as_view(), name='permissions-reset'),
     path('', include(router.urls)),
 ]

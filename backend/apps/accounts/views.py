@@ -19,7 +19,8 @@ from .serializers import (
     PermissionRoleSerializer,
 )
 from .permissions import (
-    IsSuperAdmin, IsAdminOrReadOnly, CanManageUsers, IsFleetManager, can_manage_user,
+    IsSuperAdmin, IsAdminOrReadOnly, CanManageUsers, IsFleetManager, RoleBasedPermission,
+    can_manage_user, NIVEAU_SUPER_ADMIN,
 )
 from apps.core.agences import (
     MESSAGE_AUTRE_AGENCE, agence_pour_creation, controler_agence,
@@ -135,23 +136,52 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         user = self.request.user
+        cible = serializer.instance
+        data = serializer.validated_data
         # Rattaché à une agence : impossible de passer un compte en
         # « Toutes les agences » (agence vide) ou dans une autre agence.
-        if not voit_toutes_agences(user) and 'agence' in serializer.validated_data \
-                and serializer.validated_data['agence'] is None:
+        if not voit_toutes_agences(user) and 'agence' in data and data['agence'] is None:
             raise PermissionDenied(MESSAGE_AUTRE_AGENCE)
-        controler_agence(user, serializer.validated_data)
+        if cible.pk == user.pk:
+            if 'role' in data and data['role'] != cible.role:
+                raise PermissionDenied("Vous ne pouvez pas modifier votre propre rôle.")
+            if data.get('is_active') is False:
+                raise PermissionDenied("Vous ne pouvez pas désactiver votre propre compte.")
+        perd_super_admin = (data.get('is_active') is False
+                            or ('role' in data and (data['role'] is None or data['role'].niveau < NIVEAU_SUPER_ADMIN)))
+        if perd_super_admin and self._dernier_super_admin(cible):
+            raise PermissionDenied("C'est le dernier super administrateur actif : il doit le rester.")
+        controler_agence(user, data)
         serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.pk == self.request.user.pk:
+            raise PermissionDenied("Vous ne pouvez pas supprimer votre propre compte.")
+        if self._dernier_super_admin(instance):
+            raise PermissionDenied("C'est le dernier super administrateur actif : il ne peut pas être supprimé.")
+        instance.delete()
     module   = 'users'
+    # Réglable dans Administration › Permissions ; par défaut responsable
+    # flotte, suppression réservée au super administrateur.
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'responsable_flotte', 'retrieve': 'responsable_flotte',
+        'create': 'responsable_flotte', 'update': 'responsable_flotte',
+        'partial_update': 'responsable_flotte', 'toggle_active': 'responsable_flotte',
+        'reset_password': 'responsable_flotte', 'destroy': 'super_admin',
+    }
     filter_backends  = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['role', 'agence', 'is_active']
     search_fields    = ['email', 'first_name', 'last_name', 'username']
-    ordering_fields  = ['date_joined', 'last_name']
+    ordering_fields  = ['date_joined', 'last_name', 'last_login']
 
-    def get_permissions(self):
-        if self.action == 'destroy':
-            return [IsSuperAdmin()]
-        return [CanManageUsers()]
+    @staticmethod
+    def _dernier_super_admin(user):
+        """Vrai si `user` est le seul super administrateur actif."""
+        if not user.is_active or user.role_niveau < NIVEAU_SUPER_ADMIN:
+            return False
+        return not User.objects.filter(is_active=True, role__niveau__gte=NIVEAU_SUPER_ADMIN) \
+                               .exclude(pk=user.pk).exists()
 
     def get_object(self):
         """Interdit de modifier un compte de niveau égal ou supérieur au sien
@@ -175,6 +205,8 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.get_object()
         if user == request.user:
             return Response({'detail': 'Vous ne pouvez pas vous désactiver vous-même.'}, status=400)
+        if user.is_active and self._dernier_super_admin(user):
+            return Response({'detail': "C'est le dernier super administrateur actif : il doit le rester."}, status=400)
         user.is_active = not user.is_active
         user.save()
         return Response({'detail': f"Utilisateur {'activé' if user.is_active else 'désactivé'}.", 'is_active': user.is_active})
@@ -182,9 +214,13 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def reset_password(self, request, pk=None):
         user = self.get_object()
-        pwd  = request.data.get('new_password')
-        if not pwd or len(pwd) < 8:
-            return Response({'detail': 'Mot de passe trop court (min. 8 caractères).'}, status=400)
+        pwd  = request.data.get('new_password') or ''
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            validate_password(pwd, user)
+        except DjangoValidationError as e:
+            return Response({'detail': ' '.join(e.messages)}, status=400)
         user.set_password(pwd)
         user.save()
         return Response({'detail': 'Mot de passe réinitialisé.'})
@@ -196,7 +232,14 @@ class AgenceViewSet(SuppressionProtegeeMixin, viewsets.ModelViewSet):
     module             = 'agences'
     queryset           = Agence.objects.filter(is_active=True)
     serializer_class   = AgenceSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    # Lecture pour tous (listes déroulantes) ; écriture réglable dans
+    # Administration › Permissions, gestionnaire par défaut.
+    permission_classes = [RoleBasedPermission]
+    role_map = {
+        'list': 'chauffeur', 'retrieve': 'chauffeur',
+        'create': 'gestionnaire', 'update': 'gestionnaire',
+        'partial_update': 'gestionnaire', 'destroy': 'gestionnaire',
+    }
     filter_backends    = [filters.SearchFilter]
     search_fields      = ['nom', 'code', 'ville']
     relations_utilisation = [('vehicules', 'véhicule(s)'), ('utilisateurs', 'utilisateur(s)')]
@@ -246,47 +289,96 @@ class PermissionRoleViewSet(viewsets.ModelViewSet):
         instance.delete(); invalidate()
 
 
+def _actions_module(module):
+    libelles = dict(PermissionRole.ACTIONS)
+    return [{'value': a, 'label': PermissionRole.LIBELLES_MODULE.get((module, a), libelles.get(a, a))}
+            for a in PermissionRole.MODULE_ACTIONS.get(module, [])]
+
+
 class PermissionMetaView(generics.GenericAPIView):
-    permission_classes = [IsAuthenticated]
+    """Rôles, modules, actions par module et droits effectifs de chaque rôle :
+    {role_id: {module: {action: {autorise, regle}}}} (regle = règle enregistrée,
+    sinon valeur par défaut issue du niveau du rôle)."""
+    permission_classes = [IsSuperAdmin]
 
     def get(self, request):
-        roles = Role.objects.filter(is_active=True).order_by('-niveau')
-        actions_map = dict(PermissionRole.ACTIONS)
+        from .droits import autorise_par_defaut
+        roles = list(Role.objects.filter(is_active=True).order_by('-niveau'))
+        regles = {(str(p.role_id), p.module, p.action): p.autorise for p in PermissionRole.objects.all()}
+        modules = [m for m, _ in PermissionRole.MODULES]
+        effectifs = {}
+        for role in roles:
+            rid = str(role.id)
+            effectifs[rid] = {}
+            for module in modules:
+                effectifs[rid][module] = {}
+                for action in PermissionRole.MODULE_ACTIONS.get(module, []):
+                    defaut = autorise_par_defaut(role, module, action)
+                    regle = None if role.niveau >= NIVEAU_SUPER_ADMIN else regles.get((rid, module, action))
+                    effectifs[rid][module][action] = {
+                        'autorise': defaut if regle is None else regle,
+                        'defaut': defaut,
+                        'regle': regle is not None,
+                    }
         return Response({
             'roles':   RoleSerializer(roles, many=True).data,
             'modules': [{'value': v, 'label': l} for v, l in PermissionRole.MODULES],
             'actions': [{'value': v, 'label': l} for v, l in PermissionRole.ACTIONS],
-            # Actions spécifiques par module
-            'module_actions': {
-                module: [
-                    {'value': a, 'label': actions_map.get(a, a)}
-                    for a in actions
-                ]
-                for module, actions in PermissionRole.MODULE_ACTIONS.items()
-            },
+            'module_actions': {m: _actions_module(m) for m in modules},
+            'effectifs': effectifs,
         })
 
 
 class PermissionBulkView(generics.GenericAPIView):
+    """Enregistre des droits : une valeur égale au droit par défaut supprime
+    la règle (le rôle suit alors son niveau), sinon la règle est créée."""
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        from django.db import transaction
+        from apps.accounts.permission_cache import invalidate
+        from .droits import autorise_par_defaut
+        items = request.data if isinstance(request.data, list) else []
+        roles = {str(r.id): r for r in Role.objects.filter(pk__in=[
+            i.get('role') for i in items if isinstance(i, dict) and i.get('role')])}
+        erreurs = []
+        for i in items:
+            if not isinstance(i, dict) or str(i.get('role')) not in roles:
+                erreurs.append('rôle inconnu'); continue
+            if i.get('action') not in PermissionRole.MODULE_ACTIONS.get(i.get('module'), []):
+                erreurs.append(f"{i.get('module')} / {i.get('action')} : action inconnue")
+            if not isinstance(i.get('autorise'), bool):
+                erreurs.append('valeur « autorise » manquante')
+            if roles.get(str(i.get('role'))) and roles[str(i['role'])].niveau >= NIVEAU_SUPER_ADMIN:
+                erreurs.append("le super administrateur a tous les droits")
+        if erreurs or not items:
+            return Response({'detail': 'Permissions non enregistrées : ' + (', '.join(sorted(set(erreurs))) or 'aucune modification') + '.'},
+                            status=400)
+        with transaction.atomic():
+            for i in items:
+                role = roles[str(i['role'])]
+                if i['autorise'] == autorise_par_defaut(role, i['module'], i['action']):
+                    PermissionRole.objects.filter(role=role, module=i['module'], action=i['action']).delete()
+                else:
+                    PermissionRole.objects.update_or_create(
+                        role=role, module=i['module'], action=i['action'],
+                        defaults={'autorise': i['autorise']})
+        invalidate()
+        return Response({'detail': f'{len(items)} permission(s) mise(s) à jour.'})
+
+
+class PermissionResetView(generics.GenericAPIView):
+    """Rétablit les droits par défaut d'un rôle (supprime ses règles)."""
     permission_classes = [IsSuperAdmin]
 
     def post(self, request):
         from apps.accounts.permission_cache import invalidate
-        items   = request.data if isinstance(request.data, list) else []
-        updated = 0
-        for item in items:
-            role_id = item.get('role')
-            try:
-                role = Role.objects.get(pk=role_id)
-            except Role.DoesNotExist:
-                continue
-            PermissionRole.objects.update_or_create(
-                role=role, module=item['module'], action=item['action'],
-                defaults={'autorise': item['autorise']}
-            )
-            updated += 1
+        role = Role.objects.filter(pk=request.data.get('role')).first() if request.data.get('role') else None
+        if role is None:
+            return Response({'detail': 'Rôle introuvable.'}, status=400)
+        nb, _ = PermissionRole.objects.filter(role=role).delete()
         invalidate()
-        return Response({'detail': f'{updated} permission(s) mises à jour.'})
+        return Response({'detail': f'Droits par défaut rétablis pour « {role.nom} » ({nb} règle(s) supprimée(s)).'})
 
 
 # Écrans de l'interface → (vue API qui les alimente, action). Le droit

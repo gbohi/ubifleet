@@ -47,8 +47,20 @@ class RoleSerializer(serializers.ModelSerializer):
         return value
 
     def validate_niveau(self, value):
-        if value < 1 or value > 10:
-            raise serializers.ValidationError("Le niveau doit être entre 1 et 10.")
+        # Rôle système : son niveau porte les droits par défaut, il est figé.
+        if self.instance and self.instance.is_system and value != self.instance.niveau:
+            raise serializers.ValidationError("Le niveau d'un rôle système ne peut pas être modifié.")
+        if self.instance and (self.instance.is_system or value == self.instance.niveau):
+            return value
+        if value < 1 or value > 9:
+            raise serializers.ValidationError("Le niveau doit être entre 1 et 9 (10 est réservé au super administrateur).")
+        return value
+
+    def validate_is_active(self, value):
+        if self.instance and self.instance.is_system and not value:
+            raise serializers.ValidationError("Un rôle système ne peut pas être désactivé.")
+        if self.instance and not value and self.instance.utilisateurs.filter(is_active=True).exists():
+            raise serializers.ValidationError("Ce rôle est attribué à des utilisateurs actifs : réaffectez-les d'abord.")
         return value
 
 
@@ -62,14 +74,24 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'username', 'first_name', 'last_name',
             'full_name', 'role', 'role_detail', 'agence', 'agence_detail',
-            'telephone', 'avatar', 'is_active', 'date_joined',
+            'telephone', 'avatar', 'is_active', 'date_joined', 'last_login',
         ]
-        read_only_fields = ['id', 'date_joined']
+        read_only_fields = ['id', 'date_joined', 'last_login']
 
 
 class RoleAssignmentMixin:
     """Refuse l'attribution d'un rôle de niveau égal ou supérieur à celui
-    de l'utilisateur connecté (hors super admin)."""
+    de l'utilisateur connecté (hors super admin) ; e-mail en minuscules,
+    unique sans tenir compte de la casse."""
+
+    def validate_email(self, value):
+        value = value.strip().lower()
+        qs = User.objects.filter(email__iexact=value)
+        if getattr(self, 'instance', None) is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Un utilisateur utilise déjà cette adresse e-mail.")
+        return value
 
     def validate_role(self, value):
         request = self.context.get('request')
@@ -77,12 +99,16 @@ class RoleAssignmentMixin:
             raise serializers.ValidationError(
                 "Vous ne pouvez pas attribuer un rôle de niveau égal ou supérieur au vôtre."
             )
+        if value is not None and not value.is_active:
+            raise serializers.ValidationError("Ce rôle est désactivé.")
         return value
 
 
 class UserCreateSerializer(RoleAssignmentMixin, serializers.ModelSerializer):
     password  = serializers.CharField(write_only=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True)
+    # Identifiant facultatif : dérivé de l'e-mail s'il est vide
+    username  = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model  = User
@@ -94,8 +120,17 @@ class UserCreateSerializer(RoleAssignmentMixin, serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs['password'] != attrs.pop('password2'):
             raise serializers.ValidationError(
-                {"password": "Les mots de passe ne correspondent pas."}
+                {"password2": "Les mots de passe ne correspondent pas."}
             )
+        if not attrs.get('username'):
+            base = attrs['email'].split('@')[0][:140] or 'utilisateur'
+            nom, n = base, 1
+            while User.objects.filter(username=nom).exists():
+                n += 1
+                nom = f'{base}{n}'
+            attrs['username'] = nom
+        elif User.objects.filter(username=attrs['username']).exists():
+            raise serializers.ValidationError({'username': "Cet identifiant est déjà utilisé."})
         return attrs
 
     def create(self, validated_data):

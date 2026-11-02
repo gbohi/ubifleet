@@ -173,16 +173,20 @@
               (1 = le plus bas, 9 = le plus élevé — le 10 est réservé au super admin)
             </span>
           </label>
-          <div class="niveau-selector">
-            @for (n of [1,2,3,4,5,6,7,8,9]; track n) {
-              <button type="button"
-                      class="niveau-btn"
-                      [class.active]="f['niveau'].value === n"
-                      (click)="f['niveau'].setValue(n)">
-                {{ n }}
-              </button>
-            }
-          </div>
+          @if (editSysteme()) {
+            <div class="niveau-hint"><i class="fas fa-lock"></i> Niveau figé : il porte les droits par défaut de ce rôle.</div>
+          } @else {
+            <div class="niveau-selector">
+              @for (n of [1,2,3,4,5,6,7,8,9]; track n) {
+                <button type="button"
+                        class="niveau-btn"
+                        [class.active]="f['niveau'].value === n"
+                        (click)="f['niveau'].setValue(n)">
+                  {{ n }}
+                </button>
+              }
+            </div>
+          }
           <div class="niveau-hint">
             Niveau sélectionné :
             <strong>{{ f['niveau'].value }} — {{ niveauLabel(f['niveau'].value ?? 1) }}</strong>
@@ -206,7 +210,7 @@
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
           <button type="button" class="btn btn-outline" (click)="closeModal()">Annuler</button>
           <button type="submit" class="btn btn-green"
-                  [disabled]="roleForm.invalid || saving()">
+                  [disabled]="saving()">
             @if (saving()) { <i class="fas fa-circle-notch fa-spin"></i> }
             @else if (editRoleId()) { <i class="fas fa-save"></i> Modifier }
             @else { <i class="fas fa-plus"></i> Créer }

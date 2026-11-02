@@ -4,22 +4,16 @@ import {
   ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { UserApiService, RoleApiService } from '../../../core/services/api.service';
-import { Role } from '../../../core/models';
+import { UserApiService } from '../../../core/services/api.service';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 
+interface Droit { autorise: boolean; defaut: boolean; regle: boolean; }
 interface PermMeta {
-  roles:          any[];
+  roles:          { id: string; nom: string; niveau: number; is_system: boolean }[];
   modules:        { value: string; label: string }[];
-  actions:        { value: string; label: string }[];
   module_actions: Record<string, { value: string; label: string }[]>;
-}
-
-interface PermRule {
-  id?:      string;
-  role:     string;
-  module:   string;
-  action:   string;
-  autorise: boolean;
+  /** Droits effectifs : rôle → module → action. */
+  effectifs:      Record<string, Record<string, Record<string, Droit>>>;
 }
 
 @Component({
@@ -32,124 +26,114 @@ interface PermRule {
 })
 export class PermissionsComponent implements OnInit {
   private userApi = inject(UserApiService);
-  private roleApi = inject(RoleApiService);
 
-  meta        = signal<PermMeta | null>(null);
-  rules       = signal<PermRule[]>([]);
-  rolesDb     = signal<Role[]>([]);
-  loading     = signal(true);
-  saving      = signal(false);
-  success     = signal('');
-  error       = signal('');
-  metaError   = signal('');
-  selectedRole= signal<string>('');
-  pending     = signal<Map<string, boolean>>(new Map());
+  meta         = signal<PermMeta | null>(null);
+  loading      = signal(true);
+  saving       = signal(false);
+  success      = signal('');
+  error        = signal('');
+  metaError    = signal('');
+  selectedRole = signal<string>('');
+  /** Modifications en attente : « role::module::action » → valeur. */
+  pending      = signal<Map<string, boolean>>(new Map());
+  confirmReset = signal(false);
 
-  moduleKeys = computed((): string[] => {
-    const meta = this.meta();
-    if (!meta) return [];
-    return meta.modules.map(m => m.value);
+  roleCourant = computed(() => this.meta()?.roles.find(r => r.id === this.selectedRole()) ?? null);
+  estSuperAdmin = computed(() => (this.roleCourant()?.niveau ?? 0) >= 10);
+  modules = computed(() => (this.meta()?.modules ?? []).filter(m => (this.meta()?.module_actions[m.value] ?? []).length));
+  nbPersonnalises = computed(() => {
+    const e = this.meta()?.effectifs[this.selectedRole()];
+    if (!e) return 0;
+    return Object.values(e).reduce((n, acts) => n + Object.values(acts).filter(d => d.regle).length, 0);
   });
-
-  get roles(): { value: string; label: string }[] {
-    return this.rolesDb().map((r: Role) => ({ value: r.id, label: r.nom }));
-  }
 
   get hasPending(): boolean { return this.pending().size > 0; }
   countPending(): number    { return this.pending().size; }
 
-  getModuleLabel(module: string): string {
-    return this.meta()?.modules.find(m => m.value === module)?.label ?? module;
+  private cle(module: string, action: string): string { return `${this.selectedRole()}::${module}::${action}`; }
+
+  droit(module: string, action: string): Droit | null {
+    return this.meta()?.effectifs[this.selectedRole()]?.[module]?.[action] ?? null;
   }
 
-  getRoleLabel(roleId: string): string {
-    return this.rolesDb().find((r: Role) => r.id === roleId)?.nom ?? roleId;
+  isAllowed(module: string, action: string): boolean {
+    const k = this.cle(module, action);
+    if (this.pending().has(k)) return this.pending().get(k)!;
+    return this.droit(module, action)?.autorise ?? false;
   }
 
-  getActionsForModule(module: string): { value: string; label: string }[] {
-    const meta = this.meta();
-    if (!meta) return [];
-    return meta.module_actions?.[module] ?? meta.actions;
+  /** Valeur différente du droit par défaut du niveau (après modifications en attente). */
+  estPersonnalise(module: string, action: string): boolean {
+    const d = this.droit(module, action);
+    return !!d && this.isAllowed(module, action) !== d.defaut;
   }
 
-  isAllowed(role: string, module: string, action: string): boolean {
-    const key = `${role}::${module}::${action}`;
-    if (this.pending().has(key)) return this.pending().get(key)!;
-    const rule = this.rules().find(
-      r => r.role === role && r.module === module && r.action === action
-    );
-    return rule?.autorise ?? false;
+  estEnAttente(module: string, action: string): boolean { return this.pending().has(this.cle(module, action)); }
+
+  compteModule(module: string): string {
+    const acts = this.meta()?.module_actions[module] ?? [];
+    return `${acts.filter(a => this.isAllowed(module, a.value)).length}/${acts.length}`;
   }
 
-  ngOnInit(): void {
-    this.roleApi.getAll().subscribe({
-      next: (list: Role[]) => {
-        this.rolesDb.set(list);
-        if (list.length > 0 && !this.selectedRole()) {
-          const sorted = [...list].sort((a, b) => b.niveau - a.niveau);
-          this.selectedRole.set(sorted[0].id);
-        }
-        this.loadAll();
-      },
-      error: () => this.loadAll(),
-    });
-  }
+  ngOnInit(): void { this.charger(); }
 
-  loadAll(): void {
+  charger(): void {
     this.loading.set(true);
     this.metaError.set('');
-    let metaDone = false, rulesDone = false;
-    const checkDone = () => { if (metaDone && rulesDone) this.loading.set(false); };
-
     this.userApi.getPermissionsMeta().subscribe({
-      next: (meta: PermMeta) => { this.meta.set(meta); metaDone = true; checkDone(); },
+      next: (meta: PermMeta) => {
+        this.meta.set(meta);
+        if (!this.selectedRole() || !meta.roles.some(r => r.id === this.selectedRole())) {
+          // Par défaut, le premier rôle réglable (le super admin a tous les droits)
+          this.selectedRole.set((meta.roles.find(r => r.niveau < 10) ?? meta.roles[0])?.id ?? '');
+        }
+        this.loading.set(false);
+      },
       error: (err: any) => {
-        this.metaError.set(
-          err?.status === 403
-            ? 'Accès refusé — seul le super administrateur peut gérer les permissions.'
-            : 'Impossible de charger les métadonnées.'
-        );
-        metaDone = true; checkDone();
+        this.metaError.set(err?.status === 403
+          ? 'Accès refusé — seul le super administrateur peut gérer les permissions.'
+          : 'Impossible de charger les permissions.');
+        this.loading.set(false);
       },
-    });
-
-    // Charger TOUTES les permissions sans limite de page
-    // (page_size=1000 accepté grâce à UbiFleetPagination)
-    this.userApi.getPermissions({ page_size: 1000 }).subscribe({
-      next: (res: any) => {
-        const list = Array.isArray(res) ? res : (res.results ?? []);
-        this.rules.set(list);
-        rulesDone = true; checkDone();
-      },
-      error: () => { rulesDone = true; checkDone(); },
     });
   }
 
   selectRole(role: string): void {
+    if (this.hasPending && !confirm('Des modifications ne sont pas enregistrées. Les abandonner ?')) return;
     this.selectedRole.set(role);
     this.pending.set(new Map());
-    this.success.set('');
-    this.error.set('');
+    this.success.set(''); this.error.set(''); this.confirmReset.set(false);
+  }
+
+  private poser(map: Map<string, boolean>, module: string, action: string, valeur: boolean): void {
+    const k = this.cle(module, action);
+    // Retour à la valeur enregistrée : plus rien en attente
+    if (valeur === (this.droit(module, action)?.autorise ?? false)) map.delete(k); else map.set(k, valeur);
   }
 
   toggle(module: string, action: string): void {
-    const role    = this.selectedRole();
-    const key     = `${role}::${module}::${action}`;
-    const current = this.isAllowed(role, module, action);
-    const map     = new Map(this.pending());
-    map.set(key, !current);
+    if (this.estSuperAdmin()) return;
+    const map = new Map(this.pending());
+    this.poser(map, module, action, !this.isAllowed(module, action));
     this.pending.set(map);
     this.success.set('');
   }
 
-  toggleModule(module: string, forceValue?: boolean): void {
-    const role    = this.selectedRole();
-    const actions = this.getActionsForModule(module);
-    const map     = new Map(this.pending());
-    const allAllowed = actions.every(a => this.isAllowed(role, module, a.value));
-    const newValue   = forceValue !== undefined ? forceValue : !allAllowed;
-    for (const action of actions) {
-      map.set(`${role}::${module}::${action.value}`, newValue);
+  toggleModule(module: string, valeur: boolean): void {
+    if (this.estSuperAdmin()) return;
+    const map = new Map(this.pending());
+    for (const a of this.meta()?.module_actions[module] ?? []) this.poser(map, module, a.value, valeur);
+    this.pending.set(map);
+    this.success.set('');
+  }
+
+  /** Remet les actions du module à leur valeur par défaut (dans les modifications en attente). */
+  defautModule(module: string): void {
+    if (this.estSuperAdmin()) return;
+    const map = new Map(this.pending());
+    for (const a of this.meta()?.module_actions[module] ?? []) {
+      const d = this.droit(module, a.value);
+      if (d) this.poser(map, module, a.value, d.defaut);
     }
     this.pending.set(map);
   }
@@ -158,23 +142,35 @@ export class PermissionsComponent implements OnInit {
     if (!this.hasPending || this.saving()) return;
     this.saving.set(true);
     this.error.set('');
-
     const bulk = Array.from(this.pending().entries()).map(([key, autorise]) => {
       const [role, module, action] = key.split('::');
       return { role, module, action, autorise };
     });
-
     this.userApi.bulkUpdatePermissions(bulk).subscribe({
       next: (res: any) => {
         this.saving.set(false);
-        this.success.set(res.detail ?? 'Permissions sauvegardées.');
+        this.success.set(res.detail ?? 'Permissions enregistrées.');
         this.pending.set(new Map());
-        this.loadAll();
+        this.charger();
       },
       error: (err: any) => {
         this.saving.set(false);
-        this.error.set(err?.error?.detail ?? 'Erreur lors de la sauvegarde.');
+        this.error.set(messageErreurApi(err, 'Erreur lors de l\'enregistrement.'));
       },
+    });
+  }
+
+  reinitialiserRole(): void {
+    const r = this.roleCourant();
+    if (!r) return;
+    this.userApi.reinitialiserPermissions(r.id).subscribe({
+      next: (res: any) => {
+        this.confirmReset.set(false);
+        this.pending.set(new Map());
+        this.success.set(res.detail ?? 'Droits par défaut rétablis.');
+        this.charger();
+      },
+      error: (err: any) => { this.confirmReset.set(false); this.error.set(messageErreurApi(err, 'Action impossible.')); },
     });
   }
 
