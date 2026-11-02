@@ -303,6 +303,17 @@ export interface Chauffeur {
   statut_display: string;
   vehicule_actuel: { id: string; immatriculation: string; designation: string } | null;
   photo: string | null;
+  numero_chauffeur_total?: string;
+  nb_documents?: number;
+  documents_expires?: number;
+}
+
+/** Document d'un chauffeur (PDF, image, bureautique ; 10 Mo au plus). */
+export interface DocumentChauffeur {
+  id: string; chauffeur: string; type_document: string; type_document_libelle: string;
+  libelle: string; numero: string; date_emission: string | null; date_expiration: string | null;
+  est_expire: boolean; jours_restants: number | null; fichier: string; nom_fichier: string | null;
+  taille: number | null; est_image: boolean; notes: string; ajoute_par: string | null; created_at: string;
 }
 
 // ── Budget ──

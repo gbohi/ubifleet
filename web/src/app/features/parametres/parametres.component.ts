@@ -25,6 +25,7 @@ export type Section =
   | 'marques' | 'types_vehicule' | 'statuts' | 'affectations' | 'types_doc' | 'types_mouvement'
   | 'agences' | 'tournees'
   | 'types' | 'prestataires' | 'assureurs' | 'types_sinistre' | 'types_contrat' | 'categories_depense'
+  | 'types_document_chauffeur'
   | 'circuits' | 'elements';
 
 
@@ -73,7 +74,7 @@ export class ParametresComponent implements OnInit {
         description: 'En service, en panne, en révision… (historisés)' },
       { cle: 'affectations', libelle: 'Affectations / usages', icone: 'fas fa-tag',
         description: 'Usage du véhicule : livraison, direction, commercial…' },
-      { cle: 'types_doc', libelle: 'Types de documents', icone: 'fas fa-file-alt',
+      { cle: 'types_doc', libelle: 'Types de documents véhicule', icone: 'fas fa-file-alt',
         description: 'Carte grise, visite technique, vignette…' },
       { cle: 'types_mouvement', libelle: 'Types de mouvement', icone: 'fas fa-exchange-alt',
         description: 'Tournée, course, mission… des relevés et des prises' },
@@ -83,6 +84,8 @@ export class ParametresComponent implements OnInit {
         description: 'Sites, codes et numéros client Total' },
       { cle: 'tournees', libelle: 'Tournées', icone: 'fas fa-route',
         description: 'Circuits de livraison et dotation théorique' },
+      { cle: 'types_document_chauffeur', libelle: 'Types de documents chauffeur', icone: 'fas fa-id-card',
+        description: "Permis, pièce d'identité, contrat, visite médicale…" },
     ]},
     { titre: 'Entretien & assurance', icone: 'fas fa-tools', teinte: 'rouge', cartes: [
       { cle: 'types', libelle: "Types d'intervention", icone: 'fas fa-wrench',
@@ -145,6 +148,7 @@ export class ParametresComponent implements OnInit {
       ['categories_depense', this.parametrageApi.getCategoriesDepense()],
       ['types_sinistre', this.parametrageApi.getTypesSinistre()],
       ['types_contrat', this.parametrageApi.getTypesContrat()],
+      ['types_document_chauffeur', this.parametrageApi.getTypesDocumentChauffeur()],
     ];
     for (const [cle, obs] of sources) {
       obs.subscribe({ next: l => cle === 'types_vehicule' ? this.nbTypesVehicule.set(l.length) : this.majCompte(cle, l.length), error: () => {} });

@@ -272,6 +272,12 @@
             [utiliseDans]="['Sinistres', 'Rapports']" libelleNouveau="Nouveau type" colonneUtilisations="Sinistres"
             [ecriture]="ecritureReferentiels()" (compte)="majCompte('types_sinistre', $event)" />
         }
+        @case ('types_document_chauffeur') {
+          <ubi-referentiel-simple ressource="types-document-chauffeur" titre="Types de documents chauffeur"
+            description="Nature des documents joints à la fiche d'un chauffeur (onglet Documents). Un type utilisé ne peut pas être supprimé : désactivez-le pour ne plus le proposer."
+            [utiliseDans]="['Chauffeurs › Documents']" libelleNouveau="Nouveau type" colonneUtilisations="Documents"
+            [ecriture]="ecritureReferentiels()" (compte)="majCompte('types_document_chauffeur', $event)" />
+        }
         @case ('types_contrat') {
           <ubi-referentiel-simple ressource="types-contrat" titre="Types de contrat d'assurance"
             description="Garanties des contrats d'assurance (responsabilité civile, tous risques…). Un type utilisé ne peut pas être supprimé : désactivez-le pour ne plus le proposer."

@@ -7,6 +7,7 @@ import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ChauffeurApiService, AgenceApiService } from '../../../core/services/api.service';
 import { Agence } from '../../../core/models';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 
 @Component({
   selector: 'ubi-chauffeur-form',
@@ -37,6 +38,10 @@ export class ChauffeurFormComponent implements OnInit {
     { value: 'absent',   label: 'Absent' },
     { value: 'suspendu', label: 'Suspendu' },
   ];
+  /** Statuts proposés : « Départ » seulement pour un chauffeur déjà parti (l'archivage se fait depuis la liste). */
+  statutsProposes = computed(() => this.statutInitial() === 'depart'
+    ? [...this.statutsDisponibles, { value: 'depart', label: 'Départ' }] : this.statutsDisponibles);
+  private statutInitial = signal('');
 
   readonly categoriesPermis = ['B', 'C', 'D', 'B·C', 'B·D', 'C·D', 'B·C·D'];
 
@@ -87,6 +92,7 @@ export class ChauffeurFormComponent implements OnInit {
             statut:                 c.statut,
             notes:                  (c as any).notes ?? '',
           });
+          this.statutInitial.set(c.statut);
           this.loading.set(false);
         },
         error: () => {
@@ -98,18 +104,26 @@ export class ChauffeurFormComponent implements OnInit {
   }
 
   onSubmit(): void {
-    if (this.form.invalid || this.saving()) return;
+    if (this.saving()) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.error.set('Complétez les champs obligatoires (marqués *).');
+      return;
+    }
 
     this.saving.set(true);
     this.error.set('');
     this.success.set('');
 
+    // Création : champs vides omis. Modification : un champ vidé est envoyé (null pour les
+    // dates) pour être effacé côté serveur.
     const raw = this.form.value;
+    const DATES = ['date_naissance', 'date_obtention_permis', 'date_expiration_permis'];
     const payload: Record<string, any> = {};
     Object.entries(raw).forEach(([key, val]) => {
-      if (val !== '' && val !== null && val !== undefined) {
-        payload[key] = val;
-      }
+      const vide = val === '' || val === null || val === undefined;
+      if (!vide) payload[key] = typeof val === 'string' ? val.trim() : val;
+      else if (this.isEditMode()) payload[key] = DATES.includes(key) ? null : '';
     });
 
     const req = this.isEditMode()
@@ -127,10 +141,7 @@ export class ChauffeurFormComponent implements OnInit {
       error: (err) => {
         this.saving.set(false);
         if (err?.error && typeof err.error === 'object') {
-          const msgs = Object.entries(err.error)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-            .join(' | ');
-          this.error.set(msgs);
+          this.error.set(messageErreurApi(err, 'Enregistrement impossible.'));
         } else if (err?.status === 0) {
           this.error.set('Serveur inaccessible. Vérifiez que le backend est démarré.');
         } else {

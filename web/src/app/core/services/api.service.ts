@@ -7,7 +7,7 @@ import {
   Vehicule, VehiculeDetail, ReleveKilometrage, AffectationVehicule, UbiUser, Role, HistoriqueImmatriculation, PleinCarburant, Station,
   Intervention, Prestataire, SuiviPneus, Sinistre, ContratAssurance, Assureur,
   Chauffeur, BudgetAnnuel, Depense, Alerte, DashboardData,
-  PaginatedResponse, Agence, User
+  PaginatedResponse, Agence, User, DocumentChauffeur,
 } from '../models';
 
 const API = environment.apiUrl;
@@ -599,6 +599,32 @@ export class ChauffeurApiService extends ApiBaseService {
   getHistoriqueCond(id: string): Observable<any> {
     return this.http.get(`${API}/chauffeurs/${id}/historique_conduite/`);
   }
+  /** Archive (statut « Départ », affectations en cours terminées). */
+  archiver(id: string): Observable<any> {
+    return this.http.delete(`${API}/chauffeurs/${id}/`);
+  }
+  getStats(filters?: Record<string, any>): Observable<any> {
+    const params = filters ? this.buildParams(filters) : undefined;
+    return this.http.get(`${API}/chauffeurs/stats/`, { params });
+  }
+  envoyerPhoto(id: string, fichier: File): Observable<Chauffeur> {
+    const fd = new FormData();
+    fd.append('photo', fichier);
+    return this.http.post<Chauffeur>(`${API}/chauffeurs/${id}/photo/`, fd);
+  }
+  supprimerPhoto(id: string): Observable<Chauffeur> {
+    return this.http.delete<Chauffeur>(`${API}/chauffeurs/${id}/photo/`);
+  }
+  getDocuments(chauffeurId: string): Observable<DocumentChauffeur[]> {
+    return this.http.get<DocumentChauffeur[]>(`${API}/chauffeurs/documents/`, { params: { chauffeur: chauffeurId } });
+  }
+  enregistrerDocument(data: FormData, id?: string): Observable<DocumentChauffeur> {
+    return id ? this.http.patch<DocumentChauffeur>(`${API}/chauffeurs/documents/${id}/`, data)
+              : this.http.post<DocumentChauffeur>(`${API}/chauffeurs/documents/`, data);
+  }
+  supprimerDocument(id: string): Observable<any> {
+    return this.http.delete(`${API}/chauffeurs/documents/${id}/`);
+  }
 }
 
 // ── Budget API ──
@@ -958,6 +984,9 @@ export class ParametrageApiService extends ApiBaseService {
   }
   getTypesSinistre(): Observable<{ id: number; code: string; libelle: string; actif: boolean }[]> {
     return this.http.get<any[]>(`${API}/parametrage/types-sinistre/`);
+  }
+  getTypesDocumentChauffeur(): Observable<{ id: number; code: string; libelle: string; actif: boolean }[]> {
+    return this.http.get<any[]>(`${API}/parametrage/types-document-chauffeur/`);
   }
   getTypesContrat(): Observable<{ id: number; code: string; libelle: string; actif: boolean }[]> {
     return this.http.get<any[]>(`${API}/parametrage/types-contrat/`);

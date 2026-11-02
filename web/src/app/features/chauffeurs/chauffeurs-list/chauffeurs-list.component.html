@@ -56,31 +56,47 @@
   }
 
   <!-- STATS -->
+  @if (stats(); as s) {
   <div class="quick-stats">
-    <div class="qs-item">
+    <button type="button" class="qs-item" (click)="onStatutFilter('actif')">
       <span class="qs-dot green"></span>
-      <span class="qs-val">{{ store.nbActifs() }}</span>
+      <span class="qs-val">{{ s.par_statut.actif }}</span>
       <span class="qs-lbl">Actifs</span>
-    </div>
+    </button>
     <div class="qs-sep"></div>
-    <div class="qs-item">
+    <button type="button" class="qs-item" (click)="onStatutFilter('conge')">
       <span class="qs-dot orange"></span>
-      <span class="qs-val">{{ nbEnConge }}</span>
+      <span class="qs-val">{{ s.par_statut.conge }}</span>
       <span class="qs-lbl">En congé</span>
-    </div>
+    </button>
     <div class="qs-sep"></div>
-    <div class="qs-item">
+    <div class="qs-item" title="Permis expiré ou expirant dans les 60 jours (chauffeurs en poste)">
       <span class="qs-dot red"></span>
-      <span class="qs-val">{{ store.nbPermisUrgents() }}</span>
-      <span class="qs-lbl">Permis urgents</span>
+      <span class="qs-val">{{ s.permis_expires + s.permis_expirant }}</span>
+      <span class="qs-lbl">Permis expirés / à renouveler</span>
     </div>
     <div class="qs-sep"></div>
     <div class="qs-item">
       <span class="qs-dot navy"></span>
-      <span class="qs-val">{{ nbAssignes }}</span>
-      <span class="qs-lbl">Assignés</span>
+      <span class="qs-val">{{ s.assignes }}</span>
+      <span class="qs-lbl">Avec véhicule attitré</span>
     </div>
+    @if (s.documents_expires) {
+      <div class="qs-sep"></div>
+      <div class="qs-item" title="Documents dont la date d'expiration est passée (chauffeurs en poste)">
+        <span class="qs-dot red"></span>
+        <span class="qs-val">{{ s.documents_expires }}</span>
+        <span class="qs-lbl">Documents expirés</span>
+      </div>
+    }
+    <div class="qs-sep"></div>
+    <button type="button" class="qs-item" (click)="onStatutFilter('depart')">
+      <span class="qs-dot gray"></span>
+      <span class="qs-val">{{ s.par_statut.depart }}</span>
+      <span class="qs-lbl">Départs</span>
+    </button>
   </div>
+  }
 
   <!-- FILTRES -->
   <div class="filters-bar">
@@ -140,7 +156,8 @@
                [style.animation-delay]="idx < 12 ? (idx * 40) + 'ms' : '0ms'"
                (click)="goToDetail(c.id)">
             <div class="cc-header">
-              <div class="cc-avatar">{{ c.nom[0] }}{{ c.prenom[0] }}</div>
+              @if (c.photo) { <img class="cc-avatar cc-avatar-img" [src]="c.photo" alt="" /> }
+              @else { <div class="cc-avatar">{{ c.nom[0] }}{{ c.prenom[0] }}</div> }
               <div class="cc-header-info">
                 <div class="cc-name">{{ c.prenom }} {{ c.nom }}</div>
                 <div class="cc-matricule">{{ c.matricule }}</div>
@@ -193,10 +210,12 @@
                       (click)="goToEdit($event, c.id)">
                 <i class="fas fa-edit"></i>
               </button>
-              <button class="btn btn-icon btn-icon-danger" title="Archiver"
-                      (click)="confirmDelete($event, c.id)">
-                <i class="fas fa-archive"></i>
-              </button>
+              @if (c.statut !== 'depart') {
+                <button class="btn btn-icon btn-icon-danger" title="Archiver (départ)"
+                        (click)="confirmDelete($event, c.id)">
+                  <i class="fas fa-archive"></i>
+                </button>
+              }
             </div>
           </div>
         }
@@ -234,7 +253,8 @@
               <tr (click)="goToDetail(c.id)" class="tr-clickable">
                 <td>
                   <div class="td-chauffeur">
-                    <div class="td-avatar">{{ c.nom[0] }}{{ c.prenom[0] }}</div>
+                    @if (c.photo) { <img class="td-avatar td-avatar-img" [src]="c.photo" alt="" /> }
+                    @else { <div class="td-avatar">{{ c.nom[0] }}{{ c.prenom[0] }}</div> }
                     <div>
                       <div class="td-name">{{ c.prenom }} {{ c.nom }}</div>
                     </div>
@@ -274,10 +294,12 @@
                             (click)="goToEdit($event, c.id)">
                       <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-icon btn-icon-danger" title="Archiver"
-                            (click)="confirmDelete($event, c.id)">
-                      <i class="fas fa-archive"></i>
-                    </button>
+                    @if (c.statut !== 'depart') {
+                      <button class="btn btn-icon btn-icon-danger" title="Archiver (départ)"
+                              (click)="confirmDelete($event, c.id)">
+                        <i class="fas fa-archive"></i>
+                      </button>
+                    }
                   </div>
                 </td>
               </tr>
@@ -317,8 +339,10 @@
         <div class="modal-title">Archiver le chauffeur</div>
       </div>
       <p style="color:var(--gray-600);font-size:14px;margin-bottom:24px">
-        Le chauffeur sera marqué comme "Départ".
+        Le chauffeur passe au statut « Départ » ; ses affectations en cours se terminent aujourd'hui et ses
+        véhicules n'ont plus de chauffeur attitré. Son historique (prises, sinistres, documents) est conservé.
       </p>
+      @if (archiveErreur()) { <div class="alert-error">{{ archiveErreur() }}</div> }
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-outline" (click)="cancelDelete()">Annuler</button>
         <button class="btn btn-danger" (click)="doDelete(deleteConfirm()!)">

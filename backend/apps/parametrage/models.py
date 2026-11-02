@@ -165,6 +165,13 @@ class TypeSinistre(ReferentielCode):
         verbose_name_plural = "Types de sinistre"
 
 
+class TypeDocumentChauffeur(ReferentielCode):
+    """Types de documents d'un chauffeur (permis, pièce d'identité, contrat…)."""
+    class Meta(ReferentielCode.Meta):
+        verbose_name        = "Type de document chauffeur"
+        verbose_name_plural = "Types de document chauffeur"
+
+
 class TypeContratAssurance(ReferentielCode):
     class Meta(ReferentielCode.Meta):
         verbose_name        = "Type de contrat d'assurance"
@@ -187,7 +194,7 @@ def _vider_cache_libelles(sender, **kwargs):
     _LIBELLES.pop(sender._meta.label, None)
 
 
-for _m in (CategorieDepense, TypeSinistre, TypeContratAssurance):
+for _m in (CategorieDepense, TypeSinistre, TypeContratAssurance, TypeDocumentChauffeur):
     models.signals.post_save.connect(_vider_cache_libelles, sender=_m)
     models.signals.post_delete.connect(_vider_cache_libelles, sender=_m)
 

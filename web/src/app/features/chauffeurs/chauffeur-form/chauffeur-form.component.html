@@ -245,7 +245,7 @@
               <div class="form-group">
                 <label class="form-label">Statut</label>
                 <select formControlName="statut" class="form-control">
-                  @for (s of statutsDisponibles; track s.value) {
+                  @for (s of statutsProposes(); track s.value) {
                     <option [value]="s.value">{{ s.label }}</option>
                   }
                 </select>

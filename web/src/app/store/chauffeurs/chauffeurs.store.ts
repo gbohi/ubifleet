@@ -30,7 +30,7 @@ const initialState: ChauffeursState = {
   loadingState:   'idle',
   error:          null,
   pagination:     initialPagination,
-  filters: { search: '', agence: '', statut: '' },
+  filters: { search: '', agence: '', statut: 'en_poste' },
 };
 
 export const ChauffeursStore = signalStore(
@@ -65,7 +65,9 @@ export const ChauffeursStore = signalStore(
           const params: Record<string, any> = { page: p.page, page_size: p.pageSize };
           if (f.search) params['search'] = f.search;
           if (f.agence) params['agence'] = f.agence;
-          if (f.statut) params['statut'] = f.statut;
+          // « en_poste » (défaut) : tous sauf les départs
+          if (f.statut === 'en_poste') params['en_poste'] = 1;
+          else if (f.statut) params['statut'] = f.statut;
 
           return api.getAll(params).pipe(
             tapResponse({

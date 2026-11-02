@@ -28,24 +28,29 @@ export class ChauffeursListComponent implements OnInit {
   deleteConfirm = signal<string | null>(null);
 
   statutChips = [
-    { label: 'Tous',      value: '' },
+    { label: 'En poste',  value: 'en_poste' },
     { label: 'Actifs',    value: 'actif' },
     { label: 'En congé',  value: 'conge' },
     { label: 'Absents',   value: 'absent' },
     { label: 'Suspendus', value: 'suspendu' },
+    { label: 'Départs',   value: 'depart' },
+    { label: 'Tous',      value: '' },
   ];
 
-  // Getters — jamais de filter() dans le template
-  get nbEnConge(): number {
-    return this.store.chauffeurs().filter(c => c.statut === 'conge').length;
+  /** Totaux de tout l'effectif (agence et recherche appliquées), pas de la seule page affichée. */
+  stats = signal<any | null>(null);
+  archiveErreur = signal('');
+  private chargerStats(): void {
+    const f = this.store.filters();
+    const params: Record<string, any> = {};
+    if (f.search) params['search'] = f.search;
+    if (f.agence) params['agence'] = f.agence;
+    this.chauffeurApi.getStats(params).subscribe({ next: s => this.stats.set(s), error: () => {} });
   }
-
-  get nbAssignes(): number {
-    return this.store.chauffeurs().filter(c => c.vehicule_actuel !== null).length;
-  }
+  private recharger(): void { this.store.loadChauffeurs(); this.chargerStats(); }
 
   ngOnInit(): void {
-    this.store.loadChauffeurs();
+    this.recharger();
     this.store.loadPermisExpirant();
     this.agenceApi.getAll().subscribe({
       next: (list) => this.agences.set(Array.isArray(list) ? list : []),
@@ -55,12 +60,12 @@ export class ChauffeursListComponent implements OnInit {
 
   onSearch(event: Event): void {
     this.store.setFilter('search', (event.target as HTMLInputElement).value);
-    this.store.loadChauffeurs();
+    this.recharger();
   }
 
   onAgenceFilter(event: Event): void {
     this.store.setFilter('agence', (event.target as HTMLSelectElement).value);
-    this.store.loadChauffeurs();
+    this.recharger();
   }
 
   onStatutFilter(statut: string): void {
@@ -71,8 +76,8 @@ export class ChauffeursListComponent implements OnInit {
   resetFilters(): void {
     this.store.setFilter('search', '');
     this.store.setFilter('agence', '');
-    this.store.setFilter('statut', '');
-    this.store.loadChauffeurs();
+    this.store.setFilter('statut', 'en_poste');
+    this.recharger();
   }
 
   goToDetail(id: string): void  { this.router.navigate(['/chauffeurs', id]); }
@@ -88,9 +93,10 @@ export class ChauffeursListComponent implements OnInit {
   }
   cancelDelete(): void  { this.deleteConfirm.set(null); }
   doDelete(id: string): void {
-    this.chauffeurApi.update(id, { statut: 'depart' }).subscribe({
-      next: () => { this.deleteConfirm.set(null); this.store.loadChauffeurs(); },
-      error: () => this.deleteConfirm.set(null),
+    this.archiveErreur.set('');
+    this.chauffeurApi.archiver(id).subscribe({
+      next: () => { this.deleteConfirm.set(null); this.recharger(); },
+      error: err => this.archiveErreur.set(err?.error?.detail ?? 'Archivage impossible.'),
     });
   }
 

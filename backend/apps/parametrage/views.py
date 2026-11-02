@@ -676,7 +676,7 @@ class CorrectionSaisieViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 # ── Référentiels à code : catégories de dépense, types de sinistre / contrat ──
-from .models import CategorieDepense, TypeContratAssurance, TypeSinistre
+from .models import CategorieDepense, TypeContratAssurance, TypeDocumentChauffeur, TypeSinistre
 
 
 class ReferentielCodeSerializer(drf_s2.ModelSerializer):
@@ -770,3 +770,14 @@ class TypeContratAssuranceViewSet(ReferentielCodeViewSet):
     serializer_class = TypeContratAssuranceSerializer
     modele = TypeContratAssurance
     utilise_par = ('sinistres.ContratAssurance', 'type_contrat', 'contrat(s)')
+
+
+class TypeDocumentChauffeurSerializer(ReferentielCodeSerializer):
+    class Meta(ReferentielCodeSerializer.Meta):
+        model = TypeDocumentChauffeur
+
+
+class TypeDocumentChauffeurViewSet(ReferentielCodeViewSet):
+    serializer_class = TypeDocumentChauffeurSerializer
+    modele = TypeDocumentChauffeur
+    utilise_par = ('chauffeurs.DocumentChauffeur', 'type_document', 'document(s)')

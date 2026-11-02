@@ -32,7 +32,21 @@
     <!-- En-tête -->
     <div class="chauffeur-header">
       <div class="ch-left">
-        <div class="ch-avatar">{{ c.nom[0] }}{{ c.prenom[0] }}</div>
+        <div class="ch-photo-zone">
+          @if (c.photo) {
+            <img class="ch-avatar ch-avatar-img" [src]="c.photo" [alt]="'Photo de ' + c.prenom + ' ' + c.nom" />
+          } @else {
+            <div class="ch-avatar">{{ c.nom[0] }}{{ c.prenom[0] }}</div>
+          }
+          <div class="ch-photo-actions">
+            <label class="lien-photo" [class.desactive]="photoEnvoi()">
+              <i class="fas fa-camera"></i> {{ photoEnvoi() ? 'Envoi…' : (c.photo ? 'Changer' : 'Ajouter une photo') }}
+              <input type="file" [accept]="acceptPhoto" hidden (change)="choisirPhoto($event)" [disabled]="photoEnvoi()" />
+            </label>
+            @if (c.photo) { <button type="button" class="lien-photo" (click)="retirerPhoto()">Retirer</button> }
+          </div>
+          @if (photoErreur()) { <div class="photo-erreur">{{ photoErreur() }}</div> }
+        </div>
         <div class="ch-info">
           <div class="ch-name">{{ c.prenom }} {{ c.nom }}</div>
           <div class="ch-meta">
@@ -149,11 +163,16 @@
     <!-- Onglets -->
     <div class="tabs">
       <button class="tab" [class.active]="activeTab() === 'infos'"
-              (click)="activeTab.set('infos')">
+              (click)="onTabChange('infos')">
         <i class="fas fa-user"></i> Informations
       </button>
+      <button class="tab" [class.active]="activeTab() === 'documents'"
+              (click)="onTabChange('documents')">
+        <i class="fas fa-folder-open"></i> Documents
+        @if (c.nb_documents) { <span class="tab-count" [class.tab-count-alerte]="c.documents_expires">{{ c.nb_documents }}</span> }
+      </button>
       <button class="tab" [class.active]="activeTab() === 'historique'"
-              (click)="activeTab.set('historique')">
+              (click)="onTabChange('historique')">
         <i class="fas fa-history"></i> Historique
       </button>
       <button class="tab" [class.active]="activeTab() === 'vehicules'"
@@ -261,6 +280,56 @@
       </div>
     }
 
+    <!-- Onglet Documents -->
+    @if (activeTab() === 'documents') {
+      <div class="tab-content">
+        <div class="docs-tete">
+          <p class="muted">Permis scanné, pièce d'identité, contrat, visite médicale… PDF, images (JPG, PNG, WEBP),
+            Word, Excel ou OpenDocument, 10 Mo au plus par fichier.</p>
+          <button class="btn btn-green btn-sm" (click)="ouvrirDocument(null)"><i class="fas fa-upload"></i> Ajouter un document</button>
+        </div>
+        @if (documentsLoad()) {
+          <div class="tab-loading"><i class="fas fa-circle-notch fa-spin"></i> Chargement...</div>
+        } @else if (documents().length === 0) {
+          <div class="placeholder-tab">
+            <i class="fas fa-folder-open"></i>
+            <h3>Aucun document</h3>
+            <p>Ajoutez le permis, la pièce d'identité, le contrat ou tout autre document du chauffeur.</p>
+          </div>
+        } @else {
+          <div class="docs-grille">
+            @for (d of documents(); track d.id) {
+              <div class="doc-carte" [class.doc-expire]="d.est_expire">
+                <button type="button" class="doc-vignette" (click)="d.est_image ? apercu.set(d) : null"
+                        [title]="d.est_image ? 'Agrandir' : d.nom_fichier">
+                  @if (d.est_image) { <img [src]="d.fichier" [alt]="d.type_document_libelle" /> }
+                  @else { <i [class]="iconeFichier(d)"></i> }
+                </button>
+                <div class="doc-corps">
+                  <div class="doc-type">{{ d.type_document_libelle }}@if (d.libelle) { <span class="muted"> — {{ d.libelle }}</span> }</div>
+                  @if (d.numero) { <div class="doc-ligne">N° {{ d.numero }}</div> }
+                  @if (d.date_expiration) {
+                    <div class="doc-ligne">
+                      Expire le {{ d.date_expiration | date:'dd/MM/yyyy' }}
+                      @if (d.est_expire) { <span class="badge badge-danger">Expiré</span> }
+                      @else if (d.jours_restants !== null && d.jours_restants <= 30) { <span class="badge badge-warning">J-{{ d.jours_restants }}</span> }
+                    </div>
+                  }
+                  <div class="doc-fichier muted">{{ d.nom_fichier }} · {{ tailleLisible(d.taille) }}</div>
+                  <div class="doc-meta muted">Ajouté le {{ d.created_at | date:'dd/MM/yyyy' }}{{ d.ajoute_par ? ' par ' + d.ajoute_par : '' }}</div>
+                  <div class="doc-actions">
+                    <a class="btn btn-icon" [href]="d.fichier" target="_blank" rel="noopener" title="Ouvrir / télécharger"><i class="fas fa-download"></i></a>
+                    <button class="btn btn-icon" title="Modifier" (click)="ouvrirDocument(d)"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="docASupprimer.set(d)"><i class="fas fa-trash"></i></button>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
     <!-- Onglet Historique -->
     @if (activeTab() === 'historique') {
       <div class="tab-content">
@@ -300,8 +369,8 @@
                   <div class="sinistres-list">
                     @for (s of historique().sinistres; track s.numero_dossier) {
                       <div class="sinistre-row">
-                        <span class="sinistre-ref">{{ s.numero_dossier }}</span>
-                        <span class="sinistre-type">{{ s.type_sinistre }}</span>
+                        <a class="sinistre-ref" [routerLink]="['/sinistres', s.id]">{{ s.numero_dossier }}</a>
+                        <span class="sinistre-type">{{ s.type_libelle }} · {{ s.statut_libelle }}</span>
                         <span class="sinistre-date">
                           {{ s.date_sinistre | date:'dd/MM/yyyy' }}
                         </span>
@@ -320,6 +389,94 @@
         }
       </div>
     }
+
+  <!-- Fenêtre : ajout / modification d'un document -->
+  @if (docEdite() !== undefined) {
+    <div class="modal-backdrop" (click)="fermerDocument()">
+      <div class="modal-container doc-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-title">{{ docEdite() ? 'Modifier le document' : 'Ajouter un document' }}</div>
+          <button class="btn-close-modal" (click)="fermerDocument()"><i class="fas fa-times"></i></button>
+        </div>
+        @if (docErreur()) { <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ docErreur() }}</div> }
+        <form [formGroup]="docForm" (ngSubmit)="enregistrerDocument()" novalidate>
+          <div class="dropzone-doc" [class.survol]="docSurvol()" [class.choisi]="docFichier()"
+               (dragover)="$event.preventDefault(); docSurvol.set(true)" (dragleave)="docSurvol.set(false)" (drop)="onDocDrop($event)">
+            @if (docFichier(); as f) {
+              <i class="fas fa-file-alt"></i> <strong>{{ f.name }}</strong> <span class="muted">({{ tailleLisible(f.size) }})</span>
+              <button type="button" class="btn btn-icon" (click)="docFichier.set(null)" title="Retirer"><i class="fas fa-times"></i></button>
+            } @else {
+              <i class="fas fa-cloud-upload-alt"></i>
+              <span>{{ docEdite() ? 'Remplacer le fichier (facultatif) :' : 'Glissez le fichier ici ou' }}</span>
+              <label class="btn btn-outline btn-sm">Parcourir
+                <input type="file" [accept]="acceptDocuments" hidden (change)="onDocInput($event)" />
+              </label>
+              @if (docEdite(); as d) { <div class="muted" style="width:100%">Fichier actuel : {{ d.nom_fichier }}</div> }
+            }
+          </div>
+          <div class="doc-form-grille">
+            <div class="form-group">
+              <label class="form-label" for="doc-type">Type de document *</label>
+              <select id="doc-type" class="form-control" formControlName="type_document"
+                      [class.is-invalid]="docForm.controls.type_document.invalid && docForm.controls.type_document.touched">
+                <option value="" disabled>-- Choisir --</option>
+                @for (t of typesProposes(); track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="doc-libelle">Précision</label>
+              <input id="doc-libelle" class="form-control" formControlName="libelle" placeholder="ex. Recto-verso" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="doc-numero">Numéro</label>
+              <input id="doc-numero" class="form-control" formControlName="numero" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="doc-emission">Date d'émission</label>
+              <input id="doc-emission" type="date" class="form-control" formControlName="date_emission" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="doc-expiration">Date d'expiration</label>
+              <input id="doc-expiration" type="date" class="form-control" formControlName="date_expiration" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="doc-notes">Notes</label>
+            <textarea id="doc-notes" class="form-control" rows="2" formControlName="notes"></textarea>
+          </div>
+          <div class="doc-modal-actions">
+            <button type="button" class="btn btn-outline" (click)="fermerDocument()">Annuler</button>
+            <button type="submit" class="btn btn-green" [disabled]="docEnvoi()">
+              <i class="fas fa-save"></i> {{ docEnvoi() ? 'Envoi…' : 'Enregistrer' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  @if (docASupprimer(); as d) {
+    <div class="modal-backdrop" (click)="docASupprimer.set(null)">
+      <div class="modal-container" style="max-width:440px" (click)="$event.stopPropagation()">
+        <div class="modal-header"><div class="modal-title">Supprimer le document ?</div></div>
+        <p>{{ d.type_document_libelle }} — {{ d.nom_fichier }} sera définitivement supprimé.</p>
+        <div class="doc-modal-actions">
+          <button class="btn btn-outline" (click)="docASupprimer.set(null)">Annuler</button>
+          <button class="btn btn-danger" (click)="confirmerSuppressionDocument()"><i class="fas fa-trash"></i> Supprimer</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (apercu(); as d) {
+    <div class="modal-backdrop" (click)="apercu.set(null)">
+      <div class="apercu" (click)="$event.stopPropagation()">
+        <img [src]="d.fichier" [alt]="d.type_document_libelle" />
+        <div class="apercu-pied">{{ d.type_document_libelle }} — {{ d.nom_fichier }}
+          <button class="btn btn-outline btn-sm" (click)="apercu.set(null)">Fermer</button></div>
+      </div>
+    </div>
+  }
 
   <!-- ── Onglet Véhicules rattachés ── -->
   @if (activeTab() === 'vehicules') {

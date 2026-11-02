@@ -309,3 +309,7 @@
     border-color: var(--danger) !important;
   }
 }
+
+.cc-avatar-img, .td-avatar-img { object-fit: cover; }
+button.qs-item { background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
+.qs-dot.gray { background: var(--gray-400, #9ca3af); }
