@@ -6,14 +6,14 @@
     <div>
       <h1 class="page-title">Sinistres & Assurances</h1>
       <p class="page-subtitle">
-        {{ store.pagination().total }} sinistre(s) &bull;
+        {{ stats()?.nb_total ?? store.pagination().total }} sinistre(s) &bull;
         {{ nbEnCours }} en cours &bull;
         {{ store.contratsExpirant().length }} contrat(s) expirant bientôt
       </p>
     </div>
     <div class="header-actions">
-      <button class="btn btn-outline btn-sm">
-        <i class="fas fa-download"></i> Exporter
+      <button class="btn btn-outline btn-sm" (click)="exporter()" [disabled]="exportEnCours()">
+        <i class="fas fa-download"></i> {{ exportEnCours() ? 'Export…' : 'Exporter' }}
       </button>
       <button class="btn btn-green" (click)="goToNew()">
         <i class="fas fa-plus"></i> Déclarer un sinistre
@@ -49,8 +49,20 @@
     <div class="qs-sep"></div>
     <div class="qs-item">
       <span class="qs-dot navy"></span>
-      <span class="qs-val">{{ store.pagination().total }}</span>
+      <span class="qs-val">{{ stats()?.nb_total ?? store.pagination().total }}</span>
       <span class="qs-lbl">Total sinistres</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot orange"></span>
+      <span class="qs-val">{{ (stats()?.cout_reparations ?? 0) | number:'1.0-0' }} FCFA</span>
+      <span class="qs-lbl">Réparations {{ anneeCourante }}</span>
+    </div>
+    <div class="qs-sep"></div>
+    <div class="qs-item">
+      <span class="qs-dot green"></span>
+      <span class="qs-val">{{ (stats()?.indemnisations ?? 0) | number:'1.0-0' }} FCFA</span>
+      <span class="qs-lbl">Indemnisations {{ anneeCourante }}</span>
     </div>
     <div class="qs-sep"></div>
     <div class="qs-item">
@@ -85,12 +97,18 @@
         <input type="text" placeholder="N° dossier, véhicule, lieu..."
                (input)="onSearch($event)" />
       </div>
-      <select class="form-control filter-select" (change)="onAgenceFilter($event)">
-        <option value="">Toutes les agences</option>
-        @for (a of agences(); track a.id) {
-          <option [value]="a.id">{{ a.nom }}</option>
-        }
-      </select>
+      <div class="filtre-vehicule">
+        <ubi-select-recherche [options]="vehicules()" placeholder="Véhicule…"
+                              [selection]="store.filters().vehicule || null" (choix)="onVehiculeFilter($event)" />
+      </div>
+      @if (agences().length > 1) {
+        <select class="form-control filter-select" (change)="onAgenceFilter($event)">
+          <option value="">Toutes les agences</option>
+          @for (a of agences(); track a.id) {
+            <option [value]="a.id" [selected]="store.filters().agence === a.id">{{ a.nom }}</option>
+          }
+        </select>
+      }
     </div>
 
     <div class="chip-row">
@@ -239,13 +257,8 @@
 
             <div class="form-group">
               <label class="form-label">Véhicule *</label>
-              <select formControlName="vehicule" class="form-control"
-                      [class.is-invalid]="cf['vehicule'].invalid && cf['vehicule'].touched">
-                <option value="">-- Sélectionner --</option>
-                @for (v of vehicules(); track v.id) {
-                  <option [value]="v.id">{{ v.immatriculation }} — {{ v.designation }}</option>
-                }
-              </select>
+              <ubi-select-recherche formControlName="vehicule" [options]="vehicules()" placeholder="Immatriculation…"
+                                    [invalid]="cf['vehicule'].invalid && cf['vehicule'].touched" />
               @if (cf['vehicule'].invalid && cf['vehicule'].touched) {
                 <div class="form-error">
                   <i class="fas fa-times-circle"></i> Requis.
@@ -374,8 +387,8 @@
                         </span>
                       </td>
                       <td>
-                        <button class="btn btn-icon" title="Renouveler"
-                                (click)="openContratModal(c)">
+                        <button class="btn btn-icon" title="Renouveler (nouveau contrat à la suite)"
+                                (click)="renouvelerContrat(c)">
                           <i class="fas fa-redo"></i>
                         </button>
                       </td>

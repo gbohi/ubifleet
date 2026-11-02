@@ -74,3 +74,15 @@
 }
 .info-label { padding: 9px 0; color: var(--gray-500); width: 45%; font-weight: 500; }
 .info-value { padding: 9px 0; color: var(--navy); }
+
+.muted { color: var(--gray-500); font-size: 12px; }
+.pj-ajout { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pj-type { height: 32px; width: 200px; font-size: 12px; }
+.pj-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.pj-carte { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--gray-100); border-radius: 10px; }
+.pj-vignette { flex-shrink: 0; width: 56px; height: 56px; border-radius: 8px; overflow: hidden; display: grid; place-items: center;
+  background: var(--gray-50, #f6f8fa); img { width: 100%; height: 100%; object-fit: cover; } i { font-size: 22px; color: var(--navy); } }
+.pj-corps { flex: 1; min-width: 0; .pj-nom { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
+.notes-suivi { white-space: pre-wrap; font-family: inherit; font-size: 13px; color: var(--gray-600, #4b5563); margin: 0; }
+.alert-error-sm { background: var(--danger-light, #fde9e7); color: var(--danger, #c8453a); padding: 8px 12px; border-radius: 8px; font-size: 12px; margin-bottom: 10px; }
+label.btn.disabled { opacity: .6; pointer-events: none; }

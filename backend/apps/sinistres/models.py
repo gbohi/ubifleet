@@ -1,6 +1,7 @@
 """UbiFleet — Sinistres & Assurances Models"""
 
 from django.db import models
+from apps.core.fichiers import VALIDATEURS_DOCUMENT
 from apps.core.models import UbiFleetBaseModel
 
 
@@ -145,18 +146,20 @@ class Sinistre(UbiFleetBaseModel):
     def save(self, *args, **kwargs):
         if not self.numero_dossier:
             from django.utils import timezone
+            # Numéro suivant le plus grand de l'année (un comptage redonnait un numéro
+            # déjà pris après une suppression)
             year = timezone.now().year
-            last = Sinistre.objects.filter(
-                numero_dossier__startswith=f'SIN-{year}-'
-            ).count()
-            self.numero_dossier = f'SIN-{year}-{str(last + 1).zfill(3)}'
+            prefixe = f'SIN-{year}-'
+            numeros = [int(n[len(prefixe):]) for n in Sinistre.objects.filter(numero_dossier__startswith=prefixe)
+                       .values_list('numero_dossier', flat=True) if n[len(prefixe):].isdigit()]
+            self.numero_dossier = f'{prefixe}{str(max(numeros, default=0) + 1).zfill(3)}'
         super().save(*args, **kwargs)
 
 
 class PieceJointeSinistre(UbiFleetBaseModel):
     sinistre = models.ForeignKey(Sinistre, on_delete=models.CASCADE, related_name='pièces_jointes')
     nom = models.CharField(max_length=100)
-    fichier = models.FileField(upload_to='sinistres/docs/')
+    fichier = models.FileField(upload_to='sinistres/docs/', validators=VALIDATEURS_DOCUMENT)
     type_document = models.CharField(
         max_length=30,
         choices=[

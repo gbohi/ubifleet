@@ -259,6 +259,22 @@ export interface Sinistre {
   agence: string;
   agence_nom: string;
   created_at: string;
+  contrat_assurance?: string | null;
+  contrat_libelle?: string | null;
+  responsabilite?: string;
+  kilometrage_sinistre?: number | null;
+  tiers_immatriculation?: string;
+  tiers_assureur?: string;
+  tiers_nom?: string;
+  franchise_appliquee?: number | null;
+  date_declaration_assureur?: string | null;
+  date_expertise?: string | null;
+  date_cloture?: string | null;
+  numero_constat?: string;
+  notes?: string;
+  reste_a_charge?: number | null;
+  pièces_jointes?: { id: string; nom: string; fichier: string; type_document: string; type_document_display: string;
+                     est_image: boolean; created_at: string }[];
 }
 
 export interface ContratAssurance {

@@ -55,39 +55,23 @@
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Véhicule *</label>
-                <select formControlName="vehicule" class="form-control"
-                        [class.is-invalid]="f['vehicule'].invalid && f['vehicule'].touched"
-                        (change)="onVehiculeChange($event)">
-                  <option value="">-- Sélectionner un véhicule --</option>
-                  @for (v of vehicules(); track v.id) {
-                    <option [value]="v.id">
-                      {{ v.immatriculation }} — {{ v.designation }}
-                    </option>
-                  }
-                </select>
+                <ubi-select-recherche formControlName="vehicule" [options]="vehicules()" placeholder="Immatriculation…"
+                                      [invalid]="f['vehicule'].invalid && f['vehicule'].touched" (choix)="choisirVehicule($event)" />
                 @if (f['vehicule'].invalid && f['vehicule'].touched) {
-                  <div class="form-error">
-                    <i class="fas fa-times-circle"></i> Le véhicule est requis.
-                  </div>
+                  <div class="form-error"><i class="fas fa-times-circle"></i> Le véhicule est requis.</div>
                 }
+                <small class="aide">Agence : {{ agenceNom() || 'celle du véhicule' }}</small>
               </div>
               <div class="form-group">
                 <label class="form-label">Chauffeur</label>
-                <select formControlName="chauffeur" class="form-control">
-                  <option [value]="null">-- Aucun / Non précisé --</option>
-                  @for (c of chauffeurs(); track c.id) {
-                    <option [value]="c.id">{{ c.nom_complet }}</option>
-                  }
-                </select>
+                <ubi-select-recherche formControlName="chauffeur" [options]="chauffeurs()" placeholder="Nom ou matricule…" />
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">Agence</label>
-              <select formControlName="agence" class="form-control">
-                <option value="">-- Déduite automatiquement du véhicule --</option>
-                @for (a of agences(); track a.id) {
-                  <option [value]="a.id">{{ a.nom }}</option>
-                }
+              <label class="form-label" for="si-contrat">Contrat d'assurance</label>
+              <select id="si-contrat" formControlName="contrat_assurance" class="form-control">
+                <option [ngValue]="null">{{ f['vehicule'].value ? (contrats().length ? '-- Aucun --' : 'Aucun contrat pour ce véhicule') : 'Choisissez d\'abord le véhicule' }}</option>
+                @for (c of contrats(); track c.value) { <option [ngValue]="c.value">{{ c.label }}</option> }
               </select>
             </div>
           </div>
@@ -106,7 +90,9 @@
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Type de sinistre *</label>
-                <select formControlName="type_sinistre" class="form-control">
+                <select formControlName="type_sinistre" class="form-control"
+                        [class.is-invalid]="f['type_sinistre'].invalid && f['type_sinistre'].touched">
+                  <option value="" disabled>-- Choisir --</option>
                   @for (t of typesSinistre(); track t.value) {
                     <option [value]="t.value">{{ t.label }}</option>
                   }
@@ -114,7 +100,7 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Date du sinistre *</label>
-                <input type="date" formControlName="date_sinistre" class="form-control"
+                <input type="date" formControlName="date_sinistre" [max]="aujourdhui" class="form-control"
                        [class.is-invalid]="f['date_sinistre'].invalid && f['date_sinistre'].touched" />
                 @if (f['date_sinistre'].invalid && f['date_sinistre'].touched) {
                   <div class="form-error">
@@ -123,10 +109,21 @@
                 }
               </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Lieu du sinistre</label>
-              <input formControlName="lieu" class="form-control"
-                     placeholder="Localisation précise de l'incident" />
+            <div class="form-row-3">
+              <div class="form-group">
+                <label class="form-label">Lieu du sinistre</label>
+                <input formControlName="lieu" class="form-control" placeholder="Localisation précise de l'incident" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Kilométrage</label>
+                <input type="number" min="0" formControlName="kilometrage_sinistre" class="form-control" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Responsabilité</label>
+                <select formControlName="responsabilite" class="form-control">
+                  @for (r of responsabilites; track r.value) { <option [value]="r.value">{{ r.label }}</option> }
+                </select>
+              </div>
             </div>
             <div class="form-group">
               <label class="form-label">Description *</label>
@@ -139,6 +136,35 @@
                   <i class="fas fa-times-circle"></i> La description est requise.
                 </div>
               }
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Tiers & assurance -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-icon"><i class="fas fa-users"></i></div>
+            <div>
+              <div class="section-title">Tiers et déclaration</div>
+              <div class="section-sub">Autre partie impliquée, constat et suivi avec l'assureur</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-row-3">
+              <div class="form-group"><label class="form-label">Immatriculation du tiers</label>
+                <input formControlName="tiers_immatriculation" class="form-control" /></div>
+              <div class="form-group"><label class="form-label">Nom du tiers</label>
+                <input formControlName="tiers_nom" class="form-control" /></div>
+              <div class="form-group"><label class="form-label">Assureur du tiers</label>
+                <input formControlName="tiers_assureur" class="form-control" /></div>
+            </div>
+            <div class="form-row-3">
+              <div class="form-group"><label class="form-label">N° de constat</label>
+                <input formControlName="numero_constat" class="form-control" /></div>
+              <div class="form-group"><label class="form-label">Déclaré à l'assureur le</label>
+                <input type="date" formControlName="date_declaration_assureur" class="form-control" /></div>
+              <div class="form-group"><label class="form-label">Date d'expertise</label>
+                <input type="date" formControlName="date_expertise" class="form-control" /></div>
             </div>
           </div>
         </div>
@@ -176,6 +202,22 @@
                        min="0" placeholder="0 — à renseigner après indemnisation" />
               </div>
             </div>
+            <div class="form-row-3">
+              <div class="form-group">
+                <label class="form-label">Franchise appliquée (FCFA)</label>
+                <input type="number" formControlName="franchise_appliquee" class="form-control" min="0" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Reste à la charge</label>
+                <div class="form-control form-control-lecture">
+                  {{ resteACharge() === null ? 'Saisissez le coût de réparation' : (resteACharge() | number:'1.0-0') + ' FCFA' }}</div>
+                <small class="aide">Coût de réparation − indemnisation reçue ; reporté dans les dépenses (catégorie Sinistre).</small>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <textarea formControlName="notes" class="form-control" rows="2"></textarea>
+            </div>
           </div>
         </div>
 
@@ -185,7 +227,7 @@
         <button type="button" class="btn btn-outline" (click)="cancel()">
           <i class="fas fa-times"></i> Annuler
         </button>
-        <button type="submit" class="btn btn-green" [disabled]="form.invalid || saving()">
+        <button type="submit" class="btn btn-green" [disabled]="saving()">
           @if (saving()) {
             <i class="fas fa-circle-notch fa-spin"></i> Enregistrement...
           } @else if (isEditMode()) {

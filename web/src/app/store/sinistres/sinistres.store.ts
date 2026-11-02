@@ -24,6 +24,7 @@ interface SinistresState {
     agence:       string;
     type_sinistre: string;
     statut:       string;
+    vehicule:     string;
   };
 }
 
@@ -35,7 +36,7 @@ const initialState: SinistresState = {
   loadingState:     'idle',
   error:            null,
   pagination:       initialPagination,
-  filters: { search: '', agence: '', type_sinistre: '', statut: '' },
+  filters: { search: '', agence: '', type_sinistre: '', statut: '', vehicule: '' },
 };
 
 export const SinistresStore = signalStore(
@@ -72,6 +73,7 @@ export const SinistresStore = signalStore(
           if (f.agence)        params['agence']        = f.agence;
           if (f.type_sinistre) params['type_sinistre'] = f.type_sinistre;
           if (f.statut)        params['statut']        = f.statut;
+          if (f.vehicule)      params['vehicule']      = f.vehicule;
 
           return api.getSinistres(params).pipe(
             tapResponse({

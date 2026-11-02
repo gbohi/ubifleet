@@ -7,6 +7,8 @@ import { Router, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { SinistreApiService } from '../../../core/services/api.service';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { catchError, forkJoin, of } from 'rxjs';
 import { Sinistre, StatutSinistre, TypeSinistre } from '../../../core/models';
 
 @Component({
@@ -40,6 +42,7 @@ export class SinistreDetailComponent implements OnInit {
   get sf() { return this.statutForm.controls; }
 
   readonly statutsDisponibles = [
+    { value: 'declare',        label: 'Déclaré' },
     { value: 'en_instruction', label: 'Mettre en instruction' },
     { value: 'expertise',      label: 'Expertise en cours' },
     { value: 'reparation',     label: 'En réparation' },
@@ -47,6 +50,58 @@ export class SinistreDetailComponent implements OnInit {
     { value: 'clos',           label: 'Clôturer le dossier' },
     { value: 'conteste',       label: 'Contesté' },
   ];
+
+  // ── Pièces jointes ──
+  readonly acceptDocuments = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt';
+  readonly typesPiece = [
+    { value: 'constat', label: 'Constat amiable' }, { value: 'photo', label: 'Photo' },
+    { value: 'facture', label: 'Facture réparation' }, { value: 'rapport', label: "Rapport d'expertise" },
+    { value: 'correspondance', label: 'Correspondance assureur' }, { value: 'autre', label: 'Autre' },
+  ];
+  pjType   = signal('photo');
+  pjEnvoi  = signal(false);
+  pjErreur = signal('');
+  showSuppression = signal(false);
+
+  private recharger(): void {
+    this.sinistreApi.getById(this.id()).subscribe({ next: s => this.sinistre.set(s), error: () => {} });
+  }
+  envoyerPieces(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const fichiers = Array.from(input.files ?? []);
+    input.value = '';
+    if (!fichiers.length) return;
+    const trop = fichiers.find(f => f.size > 10 * 1024 * 1024);
+    if (trop) { this.pjErreur.set(`${trop.name} dépasse 10 Mo.`); return; }
+    this.pjEnvoi.set(true); this.pjErreur.set('');
+    forkJoin(fichiers.map(f => this.sinistreApi.envoyerPieceJointe(this.id(), f, this.pjType()).pipe(
+      catchError(err => of({ erreur: `${f.name} : ${messageErreurApi(err, 'envoi impossible')}` })))))
+      .subscribe(res => {
+        this.pjEnvoi.set(false);
+        const echecs = res.filter((r: any) => r?.erreur).map((r: any) => r.erreur);
+        if (echecs.length) this.pjErreur.set(echecs.join(' ; '));
+        this.recharger();
+      });
+  }
+  supprimerPiece(id: string): void {
+    if (!confirm('Supprimer cette pièce jointe ?')) return;
+    this.sinistreApi.supprimerPieceJointe(id).subscribe({ next: () => this.recharger(), error: () => {} });
+  }
+  supprimerDossier(): void {
+    this.sinistreApi.supprimer(this.id()).subscribe({
+      next: () => this.router.navigate(['/sinistres']),
+      error: err => this.actionError.set(messageErreurApi(err, 'Suppression impossible.')),
+    });
+  }
+  /** Pièces jointes du dossier (champ « pièces_jointes » de l'API). */
+  pieces(s: Sinistre): any[] { return (s as any)['pièces_jointes'] ?? []; }
+  tiers(s: Sinistre): string {
+    return [s.tiers_nom, s.tiers_immatriculation, s.tiers_assureur].filter(x => !!x).join(' · ') || '—';
+  }
+  libelleResponsabilite(r?: string): string {
+    return ({ total: 'Responsabilité totale', partielle: 'Responsabilité partagée', tiers: 'Tiers responsable',
+              force_majeure: 'Force majeure' } as Record<string, string>)[r ?? ''] ?? 'Non déterminée';
+  }
 
   ngOnInit(): void {
     this.sinistreApi.getById(this.id()).subscribe({
@@ -74,7 +129,7 @@ export class SinistreDetailComponent implements OnInit {
     this.actionError.set('');
 
     const statut = this.statutForm.value.statut!;
-    this.sinistreApi.changerStatut(this.id(), statut).subscribe({
+    this.sinistreApi.changerStatut(this.id(), statut, this.statutForm.value.notes ?? '').subscribe({
       next: () => {
         this.actionLoading.set(false);
         this.actionSuccess.set('Statut mis à jour avec succès.');
@@ -85,7 +140,7 @@ export class SinistreDetailComponent implements OnInit {
       },
       error: (err) => {
         this.actionLoading.set(false);
-        this.actionError.set(err?.error?.detail ?? 'Erreur lors de la mise à jour.');
+        this.actionError.set(messageErreurApi(err, 'Erreur lors de la mise à jour.'));
       },
     });
   }

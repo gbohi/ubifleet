@@ -62,16 +62,15 @@
       </div>
       <div class="sh-right">
         <div class="sh-actions">
-          @if (s.statut !== 'clos' && s.statut !== 'indemnise') {
-            <button class="btn btn-primary btn-sm" (click)="openStatutModal()">
-              <i class="fas fa-exchange-alt"></i> Changer le statut
-            </button>
-          }
-          @if (s.statut !== 'clos') {
-            <button class="btn btn-outline btn-sm" (click)="goToEdit()">
-              <i class="fas fa-edit"></i> Modifier
-            </button>
-          }
+          <button class="btn btn-primary btn-sm" (click)="openStatutModal()">
+            <i class="fas fa-exchange-alt"></i> {{ s.statut === 'clos' || s.statut === 'indemnise' ? 'Rouvrir / changer le statut' : 'Changer le statut' }}
+          </button>
+          <button class="btn btn-outline btn-sm" (click)="goToEdit()">
+            <i class="fas fa-edit"></i> Modifier
+          </button>
+          <button class="btn btn-icon btn-icon-danger" title="Supprimer le dossier" (click)="showSuppression.set(true)">
+            <i class="fas fa-trash"></i>
+          </button>
           <button class="btn btn-outline btn-sm" (click)="goBack()">
             <i class="fas fa-arrow-left"></i> Retour
           </button>
@@ -113,6 +112,15 @@
           </div>
         </div>
       }
+      @if (s.reste_a_charge !== null && s.reste_a_charge !== undefined) {
+        <div class="kpi-card" title="Coût de réparation − indemnisation ; reporté dans les dépenses (catégorie Sinistre)">
+          <div class="kpi-icon danger"><i class="fas fa-wallet"></i></div>
+          <div>
+            <div class="kpi-val">{{ s.reste_a_charge | number:'1.0-0' }} FCFA</div>
+            <div class="kpi-lbl">Reste à la charge</div>
+          </div>
+        </div>
+      }
     </div>
 
     <!-- Détails -->
@@ -137,6 +145,27 @@
                 <td class="info-value">{{ s.lieu || '—' }}</td></tr>
             <tr><td class="info-label">Agence</td>
                 <td class="info-value">{{ s.agence_nom }}</td></tr>
+            <tr><td class="info-label">Véhicule</td>
+                <td class="info-value"><a [routerLink]="['/vehicules', s.vehicule]">{{ s.vehicule_immat }}</a>
+                  @if (s.kilometrage_sinistre) { <span class="muted"> · {{ s.kilometrage_sinistre | number:'1.0-0' }} km</span> }</td></tr>
+            <tr><td class="info-label">Chauffeur</td>
+                <td class="info-value">@if (s.chauffeur) { <a [routerLink]="['/chauffeurs', s.chauffeur]">{{ s.chauffeur_nom }}</a> } @else { — }</td></tr>
+            <tr><td class="info-label">Responsabilité</td>
+                <td class="info-value">{{ libelleResponsabilite(s.responsabilite) }}</td></tr>
+            <tr><td class="info-label">Contrat d'assurance</td>
+                <td class="info-value">{{ s.contrat_libelle || '—' }}</td></tr>
+            <tr><td class="info-label">Tiers</td>
+                <td class="info-value">{{ tiers(s) }}</td></tr>
+            <tr><td class="info-label">N° constat</td>
+                <td class="info-value">{{ s.numero_constat || '—' }}</td></tr>
+            <tr><td class="info-label">Déclaré à l'assureur</td>
+                <td class="info-value">{{ s.date_declaration_assureur ? (s.date_declaration_assureur | date:'dd/MM/yyyy') : '—' }}</td></tr>
+            <tr><td class="info-label">Expertise</td>
+                <td class="info-value">{{ s.date_expertise ? (s.date_expertise | date:'dd/MM/yyyy') : '—' }}</td></tr>
+            @if (s.date_cloture) {
+              <tr><td class="info-label">Clôturé le</td>
+                  <td class="info-value">{{ s.date_cloture | date:'dd/MM/yyyy' }}</td></tr>
+            }
           </table>
         </div>
       </div>
@@ -159,10 +188,60 @@
                     {{ s.indemnisation_recue | number:'1.0-0' }} FCFA
                   } @else { — }
                 </td></tr>
+            <tr><td class="info-label">Franchise appliquée</td>
+                <td class="info-value">{{ s.franchise_appliquee !== null && s.franchise_appliquee !== undefined ? (s.franchise_appliquee | number:'1.0-0') + ' FCFA' : '—' }}</td></tr>
+            <tr><td class="info-label">Reste à la charge</td>
+                <td class="info-value"><strong>{{ s.reste_a_charge !== null && s.reste_a_charge !== undefined ? (s.reste_a_charge | number:'1.0-0') + ' FCFA' : '—' }}</strong></td></tr>
           </table>
         </div>
       </div>
     </div>
+
+    <!-- Pièces jointes -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-header">
+        <div class="card-title">Pièces jointes ({{ pieces(s).length }})</div>
+        <div class="pj-ajout">
+          <select class="form-control pj-type" (change)="pjType.set($any($event.target).value)">
+            @for (t of typesPiece; track t.value) { <option [value]="t.value" [selected]="t.value === pjType()">{{ t.label }}</option> }
+          </select>
+          <label class="btn btn-green btn-sm" [class.disabled]="pjEnvoi()">
+            <i class="fas fa-upload"></i> {{ pjEnvoi() ? 'Envoi…' : 'Ajouter des fichiers' }}
+            <input type="file" multiple hidden [accept]="acceptDocuments" (change)="envoyerPieces($event)" [disabled]="pjEnvoi()" />
+          </label>
+        </div>
+      </div>
+      <div class="card-body">
+        @if (pjErreur()) { <div class="alert-error-sm">{{ pjErreur() }}</div> }
+        <p class="muted" style="margin:0 0 10px">Constat amiable, photos des dégâts, factures, rapport d'expertise, courriers de
+          l'assureur… PDF, images, Word, Excel ; 10 Mo au plus par fichier.</p>
+        @if (!pieces(s).length) {
+          <p class="muted">Aucune pièce jointe.</p>
+        } @else {
+          <div class="pj-grille">
+            @for (pj of pieces(s); track pj.id) {
+              <div class="pj-carte">
+                <a class="pj-vignette" [href]="pj.fichier" target="_blank" rel="noopener" [title]="pj.nom">
+                  @if (pj.est_image) { <img [src]="pj.fichier" [alt]="pj.nom" /> } @else { <i class="fas fa-file-alt"></i> }
+                </a>
+                <div class="pj-corps">
+                  <div class="pj-nom">{{ pj.nom }}</div>
+                  <div class="muted">{{ pj.type_document_display }} · {{ pj.created_at | date:'dd/MM/yyyy' }}</div>
+                </div>
+                <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="supprimerPiece(pj.id)"><i class="fas fa-trash"></i></button>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    @if (s.notes) {
+      <div class="card" style="margin-top:16px">
+        <div class="card-header"><div class="card-title">Suivi du dossier</div></div>
+        <div class="card-body"><pre class="notes-suivi">{{ s.notes }}</pre></div>
+      </div>
+    }
 
     @if (s.description) {
       <div class="card" style="margin-top:16px">
@@ -177,6 +256,20 @@
 
   }
 </div>
+
+@if (showSuppression()) {
+  <div class="modal-backdrop" (click)="showSuppression.set(false)">
+    <div class="modal-container" style="max-width:440px" (click)="$event.stopPropagation()">
+      <div class="modal-header"><div class="modal-title">Supprimer le dossier ?</div></div>
+      <p>Le dossier, ses pièces jointes et la dépense « Sinistre » associée seront supprimés définitivement.</p>
+      @if (actionError()) { <div class="alert-error-sm">{{ actionError() }}</div> }
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn btn-outline" (click)="showSuppression.set(false)">Annuler</button>
+        <button class="btn btn-danger" (click)="supprimerDossier()"><i class="fas fa-trash"></i> Supprimer</button>
+      </div>
+    </div>
+  </div>
+}
 
 <!-- MODAL CHANGEMENT STATUT -->
 @if (showStatutModal()) {

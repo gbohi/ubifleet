@@ -7,13 +7,19 @@ import { Router, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { SinistresStore } from '../../../store/sinistres/sinistres.store';
-import { AgenceApiService, ParametrageApiService, SinistreApiService, VehiculeApiService } from '../../../core/services/api.service';
+import { AgenceApiService, ParametrageApiService, SinistreApiService } from '../../../core/services/api.service';
 import { Agence, Sinistre, ContratAssurance, StatutSinistre, TypeSinistre } from '../../../core/models';
+import { Observable, of } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
+import { exporterCsv } from '../../carburant/analyses/filtres-analyse.component';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
+import { OptionVehicule, OptionsSaisieService } from '../../../core/services/options-saisie.service';
+import { SelectRechercheComponent } from '../../../shared/select-recherche/select-recherche.component';
 
 @Component({
   selector: 'ubi-sinistres-list',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, ReactiveFormsModule],
+  imports: [RouterLink, DatePipe, DecimalPipe, ReactiveFormsModule, SelectRechercheComponent],
   templateUrl: './sinistres-list.component.html',
   styleUrls: ['./sinistres-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -24,11 +30,15 @@ export class SinistresListComponent implements OnInit {
   private fb           = inject(FormBuilder);
   private agenceApi    = inject(AgenceApiService);
   private sinistreApi  = inject(SinistreApiService);
-  private vehiculeApi  = inject(VehiculeApiService);
+  private options      = inject(OptionsSaisieService);
   private parametrageApi = inject(ParametrageApiService);
 
   agences      = signal<Agence[]>([]);
-  vehicules    = signal<{ id: string; immatriculation: string; designation: string }[]>([]);
+  vehicules    = signal<OptionVehicule[]>([]);
+  /** Statistiques serveur (tous les sinistres filtrés, pas seulement la page affichée). */
+  stats        = signal<any | null>(null);
+  exportEnCours = signal(false);
+  readonly anneeCourante = new Date().getFullYear();
   assureurs    = signal<any[]>([]);
   allContrats  = signal<ContratAssurance[]>([]);
   contratsLoad = signal(false);
@@ -74,15 +84,7 @@ export class SinistresListComponent implements OnInit {
   typesChips = signal<{ label: string; value: string }[]>([{ label: 'Tous', value: '' }]);
 
   // Getters — pas de filter dans le template
-  get nbEnCours(): number {
-    return this.store.sinistres().filter(s =>
-      ['declare','en_instruction','expertise','reparation'].includes(s.statut)
-    ).length;
-  }
-
-  get totalDommages(): number {
-    return this.store.sinistres().reduce((a, s) => a + Number(s.dommages_estimes), 0);
-  }
+  get nbEnCours(): number { return this.stats()?.en_cours ?? 0; }
 
   get nbContratsUrgents(): number {
     return this.store.contratsExpirant().filter(c => c.jours_restants <= 30).length;
@@ -104,39 +106,74 @@ export class SinistresListComponent implements OnInit {
       next: (list) => this.agences.set(Array.isArray(list) ? list : []),
       error: () => this.agences.set([]),
     });
-    this.vehiculeApi.getAll({ page_size: 200 }).subscribe({
-      next: (res) => {
-        const list = Array.isArray(res) ? res : (res.results ?? []);
-        this.vehicules.set(list.map(v => ({
-          id: v.id, immatriculation: v.immatriculation, designation: v.designation,
-        })));
-      },
-      error: () => {},
-    });
+    this.options.vehicules().subscribe({ next: l => this.vehicules.set(l), error: () => {} });
+    this.chargerStats();
     this.sinistreApi.getAssureurs().subscribe({
       next: (list) => this.assureurs.set(Array.isArray(list) ? list : []),
       error: () => {},
     });
   }
 
+  private paramsFiltres(): Record<string, any> {
+    const f = this.store.filters();
+    const p: Record<string, any> = {};
+    if (f.search)        p['search'] = f.search;
+    if (f.agence)        p['agence'] = f.agence;
+    if (f.vehicule)      p['vehicule'] = f.vehicule;
+    if (f.type_sinistre) p['type_sinistre'] = f.type_sinistre;
+    if (f.statut)        p['statut'] = f.statut;
+    return p;
+  }
+
+  chargerStats(): void {
+    this.sinistreApi.getStats(this.paramsFiltres()).subscribe({ next: s => this.stats.set(s), error: () => {} });
+  }
+
+  private recharger(): void { this.store.loadSinistres(); this.chargerStats(); }
+
+  onVehiculeFilter(id: string | null): void { this.store.setFilter('vehicule', id ?? ''); this.recharger(); }
+
+  /** Export CSV de tous les sinistres filtrés (toutes les pages). */
+  exporter(): void {
+    if (this.exportEnCours()) return;
+    const params = this.paramsFiltres();
+    const page = (n: number): Observable<any[]> => this.sinistreApi.getSinistres({ ...params, page: n, page_size: 1000 }).pipe(
+      switchMap((r: any) => r.next ? page(n + 1).pipe(map(suite => [...r.results, ...suite])) : of(r.results ?? [])));
+    const fr = (d: string | null) => d ? d.split('-').reverse().join('/') : '';
+    const nb = (v: any) => v !== null && v !== undefined && v !== '' ? Number(v) : '';
+    this.exportEnCours.set(true);
+    page(1).subscribe({
+      next: lignes => {
+        this.exportEnCours.set(false);
+        exporterCsv(`sinistres_${new Date().toISOString().slice(0, 10)}.csv`,
+          ['N° dossier', 'Véhicule', 'Agence', 'Chauffeur', 'Type', 'Date', 'Lieu', 'Statut', 'Dommages estimés (FCFA)',
+           'Coût réparation (FCFA)', 'Indemnisation reçue (FCFA)', 'Reste à charge (FCFA)', 'Date clôture'],
+          lignes.map((s: any) => [s.numero_dossier, s.vehicule_immat, s.agence_nom ?? '', s.chauffeur_nom ?? '', s.type_display,
+            fr(s.date_sinistre), s.lieu ?? '', s.statut_display, nb(s.dommages_estimes), nb(s.cout_reparation),
+            nb(s.indemnisation_recue), nb(s.reste_a_charge), fr(s.date_cloture)]));
+      },
+      error: () => this.exportEnCours.set(false),
+    });
+  }
+
   onSearch(event: Event): void {
     this.store.setFilter('search', (event.target as HTMLInputElement).value);
-    this.store.loadSinistres();
+    this.recharger();
   }
 
   onAgenceFilter(event: Event): void {
     this.store.setFilter('agence', (event.target as HTMLSelectElement).value);
-    this.store.loadSinistres();
+    this.recharger();
   }
 
   onStatutFilter(val: string): void {
     this.store.setFilter('statut', val);
-    this.store.loadSinistres();
+    this.recharger();
   }
 
   onTypeFilter(val: string): void {
     this.store.setFilter('type_sinistre', val);
-    this.store.loadSinistres();
+    this.recharger();
   }
 
   goToDetail(id: string): void   { this.router.navigate(['/sinistres', id]); }
@@ -209,6 +246,25 @@ export class SinistresListComponent implements OnInit {
   closeContratModal(): void {
     this.showContratModal.set(false);
     this.editContratId.set(null);
+    this.typeContratEdite.set('');
+    this.contratForm.reset({ vehicule: '', type_contrat: '', prime_annuelle: 0, franchise: 0 });
+  }
+
+  /** Renouvellement : nouveau contrat pré-rempli, qui démarre le lendemain de la fin de l'ancien, pour un an. */
+  renouvelerContrat(c: ContratAssurance): void {
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const debut = new Date(c.date_fin + 'T00:00:00'); debut.setDate(debut.getDate() + 1);
+    const fin = new Date(debut); fin.setFullYear(fin.getFullYear() + 1); fin.setDate(fin.getDate() - 1);
+    this.contratError.set(''); this.contratSuccess.set('');
+    this.editContratId.set(null);
+    this.typeContratEdite.set(c.type_contrat);
+    this.contratForm.reset({
+      vehicule: c.vehicule, assureur: c.assureur, numero_police: '', type_contrat: c.type_contrat,
+      date_debut: iso(debut), date_fin: iso(fin),
+      prime_annuelle: Number(c.prime_annuelle), franchise: Number(c.franchise),
+    });
+    this.activeTab.set('contrats');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   saveContrat(): void {
@@ -229,21 +285,15 @@ export class SinistresListComponent implements OnInit {
     req.subscribe({
       next: () => {
         this.contratSaving.set(false);
-        this.contratSuccess.set(this.editContratId() ? 'Contrat modifié.' : 'Contrat créé.');
+        const msg = this.editContratId() ? 'Contrat modifié.' : 'Contrat créé.';
         this.closeContratModal();
+        this.contratSuccess.set(msg);
         this.loadContrats();
         this.store.loadContratsExpirant();
       },
       error: (err) => {
         this.contratSaving.set(false);
-        if (err?.error && typeof err.error === 'object') {
-          const msgs = Object.entries(err.error)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-            .join(' | ');
-          this.contratError.set(msgs);
-        } else {
-          this.contratError.set('Une erreur est survenue.');
-        }
+        this.contratError.set(messageErreurApi(err, 'Une erreur est survenue.'));
       },
     });
   }

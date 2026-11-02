@@ -48,3 +48,7 @@
 @media (max-width: 768px) {
   .form-row, .form-row-3 { grid-template-columns: 1fr !important; }
 }
+
+.aide { display: block; color: var(--gray-400); font-size: 11px; margin-top: 4px; }
+.form-control-lecture { background: var(--gray-50, #f6f8fa); color: var(--navy); display: flex; align-items: center; font-weight: 600; }
+.form-row-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 16px; @media (max-width: 760px) { grid-template-columns: 1fr; } }

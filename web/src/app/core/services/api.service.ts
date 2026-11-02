@@ -545,8 +545,20 @@ export class SinistreApiService extends ApiBaseService {
   update(id: string, data: Partial<Sinistre>): Observable<Sinistre> {
     return this.http.patch<Sinistre>(`${API}/sinistres/sinistres/${id}/`, data);
   }
-  changerStatut(id: string, statut: string): Observable<any> {
-    return this.http.post(`${API}/sinistres/sinistres/${id}/changer_statut/`, { statut });
+  changerStatut(id: string, statut: string, notes = ''): Observable<any> {
+    return this.http.post(`${API}/sinistres/sinistres/${id}/changer_statut/`, { statut, notes });
+  }
+  supprimer(id: string): Observable<any> {
+    return this.http.delete(`${API}/sinistres/sinistres/${id}/`);
+  }
+  envoyerPieceJointe(sinistreId: string, fichier: File, typeDocument: string, nom = ''): Observable<any> {
+    const fd = new FormData();
+    fd.append('sinistre', sinistreId); fd.append('fichier', fichier); fd.append('type_document', typeDocument);
+    if (nom) fd.append('nom', nom);
+    return this.http.post(`${API}/sinistres/pieces-jointes/`, fd);
+  }
+  supprimerPieceJointe(id: string): Observable<any> {
+    return this.http.delete(`${API}/sinistres/pieces-jointes/${id}/`);
   }
   getStats(params?: Record<string, any>): Observable<any> {
     const p = params ? this.buildParams(params) : undefined;

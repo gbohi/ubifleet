@@ -23,7 +23,7 @@
 
 // Stats
 .quick-stats {
-  display: flex; align-items: center; background: var(--white);
+  display: flex; align-items: center; flex-wrap: wrap; row-gap: 8px; background: var(--white);
   border: 1px solid var(--gray-100); border-radius: var(--radius-lg);
   padding: 14px 20px; margin-bottom: 16px; box-shadow: var(--shadow-sm);
 }
@@ -34,6 +34,7 @@
   &.orange{ background: var(--warning); }
   &.navy  { background: var(--navy); }
   &.red   { background: var(--danger); }
+  &.green { background: var(--green, #16a34a); }
 }
 .qs-val { font-size: 20px; font-weight: 700; color: var(--navy); font-family: var(--font-display); }
 .qs-lbl { font-size: 12px; color: var(--gray-400); }
@@ -155,3 +156,6 @@
 
 // Modal sm
 .modal-sm { max-width: 420px; width: 100%; }
+.filtre-vehicule { width: 220px; max-width: 100%;
+  ::ng-deep .sr-champ { height: 38px; width: 100%; box-sizing: border-box; padding: 0 12px; font-size: 13px;
+    border: 1.5px solid var(--gray-200); border-radius: var(--radius-md, 8px); background: var(--white, #fff); } }
