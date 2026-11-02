@@ -400,6 +400,9 @@ export interface Alerte {
   /** Prise de carburant à l'origine d'une alerte « Consommation anormale ». */
   plein?: string | null;
   date_echeance: string | null;
+  date_traitement?: string | null;
+  notes_traitement?: string;
+  traitee_par_nom?: string | null;
   created_at: string;
 }
 

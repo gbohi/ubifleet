@@ -44,6 +44,7 @@ class AlerteViewSet(viewsets.ModelViewSet):
         'list': 'chauffeur',
         'retrieve': 'chauffeur',
         'resume': 'chauffeur',
+        'types': 'chauffeur',
         'traiter': 'chauffeur',
         'ignorer': 'chauffeur',
         'marquer_toutes_lues': 'chauffeur',
@@ -53,15 +54,32 @@ class AlerteViewSet(viewsets.ModelViewSet):
         'destroy': 'responsable_flotte',
         'generer': 'responsable_flotte',
     }
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['agence', 'type_alerte', 'priorite', 'statut', 'vehicule']
-    ordering_fields = ['created_at', 'priorite', 'date_echeance']
-    ordering = ['-created_at']
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['agence', 'type_alerte', 'priorite', 'vehicule', 'chauffeur']
+    search_fields = ['titre', 'message', 'vehicule__immatriculation', 'chauffeur__nom', 'chauffeur__prenom']
+    ordering_fields = ['created_at', 'rang', 'date_echeance']
+    # Les plus prioritaires d'abord, puis les plus récentes
+    ordering = ['rang', '-created_at']
 
     def get_queryset(self):
-        return alertes_visibles(self.request.user).select_related(
+        from django.db.models import Case, IntegerField, Value, When
+        qs = alertes_visibles(self.request.user).select_related(
             'vehicule', 'chauffeur', 'agence', 'traitee_par', 'destinataire'
-        )
+        ).annotate(rang=Case(
+            When(priorite='critique', then=Value(0)), When(priorite='haute', then=Value(1)),
+            When(priorite='normale', then=Value(2)), default=Value(3), output_field=IntegerField()))
+        p = self.request.query_params
+        # statut : un statut, ou « a_traiter » (actives et lues)
+        statut = p.get('statut')
+        if statut == 'a_traiter':
+            qs = qs.filter(statut__in=[Alerte.Statut.ACTIVE, Alerte.Statut.LUE])
+        elif statut:
+            qs = qs.filter(statut=statut)
+        if p.get('date_debut'):
+            qs = qs.filter(created_at__date__gte=p['date_debut'])
+        if p.get('date_fin'):
+            qs = qs.filter(created_at__date__lte=p['date_fin'])
+        return qs
 
     def perform_create(self, serializer):
         controler_agence(self.request.user, serializer.validated_data)
@@ -74,6 +92,8 @@ class AlerteViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def traiter(self, request, pk=None):
         alerte = self.get_object()
+        if alerte.statut in (Alerte.Statut.TRAITEE, Alerte.Statut.IGNOREE):
+            return Response({'detail': 'Cette alerte est déjà close.'}, status=400)
         alerte.statut = Alerte.Statut.TRAITEE
         alerte.traitee_par = request.user
         alerte.date_traitement = timezone.now()
@@ -84,7 +104,11 @@ class AlerteViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def ignorer(self, request, pk=None):
         alerte = self.get_object()
+        if alerte.statut in (Alerte.Statut.TRAITEE, Alerte.Statut.IGNOREE):
+            return Response({'detail': 'Cette alerte est déjà close.'}, status=400)
         alerte.statut = Alerte.Statut.IGNOREE
+        alerte.traitee_par = request.user
+        alerte.date_traitement = timezone.now()
         alerte.save()
         return Response({'detail': 'Alerte ignorée.'})
 
@@ -104,13 +128,23 @@ class AlerteViewSet(viewsets.ModelViewSet):
         return Response({'detail': f'{updated} alertes marquées comme lues.'})
 
     @action(detail=False, methods=['get'])
+    def types(self, request):
+        """Types d'alerte (code, libellé) pour le filtre."""
+        from .serializers import LIBELLES_TYPES
+        return Response([{'code': c, 'libelle': l} for c, l in sorted(LIBELLES_TYPES.items(), key=lambda x: x[1])])
+
+    @action(detail=False, methods=['get'])
     def resume(self, request):
-        qs = self.get_queryset().filter(statut=Alerte.Statut.ACTIVE)
+        """Alertes à traiter (actives et lues) : total, non lues, par priorité."""
+        qs = alertes_visibles(request.user).filter(statut__in=[Alerte.Statut.ACTIVE, Alerte.Statut.LUE])
         return Response({
-            'total_actives': qs.count(),
+            'total': qs.count(),
+            'total_actives': qs.filter(statut=Alerte.Statut.ACTIVE).count(),
+            'non_lues': qs.filter(statut=Alerte.Statut.ACTIVE).count(),
             'critiques': qs.filter(priorite='critique').count(),
             'hautes': qs.filter(priorite='haute').count(),
             'normales': qs.filter(priorite='normale').count(),
+            'basses': qs.filter(priorite='basse').count(),
             'par_type': list(
                 qs.values('type_alerte').annotate(count=Count('id'))
             ),

@@ -4,8 +4,20 @@ from rest_framework import serializers
 from .models import Alerte
 
 
+# Libellés de tous les types, y compris ceux créés hors de la liste du modèle
+# (carte de transport, vignette).
+LIBELLES_TYPES = {
+    **dict(Alerte.TypeAlerte.choices),
+    'carte_transport_exp':     'Carte de transport expirant bientôt',
+    'carte_transport_expiree': 'Carte de transport expirée',
+    'vignette_exp':            'Vignette expirant bientôt',
+    'vignette_expiree':        'Vignette expirée',
+}
+
+
 class AlerteSerializer(serializers.ModelSerializer):
-    type_display = serializers.CharField(source='get_type_alerte_display', read_only=True)
+    type_display = serializers.SerializerMethodField()
+    traitee_par_nom = serializers.SerializerMethodField()
     priorite_display = serializers.CharField(source='get_priorite_display', read_only=True)
     statut_display = serializers.CharField(source='get_statut_display', read_only=True)
     vehicule_immat = serializers.SerializerMethodField()
@@ -24,10 +36,17 @@ class AlerteSerializer(serializers.ModelSerializer):
             'agence', 'agence_nom',
             'plein', 'tournee_effectuee',
             'date_echeance',
-            'traitee_par', 'date_traitement', 'notes_traitement',
+            'traitee_par', 'traitee_par_nom', 'date_traitement', 'notes_traitement',
             'created_at'
         ]
         read_only_fields = ['created_at', 'plein', 'tournee_effectuee']
+
+    def get_type_display(self, obj):
+        return LIBELLES_TYPES.get(obj.type_alerte, obj.type_alerte)
+
+    def get_traitee_par_nom(self, obj):
+        u = obj.traitee_par
+        return (u.get_full_name() or u.email) if u else None
 
     def get_vehicule_immat(self, obj):
         return obj.vehicule.immatriculation if obj.vehicule else None

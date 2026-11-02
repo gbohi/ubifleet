@@ -7,106 +7,106 @@
         <i class="fas fa-bell" style="color:var(--green-dark)"></i>
         Centre d'alertes
       </h1>
-      <p class="page-subtitle">Surveillance en temps réel — documents, révisions, consommation</p>
+      <p class="page-subtitle">Échéances, consommation, demandes à valider et contrôles non conformes</p>
     </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-green btn-sm" (click)="genererEtRecharger()">
-        <i class="fas fa-magic"></i> Générer les alertes
-      </button>
-      <button class="btn btn-outline btn-sm" (click)="marquerToutesLues()">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      @if (peutGenerer) {
+        <button class="btn btn-outline btn-sm" [disabled]="generation()" (click)="generer()"
+                title="Vérifie les documents, révisions, pneus, permis… et met les alertes à jour">
+          @if (generation()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-sync-alt"></i> }
+          Vérifier les échéances
+        </button>
+      }
+      <button class="btn btn-outline btn-sm" [disabled]="!store.resume()?.non_lues" (click)="marquerToutesLues()">
         <i class="fas fa-check-double"></i> Tout marquer lu
-      </button>
-      <button class="btn btn-outline btn-sm" (click)="store.loadAlertes()">
-        <i class="fas fa-sync-alt"></i> Actualiser
       </button>
     </div>
   </div>
 
-  <!-- ── KPI résumé ── -->
+  <!-- ── KPI : alertes à traiter (cliquables) ── -->
   @if (store.resume(); as r) {
     <div class="kpi-row">
-      <div class="kpi-card kpi-total" (click)="store.setFilter('priorite',''); store.loadAlertes()">
+      <div class="kpi-card kpi-total" [class.actif]="store.filters().statut === 'active'" (click)="filtrerNonLues()">
         <div class="kpi-icon"><i class="fas fa-bell"></i></div>
         <div>
           <div class="kpi-val">{{ r.total }}</div>
-          <div class="kpi-label">Alertes actives</div>
+          <div class="kpi-label">À traiter <span class="kpi-sous">· {{ r.non_lues }} non lue(s)</span></div>
         </div>
       </div>
-      <div class="kpi-card kpi-critique" (click)="store.setFilter('priorite','critique'); store.loadAlertes()">
+      <div class="kpi-card kpi-critique" [class.actif]="store.filters().priorite === 'critique'" (click)="filtrerPriorite('critique')">
         <div class="kpi-icon"><i class="fas fa-exclamation-circle"></i></div>
-        <div>
-          <div class="kpi-val">{{ r.critiques }}</div>
-          <div class="kpi-label">Critiques</div>
-        </div>
+        <div><div class="kpi-val">{{ r.critiques }}</div><div class="kpi-label">Critiques</div></div>
       </div>
-      <div class="kpi-card kpi-haute" (click)="store.setFilter('priorite','haute'); store.loadAlertes()">
+      <div class="kpi-card kpi-haute" [class.actif]="store.filters().priorite === 'haute'" (click)="filtrerPriorite('haute')">
         <div class="kpi-icon"><i class="fas fa-exclamation-triangle"></i></div>
-        <div>
-          <div class="kpi-val">{{ r.hautes }}</div>
-          <div class="kpi-label">Hautes</div>
-        </div>
+        <div><div class="kpi-val">{{ r.hautes }}</div><div class="kpi-label">Hautes</div></div>
       </div>
-      <div class="kpi-card kpi-normale" (click)="store.setFilter('priorite','normale'); store.loadAlertes()">
+      <div class="kpi-card kpi-normale" [class.actif]="store.filters().priorite === 'normale'" (click)="filtrerPriorite('normale')">
         <div class="kpi-icon"><i class="fas fa-info-circle"></i></div>
-        <div>
-          <div class="kpi-val">{{ r.normales }}</div>
-          <div class="kpi-label">Normales</div>
-        </div>
+        <div><div class="kpi-val">{{ r.normales + r.basses }}</div><div class="kpi-label">Normales ou basses</div></div>
       </div>
     </div>
   }
 
+  @if (message()) { <div class="msg msg-ok"><i class="fas fa-check-circle"></i> {{ message() }}</div> }
+  @if (erreur() && !alerteEnTraitement()) { <div class="msg msg-ko"><i class="fas fa-exclamation-triangle"></i> {{ erreur() }}</div> }
+
   <!-- ── Filtres ── -->
   <div class="filters-bar card">
-    <div class="filters-grid-4">
-      <div class="filter-item">
-        <i class="fas fa-circle" style="font-size:10px"></i>
-        <select (change)="onFilter('statut',$event)">
-          <option value="active">Actives</option>
-          <option value="lue">Lues</option>
-          <option value="traitee">Traitées</option>
-          <option value="ignoree">Ignorées</option>
-          <option value="">Toutes</option>
+    <div class="filtres-al" [class.sans-agence]="agences().length <= 1">
+      <div class="filter-group fa-recherche">
+        <label class="filter-label" for="al-search"><i class="fas fa-search"></i> Recherche</label>
+        <input id="al-search" type="search" class="form-control" placeholder="Titre, immatriculation, chauffeur…"
+               [value]="store.filters().search" (input)="onFilter('search',$event)" />
+      </div>
+      <div class="filter-group">
+        <label class="filter-label" for="al-statut"><i class="fas fa-circle"></i> Statut</label>
+        <select id="al-statut" class="form-control" (change)="onFilter('statut',$event)">
+          <option value="a_traiter" [selected]="store.filters().statut === 'a_traiter'">À traiter</option>
+          <option value="active" [selected]="store.filters().statut === 'active'">Non lues</option>
+          <option value="lue" [selected]="store.filters().statut === 'lue'">Lues</option>
+          <option value="traitee" [selected]="store.filters().statut === 'traitee'">Traitées</option>
+          <option value="ignoree" [selected]="store.filters().statut === 'ignoree'">Ignorées</option>
+          <option value="" [selected]="!store.filters().statut">Toutes</option>
         </select>
       </div>
-      <div class="filter-item">
-        <i class="fas fa-flag" style="font-size:11px"></i>
-        <select (change)="onFilter('priorite',$event)">
-          <option value="">Toutes priorités</option>
-          <option value="critique">Critique</option>
-          <option value="haute">Haute</option>
-          <option value="normale">Normale</option>
-          <option value="basse">Basse</option>
+      <div class="filter-group">
+        <label class="filter-label" for="al-prio"><i class="fas fa-flag"></i> Priorité</label>
+        <select id="al-prio" class="form-control" (change)="onFilter('priorite',$event)">
+          <option value="" [selected]="!store.filters().priorite">Toutes</option>
+          <option value="critique" [selected]="store.filters().priorite === 'critique'">Critique</option>
+          <option value="haute" [selected]="store.filters().priorite === 'haute'">Haute</option>
+          <option value="normale" [selected]="store.filters().priorite === 'normale'">Normale</option>
+          <option value="basse" [selected]="store.filters().priorite === 'basse'">Basse</option>
         </select>
       </div>
-      <div class="filter-item">
-        <i class="fas fa-tag" style="font-size:11px"></i>
-        <select (change)="onFilter('type_alerte',$event)">
-          <option value="">Tous les types</option>
-          <option value="revision_due">Révision due</option>
-          <option value="assurance_exp">Assurance expirant</option>
-          <option value="assurance_expiree">Assurance expirée</option>
-          <option value="ct_exp">CT expirant</option>
-          <option value="ct_expiree">CT expiré</option>
-          <option value="permis_exp">Permis expirant</option>
-          <option value="permis_expire">Permis expiré</option>
-          <option value="visite_med_exp">Visite médicale expirant</option>
-          <option value="visite_med_expiree">Visite médicale expirée</option>
-          <option value="contrat_exp">Contrat expirant</option>
-          <option value="contrat_expire">Contrat expiré</option>
-          <option value="tournee_ouverte">Tournée non clôturée</option>
-          <option value="conso_anormale">Conso anormale</option>
-          <option value="pneu_usure">Pneu à changer</option>
-          <option value="plein_anomalie">Anomalie prise de carburant</option>
-          <option value="budget_depasse">Budget dépassé</option>
-          <option value="sinistre_ouvert">Sinistre ouvert</option>
+      <div class="filter-group">
+        <label class="filter-label" for="al-type"><i class="fas fa-tag"></i> Type</label>
+        <select id="al-type" class="form-control" (change)="onFilter('type_alerte',$event)">
+          <option value="" [selected]="!store.filters().type_alerte">Tous</option>
+          @for (t of types(); track t.code) {
+            <option [value]="t.code" [selected]="store.filters().type_alerte === t.code">{{ t.libelle }}</option>
+          }
         </select>
       </div>
-      <div class="filter-item">
-        <i class="fas fa-building" style="font-size:11px"></i>
-        <input type="text" placeholder="Agence..."
-               (input)="onFilter('agence',$event)" />
-      </div>
+      @if (agences().length > 1) {
+        <div class="filter-group">
+          <label class="filter-label" for="al-agence"><i class="fas fa-building"></i> Agence</label>
+          <select id="al-agence" class="form-control" (change)="onFilter('agence',$event)">
+            <option value="" [selected]="!store.filters().agence">Toutes</option>
+            @for (ag of agences(); track ag.id) {
+              <option [value]="ag.id" [selected]="store.filters().agence === ag.id">{{ ag.nom }}</option>
+            }
+          </select>
+        </div>
+      }
+    </div>
+    <div class="filters-footer">
+      @if (nbFiltresActifs() > 0) {
+        <button class="btn btn-outline btn-sm" (click)="reinitialiser()"><i class="fas fa-times"></i> Réinitialiser ({{ nbFiltresActifs() }})</button>
+      }
+      <span class="ff-sep"></span>
+      <span class="ff-compte"><strong>{{ store.pagination().total || 0 }}</strong> alerte(s)</span>
     </div>
   </div>
 
@@ -116,7 +116,7 @@
   } @else if (store.alertes().length === 0) {
     <div class="empty-state">
       <i class="fas fa-check-circle" style="font-size:48px;color:var(--green-dark)"></i>
-      <p>Aucune alerte pour ce filtre.</p>
+      <p>{{ nbFiltresActifs() ? 'Aucune alerte ne correspond aux filtres.' : 'Aucune alerte à traiter.' }}</p>
     </div>
   } @else {
     <div class="alertes-list">
@@ -138,18 +138,17 @@
             </div>
             <div class="alerte-message">{{ a.message }}</div>
             <div class="alerte-meta">
+              <span class="meta-item meta-type">{{ a.type_display }}</span>
               @if (a.vehicule_immat) {
-                <span class="meta-item"><i class="fas fa-car"></i> {{ a.vehicule_immat }}</span>
+                <a class="meta-item meta-lien" [routerLink]="['/vehicules', a.vehicule]"><i class="fas fa-car"></i> {{ a.vehicule_immat }}</a>
               }
               @if (a.chauffeur_nom) {
                 <a class="meta-item meta-lien" [routerLink]="['/chauffeurs', a.chauffeur]"><i class="fas fa-user"></i> {{ a.chauffeur_nom }}</a>
               }
-              <span class="meta-item"><i class="fas fa-building"></i> {{ a.agence_nom }}</span>
+              @if (agences().length > 1 && a.agence_nom) { <span class="meta-item"><i class="fas fa-building"></i> {{ a.agence_nom }}</span> }
               <span class="meta-item"><i class="fas fa-clock"></i> {{ a.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
-              @if (a.plein) {
-                <a class="meta-item meta-lien" [routerLink]="['/carburant', a.plein, 'modifier']">
-                  <i class="fas fa-gas-pump"></i> Voir la prise de carburant
-                </a>
+              @if (lien(a); as l) {
+                <a class="meta-item meta-lien meta-action" [routerLink]="l.route"><i [class]="l.icone"></i> {{ l.libelle }}</a>
               }
               @if (a.date_echeance) {
                 <span class="meta-item meta-echeance">
@@ -157,6 +156,14 @@
                 </span>
               }
             </div>
+            @if (a.statut === 'traitee' || a.statut === 'ignoree') {
+              <div class="alerte-cloture">
+                <i class="fas fa-check"></i> {{ a.statut === 'traitee' ? 'Traitée' : 'Ignorée' }}
+                @if (a.date_traitement) { le {{ a.date_traitement | date:'dd/MM/yyyy HH:mm' }} }
+                @if (a.traitee_par_nom) { par {{ a.traitee_par_nom }} }
+                @if (a.notes_traitement) { — {{ a.notes_traitement }} }
+              </div>
+            }
           </div>
 
           <!-- Actions -->
@@ -180,7 +187,7 @@
     @if (store.pagination().total > store.pagination().pageSize) {
       <div class="pagination">
         <button class="page-btn" [disabled]="store.pagination().page === 1"
-                (click)="store.setPage(store.pagination().page - 1); store.loadAlertes()">
+                (click)="allerPage(store.pagination().page - 1)">
           <i class="fas fa-chevron-left"></i>
         </button>
         <span class="page-info">
@@ -189,7 +196,7 @@
         </span>
         <button class="page-btn"
                 [disabled]="store.pagination().page >= Math.ceil(store.pagination().total / store.pagination().pageSize)"
-                (click)="store.setPage(store.pagination().page + 1); store.loadAlertes()">
+                (click)="allerPage(store.pagination().page + 1)">
           <i class="fas fa-chevron-right"></i>
         </button>
       </div>
@@ -200,7 +207,7 @@
 <!-- ── Modale traitement ── -->
 @if (alerteEnTraitement()) {
   <div class="modal-backdrop" (click)="fermerTraitement()">
-    <div class="modal-box" (click)="$event.stopPropagation()">
+    <div class="modal-container" style="max-width:520px" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <div class="modal-title"><i class="fas fa-check-circle"></i> Traiter l'alerte</div>
         <button class="modal-close" (click)="fermerTraitement()"><i class="fas fa-times"></i></button>
@@ -212,6 +219,7 @@
           <textarea class="form-control" rows="3" placeholder="Décrivez l'action effectuée..."
                     (input)="onNotesInput($event)"></textarea>
         </div>
+        @if (erreur()) { <div class="msg msg-ko"><i class="fas fa-exclamation-triangle"></i> {{ erreur() }}</div> }
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" (click)="fermerTraitement()">Annuler</button>

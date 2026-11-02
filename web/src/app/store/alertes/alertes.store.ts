@@ -14,7 +14,7 @@ import { LoadingState, PaginationState, initialPagination } from '../store.utils
 
 interface AlertesState {
   alertes:      Alerte[];
-  resume:       { total: number; critiques: number; hautes: number; normales: number } | null;
+  resume:       { total: number; non_lues: number; critiques: number; hautes: number; normales: number; basses: number } | null;
   loadingState: LoadingState;
   error:        string | null;
   pagination:   PaginationState;
@@ -23,6 +23,7 @@ interface AlertesState {
     priorite:    string;
     type_alerte: string;
     agence:      string;
+    search:      string;
   };
 }
 
@@ -33,10 +34,11 @@ const initialState: AlertesState = {
   error:        null,
   pagination:   initialPagination,
   filters: {
-    statut:      'active',  // Par défaut : alertes actives
+    statut:      'a_traiter',  // Par défaut : alertes à traiter (actives et lues)
     priorite:    '',
     type_alerte: '',
     agence:      '',
+    search:      '',
   },
 };
 
@@ -83,6 +85,7 @@ export const AlertesStore = signalStore(
           if (f.priorite)    params['priorite']    = f.priorite;
           if (f.type_alerte) params['type_alerte'] = f.type_alerte;
           if (f.agence)      params['agence']      = f.agence;
+          if (f.search)      params['search']      = f.search;
 
           return api.getAll(params).pipe(
             tapResponse({
@@ -190,6 +193,10 @@ export const AlertesStore = signalStore(
         )
       )
     ),
+
+    resetFilters(): void {
+      patchState(store, { filters: { ...initialState.filters }, pagination: { ...store.pagination(), page: 1 } });
+    },
 
     setFilter(key: keyof AlertesState['filters'], value: string): void {
       patchState(store, {

@@ -868,6 +868,9 @@ export class AlerteApiService extends ApiBaseService {
   getResume(): Observable<any> {
     return this.http.get(`${API}/alertes/resume/`);
   }
+  getTypes(): Observable<{ code: string; libelle: string }[]> {
+    return this.http.get<{ code: string; libelle: string }[]>(`${API}/alertes/types/`);
+  }
   generer(): Observable<any> {
     return this.http.post(`${API}/alertes/generer/`, {});
   }
