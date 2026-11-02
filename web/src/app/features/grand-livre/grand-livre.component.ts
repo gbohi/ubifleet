@@ -8,6 +8,8 @@ import { RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { HttpEventType } from '@angular/common/http';
 import { GrandLivreApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
+import { messageErreurApi } from '../../core/services/fenetre-saisie.service';
 
 interface ImportResult {
   import_id: string; fichier: string;
@@ -17,6 +19,7 @@ interface ImportResult {
 }
 interface ImportHistorique {
   id: string; fichier_nom: string; date_import: string;
+  code_agence: string; libelle_agence: string;
   nb_lignes: number; nb_importees: number; nb_doublons: number;
   nb_erreurs: number; importe_par_nom: string | null;
 }
@@ -34,13 +37,26 @@ interface TotalRow {
 }
 interface StatsData {
   nb_lignes: number; total_debit: number; total_credit: number; solde: number;
-  par_agence: TotalRow[]; par_compte: TotalRow[];
-  par_agence_compte: TotalRow[]; par_origine: { origine: string; nb: number; debit: number; credit: number }[];
+  par_agence: TotalRow[]; par_compte: TotalRow[]; par_agence_compte: TotalRow[];
+  par_origine: { origine: string; nb: number; debit: number; credit: number }[];
+  par_mois: { mois: string; nb: number; debit: number; credit: number; solde: number }[];
+}
+interface OptionsGL {
+  agences: { code_agence: string; libelle_agence: string }[];
+  origines: string[];
+  date_debut: string | null; date_fin: string | null; nb_lignes: number;
+}
+interface FiltresGL {
+  date_debut: string; date_fin: string; code_agence: string;
+  compte: string; origine: string; search: string;
 }
 
-type Tab = 'import' | 'historique' | 'lignes' | 'totaux' | 'statistiques';
+type Tab = 'lignes' | 'totaux' | 'statistiques' | 'imports';
 
+const FILTRES_VIDES: FiltresGL = { date_debut: '', date_fin: '', code_agence: '', compte: '', origine: '', search: '' };
 const CHART_COLORS = ['#092440','#5bd988','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16','#f97316','#ec4899'];
+const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const PAGE = 25;
 
 @Component({
   selector: 'ubi-grand-livre',
@@ -51,14 +67,25 @@ const CHART_COLORS = ['#092440','#5bd988','#3b82f6','#f59e0b','#ef4444','#8b5cf6
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GrandLivreComponent implements OnInit, OnDestroy {
-  @ViewChild('chartDebCreCanvas') chartDebCreCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('chartMoisCanvas') chartMoisCanvas?: ElementRef<HTMLCanvasElement>;
   @ViewChild('chartAgenceCanvas') chartAgenceCanvas?: ElementRef<HTMLCanvasElement>;
-  @ViewChild('chartOrigineCanvas') chartOrigineCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('chartComptesCanvas') chartComptesCanvas?: ElementRef<HTMLCanvasElement>;
 
   private api = inject(GrandLivreApiService);
+  private auth = inject(AuthService);
   private charts: any[] = [];
+  private minuterie?: ReturnType<typeof setTimeout>;
 
-  activeTab    = signal<Tab>('import');
+  /** Import et suppression d'import : utilisateurs « Toutes les agences ». */
+  readonly toutesAgences = !this.auth.currentUser()?.agence;
+
+  activeTab = signal<Tab>('lignes');
+  options   = signal<OptionsGL | null>(null);
+  filtres   = signal<FiltresGL>({ ...FILTRES_VIDES });
+  nbFiltresActifs = computed(() => Object.values(this.filtres()).filter(v => !!v).length);
+  plusieursAgences = computed(() => (this.options()?.agences.length ?? 0) > 1);
+
+  // ── Import ──
   isDragOver   = signal(false);
   selectedFile = signal<File | null>(null);
   uploading    = signal(false);
@@ -68,55 +95,40 @@ export class GrandLivreComponent implements OnInit, OnDestroy {
 
   historique     = signal<ImportHistorique[]>([]);
   historiqueLoad = signal(false);
+  suppression    = signal<ImportHistorique | null>(null);
+  suppressionMsg = signal('');
+  suppressionEnCours = signal(false);
 
-  // ── Lignes ──
-  lignes       = signal<LigneGL[]>([]);
-  lignesTotal  = signal(0);
-  lignesLoad   = signal(false);
-  lignesPage   = signal(1);
-  lignesSearch = signal('');
-  lignesAgence = signal('');
-  lignesCompte = signal('');
-  lignesDebut  = signal('');
-  lignesFin    = signal('');
-  lignesOrigine= signal('');
-  exporting    = signal(false);
+  // ── Écritures ──
+  lignes      = signal<LigneGL[]>([]);
+  lignesTotal = signal(0);
+  lignesLoad  = signal(false);
+  lignesPage  = signal(1);
+  lignesTri   = signal('');
+  exporting   = signal(false);
+  private lignesAJour = false;
 
-  // ── Totaux ──
-  totauxLoad      = signal(false);
-  totauxData      = signal<StatsData | null>(null);
-  totauxAgence    = signal('');
-  totauxCompte    = signal('');
-  totauxDebut     = signal('');
-  totauxFin       = signal('');
-  totauxOrigine   = signal('');
-  totauxVue       = signal<'agence' | 'compte' | 'agence_compte'>('agence');
-  totauxSortCol   = signal('debit');
-  totauxSortAsc   = signal(false);
+  // ── Totaux & statistiques (même calcul serveur) ──
+  statsLoad = signal(false);
+  statsData = signal<StatsData | null>(null);
+  totauxVue     = signal<'agence' | 'compte' | 'agence_compte'>('compte');
+  totauxSortCol = signal('compte');
+  totauxSortAsc = signal(true);
+  private statsAJour = false;
 
-  // ── Statistiques ──
-  statsLoad  = signal(false);
-  statsData  = signal<StatsData | null>(null);
-  statsAgence= signal('');
-  statsDebut = signal('');
-  statsFin   = signal('');
-
-  // ── Computed ──
-  get lignesPages(): number { return Math.ceil(this.lignesTotal() / 20) || 1; }
-  get lignesPagesArr(): number[] {
-    const cur = this.lignesPage(), max = this.lignesPages;
+  lignesPages = computed(() => Math.ceil(this.lignesTotal() / PAGE) || 1);
+  lignesPagesArr = computed(() => {
+    const cur = this.lignesPage(), max = this.lignesPages();
     const r: number[] = [];
     for (let i = Math.max(1, cur - 2); i <= Math.min(max, cur + 2); i++) r.push(i);
     return r;
-  }
+  });
 
   totauxRows = computed((): TotalRow[] => {
-    const d = this.totauxData();
+    const d = this.statsData();
     if (!d) return [];
     const vue = this.totauxVue();
-    let rows: TotalRow[] = vue === 'agence' ? d.par_agence
-      : vue === 'compte' ? d.par_compte
-      : d.par_agence_compte;
+    const rows = vue === 'agence' ? d.par_agence : vue === 'compte' ? d.par_compte : d.par_agence_compte;
     const col = this.totauxSortCol();
     const asc = this.totauxSortAsc();
     return [...rows].sort((a, b) => {
@@ -128,19 +140,72 @@ export class GrandLivreComponent implements OnInit, OnDestroy {
     });
   });
 
-  ngOnInit(): void { this.loadHistorique(); }
+  ngOnInit(): void {
+    this.chargerOptions(true);
+  }
 
   ngOnDestroy(): void {
-    this.charts.forEach(c => { try { c.destroy(); } catch (_) {} });
-    this.charts = [];
+    clearTimeout(this.minuterie);
+    this.detruireGraphiques();
+  }
+
+  private chargerOptions(premierChargement = false): void {
+    this.api.getOptions().subscribe({
+      next: (o: OptionsGL) => {
+        this.options.set(o);
+        if (premierChargement) {
+          // Aucun grand livre encore importé : on commence par l'import.
+          this.onTabChange(o.nb_lignes === 0 && this.toutesAgences ? 'imports' : 'lignes');
+        }
+      },
+      error: () => premierChargement && this.onTabChange('lignes'),
+    });
   }
 
   onTabChange(tab: Tab): void {
     this.activeTab.set(tab);
-    if (tab === 'lignes'       && this.lignes().length === 0) this.loadLignes();
-    if (tab === 'historique')  this.loadHistorique();
-    if (tab === 'totaux'       && !this.totauxData())  this.loadTotaux();
-    if (tab === 'statistiques' && !this.statsData())   this.loadStats();
+    this.chargerOngletActif();
+  }
+
+  private chargerOngletActif(): void {
+    const tab = this.activeTab();
+    if (tab === 'lignes' && !this.lignesAJour) this.loadLignes();
+    if ((tab === 'totaux' || tab === 'statistiques') && !this.statsAJour) this.loadStats();
+    if (tab === 'statistiques' && this.statsAJour) setTimeout(() => this.renderCharts(), 50);
+    if (tab === 'imports') this.loadHistorique();
+  }
+
+  /** Les données affichées ne correspondent plus (filtres ou import modifiés). */
+  private invalider(): void {
+    this.lignesAJour = false;
+    this.statsAJour = false;
+    this.lignesPage.set(1);
+    this.chargerOngletActif();
+  }
+
+  // ── Filtres (communs aux écritures, totaux et statistiques) ──
+  appliquerFiltre(champ: keyof FiltresGL, valeur: string): void {
+    this.filtres.update(f => ({ ...f, [champ]: valeur.trim() }));
+    this.invalider();
+  }
+  /** Saisie libre (compte, recherche) : appliquée après une courte pause. */
+  saisirFiltre(champ: keyof FiltresGL, valeur: string): void {
+    clearTimeout(this.minuterie);
+    this.minuterie = setTimeout(() => this.appliquerFiltre(champ, valeur), 350);
+  }
+  reinitialiserFiltres(): void {
+    clearTimeout(this.minuterie);
+    this.filtres.set({ ...FILTRES_VIDES });
+    this.invalider();
+  }
+  private paramsFiltres(): Record<string, any> {
+    const f: Record<string, any> = {};
+    Object.entries(this.filtres()).forEach(([k, v]) => { if (v) f[k] = v; });
+    return f;
+  }
+  libelleAgence(code: string): string {
+    const a = this.options()?.agences.find(x => x.code_agence === code);
+    return a?.libelle_agence ? `${code} — ${a.libelle_agence}` : code;
   }
 
   // ── Drag & Drop ──
@@ -154,11 +219,15 @@ export class GrandLivreComponent implements OnInit, OnDestroy {
   onFileInput(e: Event): void {
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) this.setFile(input.files[0]);
+    input.value = '';
   }
   setFile(file: File): void {
     const ext = file.name.toLowerCase();
     if (!ext.endsWith('.xls') && !ext.endsWith('.xlsx') && !ext.endsWith('.csv')) {
       this.importError.set('Format non supporté. Utilisez XLS, XLSX ou CSV.'); return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      this.importError.set('Fichier trop volumineux (20 Mo maximum).'); return;
     }
     this.selectedFile.set(file); this.result.set(null); this.importError.set('');
   }
@@ -183,187 +252,201 @@ export class GrandLivreComponent implements OnInit, OnDestroy {
         else if (event.type === HttpEventType.Response) {
           this.uploading.set(false); this.uploadPct.set(100);
           this.result.set(event.body as ImportResult);
-          this.selectedFile.set(null); this.loadHistorique();
+          this.selectedFile.set(null);
+          this.apresChangementDonnees();
         }
       },
-      error: (err) => { this.uploading.set(false); this.importError.set(err?.error?.detail ?? "Erreur."); },
+      error: (err) => { this.uploading.set(false); this.importError.set(messageErreurApi(err, "L'import a échoué.")); },
     });
+  }
+
+  voirEcrituresImport(): void {
+    this.result.set(null);
+    this.onTabChange('lignes');
+  }
+
+  private apresChangementDonnees(): void {
+    this.chargerOptions();
+    this.lignesAJour = false;
+    this.statsAJour = false;
+    this.loadHistorique();
   }
 
   loadHistorique(): void {
     this.historiqueLoad.set(true);
-    this.api.getHistorique({ page_size: 50 }).subscribe({
+    this.api.getHistorique({ page_size: 100 }).subscribe({
       next: (res) => { this.historique.set(res.results ?? []); this.historiqueLoad.set(false); },
       error: () => this.historiqueLoad.set(false),
     });
   }
 
-  // ── Lignes ──
-  buildLignesFilters(): Record<string, any> {
-    const f: Record<string, any> = { page: this.lignesPage(), page_size: 20 };
-    if (this.lignesSearch())  f['search']          = this.lignesSearch();
-    if (this.lignesAgence())  f['code_agence']     = this.lignesAgence();
-    if (this.lignesCompte())  f['compte']          = this.lignesCompte();
-    if (this.lignesDebut())   f['date_analytique'] = this.lignesDebut();
-    if (this.lignesFin())     f['date_comptable']  = this.lignesFin();
-    if (this.lignesOrigine()) f['origine']         = this.lignesOrigine();
-    return f;
-  }
-  loadLignes(): void {
-    this.lignesLoad.set(true);
-    this.api.getLignes(this.buildLignesFilters()).subscribe({
-      next: (res) => { this.lignes.set(res.results ?? []); this.lignesTotal.set(res.count ?? 0); this.lignesLoad.set(false); },
-      error: () => this.lignesLoad.set(false),
+  demanderSuppression(h: ImportHistorique): void { this.suppressionMsg.set(''); this.suppression.set(h); }
+  confirmerSuppression(): void {
+    const h = this.suppression();
+    if (!h || this.suppressionEnCours()) return;
+    this.suppressionEnCours.set(true);
+    this.api.supprimerImport(h.id).subscribe({
+      next: () => {
+        this.suppressionEnCours.set(false);
+        this.suppression.set(null);
+        this.suppressionMsg.set(`Import « ${h.fichier_nom} » supprimé avec ses ${h.nb_importees} écriture(s).`);
+        this.apresChangementDonnees();
+      },
+      error: err => {
+        this.suppressionEnCours.set(false);
+        this.suppressionMsg.set(messageErreurApi(err, 'Suppression impossible.'));
+      },
     });
   }
-  onLignes(field: string, e: Event): void {
-    const v = (e.target as HTMLInputElement).value;
-    if (field === 'search')   this.lignesSearch.set(v);
-    if (field === 'agence')   this.lignesAgence.set(v);
-    if (field === 'compte')   this.lignesCompte.set(v);
-    if (field === 'debut')    this.lignesDebut.set(v);
-    if (field === 'fin')      this.lignesFin.set(v);
-    if (field === 'origine')  this.lignesOrigine.set(v);
-    this.lignesPage.set(1); this.loadLignes();
+
+  // ── Écritures ──
+  loadLignes(): void {
+    this.lignesLoad.set(true);
+    this.lignesAJour = true;
+    const params: Record<string, any> = { ...this.paramsFiltres(), page: this.lignesPage(), page_size: PAGE };
+    if (this.lignesTri()) params['ordering'] = this.lignesTri();
+    this.api.getLignes(params).subscribe({
+      next: (res) => { this.lignes.set(res.results ?? []); this.lignesTotal.set(res.count ?? 0); this.lignesLoad.set(false); },
+      error: () => { this.lignesLoad.set(false); this.lignesAJour = false; },
+    });
   }
   onLignesPage(p: number): void { this.lignesPage.set(p); this.loadLignes(); }
+  trierLignes(col: string): void {
+    const t = this.lignesTri();
+    this.lignesTri.set(t === col ? '-' + col : t === '-' + col ? '' : col);
+    this.lignesPage.set(1);
+    this.loadLignes();
+  }
+  iconeTri(col: string): string {
+    const t = this.lignesTri();
+    return t === col ? 'fa-sort-up' : t === '-' + col ? 'fa-sort-down' : 'fa-sort';
+  }
 
+  /** Export de toutes les écritures filtrées (pages de 1000). */
   exportCsv(): void {
     if (this.exporting()) return;
     this.exporting.set(true);
-    this.api.getLignes({ ...this.buildLignesFilters(), page: 1, page_size: 10000 }).subscribe({
-      next: (res) => {
-        const rows = (res.results ?? []) as LigneGL[];
-        this.exporting.set(false);
-        const sep = ';'; const eol = '\r\n';
-        const hdrs = ['Code agence','Libellé agence','Compte','Libellé compte',
-          'Date analytique','Date comptable','Origine','Pièce',
-          'N° ligne','N° analytique','Libellé écriture','Débit','Crédit'].join(sep);
-        const data = rows.map(r => [
-          r.code_agence, r.libelle_agence, r.compte, r.libelle_compte,
-          r.date_analytique ?? '', r.date_comptable ?? '',
-          r.origine, r.piece, r.no_ligne, r.no_analytique,
-          r.libelle_ecriture, r.debit, r.credit
-        ].join(sep)).join(eol);
-        this.downloadCsv('\uFEFF' + hdrs + eol + data,
-          `grand_livre_${new Date().toISOString().split('T')[0]}.csv`);
-      },
-      error: () => this.exporting.set(false),
-    });
+    const toutes: LigneGL[] = [];
+    const page = (n: number) => {
+      this.api.getLignes({ ...this.paramsFiltres(), page: n, page_size: 1000 }).subscribe({
+        next: (res) => {
+          toutes.push(...(res.results ?? []));
+          if (res.next) { page(n + 1); return; }
+          this.exporting.set(false);
+          const hdrs = ['Code agence','Libellé agence','Compte','Libellé compte',
+            'Date analytique','Date comptable','Origine','Pièce',
+            'N° ligne','N° analytique','Libellé écriture','Débit','Crédit'];
+          const data = toutes.map(r => [
+            r.code_agence, r.libelle_agence, r.compte, r.libelle_compte,
+            r.date_analytique ?? '', r.date_comptable ?? '',
+            r.origine, r.piece, r.no_ligne ?? '', r.no_analytique ?? '',
+            r.libelle_ecriture, this.montantCsv(r.debit), this.montantCsv(r.credit),
+          ]);
+          this.downloadCsv([hdrs, ...data], `grand_livre_${new Date().toISOString().split('T')[0]}.csv`);
+        },
+        error: () => this.exporting.set(false),
+      });
+    };
+    page(1);
   }
 
-  // ── Totaux ──
-  buildTotauxFilters(): Record<string, any> {
-    const f: Record<string, any> = {};
-    if (this.totauxAgence())  f['code_agence']     = this.totauxAgence();
-    if (this.totauxCompte())  f['compte']          = this.totauxCompte();
-    if (this.totauxDebut())   f['date_analytique'] = this.totauxDebut();
-    if (this.totauxFin())     f['date_comptable']  = this.totauxFin();
-    if (this.totauxOrigine()) f['origine']         = this.totauxOrigine();
-    return f;
-  }
-  loadTotaux(): void {
-    this.totauxLoad.set(true);
-    this.api.getTotaux(this.buildTotauxFilters()).subscribe({
-      next: (res) => { this.totauxData.set(res); this.totauxLoad.set(false); },
-      error: () => this.totauxLoad.set(false),
+  // ── Totaux / statistiques ──
+  loadStats(): void {
+    this.statsLoad.set(true);
+    this.statsAJour = true;
+    this.api.getStats(this.paramsFiltres()).subscribe({
+      next: (res) => {
+        this.statsData.set(res);
+        this.statsLoad.set(false);
+        if (this.activeTab() === 'statistiques') setTimeout(() => this.renderCharts(), 50);
+      },
+      error: () => { this.statsLoad.set(false); this.statsAJour = false; },
     });
   }
-  onTotaux(field: string, e: Event): void {
-    const v = (e.target as HTMLInputElement).value;
-    if (field === 'agence')  this.totauxAgence.set(v);
-    if (field === 'compte')  this.totauxCompte.set(v);
-    if (field === 'debut')   this.totauxDebut.set(v);
-    if (field === 'fin')     this.totauxFin.set(v);
-    if (field === 'origine') this.totauxOrigine.set(v);
-    this.loadTotaux();
+  changerVue(vue: 'agence' | 'compte' | 'agence_compte'): void {
+    this.totauxVue.set(vue);
+    this.totauxSortCol.set(vue === 'agence' ? 'code_agence' : 'compte');
+    this.totauxSortAsc.set(true);
   }
   sortTotaux(col: string): void {
     if (this.totauxSortCol() === col) this.totauxSortAsc.set(!this.totauxSortAsc());
-    else { this.totauxSortCol.set(col); this.totauxSortAsc.set(false); }
+    else { this.totauxSortCol.set(col); this.totauxSortAsc.set(typeof col === 'string' && ['code_agence', 'compte'].includes(col)); }
+  }
+  iconeTriTotaux(col: string): string {
+    if (this.totauxSortCol() !== col) return 'fa-sort';
+    return this.totauxSortAsc() ? 'fa-sort-up' : 'fa-sort-down';
+  }
+  /** Clic sur une ligne des totaux : affiche ses écritures. */
+  voirEcritures(r: TotalRow): void {
+    this.filtres.update(f => ({
+      ...f,
+      ...(r.compte ? { compte: r.compte } : {}),
+      ...(r.code_agence ? { code_agence: r.code_agence } : {}),
+    }));
+    this.lignesAJour = false;
+    this.statsAJour = false;
+    this.lignesPage.set(1);
+    this.onTabChange('lignes');
   }
   exportTotauxCsv(): void {
     const rows = this.totauxRows();
     const vue  = this.totauxVue();
-    const sep  = ';'; const eol = '\r\n';
-    const hdrs = vue === 'agence_compte'
-      ? ['Code agence','Libellé agence','Compte','Libellé compte','Nb écritures','Débit','Crédit','Solde'].join(sep)
-      : vue === 'agence'
-        ? ['Code agence','Libellé agence','Nb écritures','Débit','Crédit','Solde'].join(sep)
-        : ['Compte','Libellé compte','Nb écritures','Débit','Crédit','Solde'].join(sep);
+    const base = ['Nb écritures','Débit','Crédit','Solde'];
+    const hdrs = vue === 'agence_compte' ? ['Code agence','Libellé agence','Compte','Libellé compte', ...base]
+      : vue === 'agence' ? ['Code agence','Libellé agence', ...base]
+      : ['Compte','Libellé compte', ...base];
     const data = rows.map(r => {
-      const base = [r.nb, r.debit, r.credit, r.solde];
-      if (vue === 'agence_compte') return [r.code_agence, r.libelle_agence, r.compte, r.libelle_compte, ...base].join(sep);
-      if (vue === 'agence') return [r.code_agence, r.libelle_agence, ...base].join(sep);
-      return [r.compte, r.libelle_compte, ...base].join(sep);
-    }).join(eol);
-    this.downloadCsv('\uFEFF' + hdrs + eol + data, `totaux_${vue}_${new Date().toISOString().split('T')[0]}.csv`);
+      const m = [r.nb, this.montantCsv(r.debit), this.montantCsv(r.credit), this.montantCsv(r.solde)];
+      if (vue === 'agence_compte') return [r.code_agence, r.libelle_agence, r.compte, r.libelle_compte, ...m];
+      if (vue === 'agence') return [r.code_agence, r.libelle_agence, ...m];
+      return [r.compte, r.libelle_compte, ...m];
+    });
+    this.downloadCsv([hdrs, ...data], `totaux_${vue}_${new Date().toISOString().split('T')[0]}.csv`);
   }
 
-  // ── Statistiques ──
-  buildStatsFilters(): Record<string, any> {
-    const f: Record<string, any> = {};
-    if (this.statsAgence()) f['code_agence']     = this.statsAgence();
-    if (this.statsDebut())  f['date_analytique'] = this.statsDebut();
-    if (this.statsFin())    f['date_comptable']  = this.statsFin();
-    return f;
-  }
-  loadStats(): void {
-    this.statsLoad.set(true);
-    this.api.getStats(this.buildStatsFilters()).subscribe({
-      next: (res) => {
-        this.statsData.set(res);
-        this.statsLoad.set(false);
-        setTimeout(() => this.renderCharts(), 80);
-      },
-      error: () => this.statsLoad.set(false),
-    });
-  }
-  onStats(field: string, e: Event): void {
-    const v = (e.target as HTMLInputElement).value;
-    if (field === 'agence') this.statsAgence.set(v);
-    if (field === 'debut')  this.statsDebut.set(v);
-    if (field === 'fin')    this.statsFin.set(v);
-    this.loadStats();
+  // ── Graphiques ──
+  private detruireGraphiques(): void {
+    this.charts.forEach(c => { try { c.destroy(); } catch (_) {} });
+    this.charts = [];
   }
 
   renderCharts(): void {
     const d = this.statsData();
-    if (!d) return;
-    this.charts.forEach(c => { try { c.destroy(); } catch (_) {} });
-    this.charts = [];
+    if (!d || this.activeTab() !== 'statistiques') return;
     const Chart = (window as any)['Chart'];
     if (!Chart) { this.loadChartJs(() => this.renderCharts()); return; }
+    this.detruireGraphiques();
+    const fcfa = (v: number) => Math.round(v).toLocaleString('fr-FR');
 
-    // 1. Débit / Crédit par agence (barres groupées)
-    if (this.chartDebCreCanvas?.nativeElement) {
-      const labels = d.par_agence.map((a: TotalRow) => a.code_agence ?? '');
-      this.charts.push(new Chart(this.chartDebCreCanvas.nativeElement, {
+    // 1. Évolution mensuelle débit / crédit
+    if (this.chartMoisCanvas?.nativeElement && d.par_mois.length) {
+      this.charts.push(new Chart(this.chartMoisCanvas.nativeElement, {
         type: 'bar',
         data: {
-          labels,
+          labels: d.par_mois.map(m => { const [a, mo] = m.mois.split('-'); return `${MOIS[+mo - 1]} ${a}`; }),
           datasets: [
-            { label: 'Débit', data: d.par_agence.map((a: TotalRow) => a.debit), backgroundColor: '#092440cc', borderRadius: 4 },
-            { label: 'Crédit', data: d.par_agence.map((a: TotalRow) => a.credit), backgroundColor: '#5bd98899', borderRadius: 4 },
+            { label: 'Débit', data: d.par_mois.map(m => m.debit), backgroundColor: '#092440cc', borderRadius: 4 },
+            { label: 'Crédit', data: d.par_mois.map(m => m.credit), backgroundColor: '#ef4444aa', borderRadius: 4 },
           ],
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { position: 'top' }, title: { display: true, text: 'Débit / Crédit par agence' } },
-          scales: { y: { ticks: { callback: (v: number) => v.toLocaleString('fr-FR') + ' FCFA' } } },
+          plugins: { legend: { position: 'top' },
+                     tooltip: { callbacks: { label: (ctx: any) => ` ${ctx.dataset.label} : ${fcfa(ctx.parsed.y)} FCFA` } } },
+          scales: { y: { ticks: { callback: (v: number) => fcfa(v) } } },
         },
       }));
     }
 
-    // 2. Répartition des débits par agence (camembert)
+    // 2. Répartition des débits par agence (si plusieurs agences)
     if (this.chartAgenceCanvas?.nativeElement) {
-      const agences = d.par_agence.filter((a: TotalRow) => a.debit > 0);
+      const agences = d.par_agence.filter(a => a.debit > 0);
       this.charts.push(new Chart(this.chartAgenceCanvas.nativeElement, {
         type: 'doughnut',
         data: {
-          labels: agences.map((a: TotalRow) => `${a.code_agence} — ${a.libelle_agence}`),
+          labels: agences.map(a => `${a.code_agence} — ${a.libelle_agence}`),
           datasets: [{
-            data: agences.map((a: TotalRow) => a.debit),
+            data: agences.map(a => a.debit),
             backgroundColor: CHART_COLORS.slice(0, agences.length),
             borderWidth: 2, borderColor: '#fff',
           }],
@@ -372,34 +455,34 @@ export class GrandLivreComponent implements OnInit, OnDestroy {
           responsive: true, maintainAspectRatio: false,
           plugins: {
             legend: { position: 'right', labels: { font: { size: 11 } } },
-            title: { display: true, text: 'Répartition des débits par agence' },
             tooltip: { callbacks: { label: (ctx: any) => {
               const v = ctx.parsed;
               const total = ctx.dataset.data.reduce((a: number, b: number) => a + b, 0);
-              return ` ${v.toLocaleString('fr-FR')} FCFA (${((v/total)*100).toFixed(1)}%)`;
+              return ` ${fcfa(v)} FCFA (${((v/total)*100).toFixed(1)} %)`;
             }}},
           },
         },
       }));
     }
 
-    // 3. Top 10 comptes par débit (colonnes horizontales)
-    if (this.chartOrigineCanvas?.nativeElement) {
-      const top10 = [...d.par_compte].sort((a: TotalRow, b: TotalRow) => b.debit - a.debit).slice(0, 10);
-      this.charts.push(new Chart(this.chartOrigineCanvas.nativeElement, {
+    // 3. Top 10 comptes par débit
+    if (this.chartComptesCanvas?.nativeElement) {
+      const top10 = [...d.par_compte].sort((a, b) => b.debit - a.debit).slice(0, 10);
+      this.charts.push(new Chart(this.chartComptesCanvas.nativeElement, {
         type: 'bar',
         data: {
-          labels: top10.map((c: TotalRow) => c.compte),
+          labels: top10.map(c => `${c.compte} ${c.libelle_compte ?? ''}`.slice(0, 40)),
           datasets: [
-            { label: 'Débit', data: top10.map((c: TotalRow) => c.debit), backgroundColor: '#3b82f6cc', borderRadius: 4 },
-            { label: 'Crédit', data: top10.map((c: TotalRow) => c.credit), backgroundColor: '#f59e0bcc', borderRadius: 4 },
+            { label: 'Débit', data: top10.map(c => c.debit), backgroundColor: '#3b82f6cc', borderRadius: 4 },
+            { label: 'Crédit', data: top10.map(c => c.credit), backgroundColor: '#f59e0bcc', borderRadius: 4 },
           ],
         },
         options: {
           indexAxis: 'y',
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { position: 'top' }, title: { display: true, text: 'Top 10 comptes par débit' } },
-          scales: { x: { ticks: { callback: (v: number) => v.toLocaleString('fr-FR') } } },
+          plugins: { legend: { position: 'top' },
+                     tooltip: { callbacks: { label: (ctx: any) => ` ${ctx.dataset.label} : ${fcfa(ctx.parsed.x)} FCFA` } } },
+          scales: { x: { ticks: { callback: (v: number) => fcfa(v) } } },
         },
       }));
     }
@@ -413,7 +496,16 @@ export class GrandLivreComponent implements OnInit, OnDestroy {
 
   getColor(i: number): string { return CHART_COLORS[i % CHART_COLORS.length]; }
 
-  private downloadCsv(csv: string, filename: string): void {
+  private montantCsv(v: number | null | undefined): string {
+    return (Number(v) || 0).toFixed(2).replace('.', ',');
+  }
+
+  private downloadCsv(lignes: any[][], filename: string): void {
+    const cell = (v: any) => {
+      const s = String(v ?? '');
+      return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = '﻿' + lignes.map(l => l.map(cell).join(';')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);

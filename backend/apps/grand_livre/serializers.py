@@ -11,6 +11,7 @@ class ImportGrandLivreSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'fichier_nom', 'date_import',
             'nb_lignes', 'nb_importees', 'nb_doublons', 'nb_erreurs',
+            'code_agence', 'libelle_agence',
             'importe_par', 'importe_par_nom',
         ]
 

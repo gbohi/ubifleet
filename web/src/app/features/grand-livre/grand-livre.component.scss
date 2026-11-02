@@ -126,22 +126,42 @@
   span { font-size: 11px; font-weight: 600; color: var(--navy); min-width: 32px; }
 }
 
-// ── Filtres écritures ─────────────────────────────────────────────────
-.filters-toolbar {
-  display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+// ── Filtres communs ───────────────────────────────────────────────────
+.filtres-card { padding: 16px 18px; margin-bottom: 16px; }
+.filtres-gl {
+  display: grid; gap: 10px 12px; align-items: end;
+  grid-template-columns: minmax(280px, 1.6fr) repeat(3, minmax(0, 1fr)) minmax(180px, 1.4fr);
+  &.sans-agence { grid-template-columns: minmax(280px, 1.6fr) repeat(2, minmax(0, 1fr)) minmax(180px, 1.6fr); }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .filter-label {
+    font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .5px;
+    display: flex; align-items: center; gap: 5px; i { font-size: 10px; color: var(--gray-400); }
+  }
+  .form-control { height: 36px; padding: 0 10px; font-size: 13px; width: 100%; box-sizing: border-box; }
+  .fg-dates { display: flex; align-items: center; gap: 6px; span { color: var(--gray-400); } .form-control { flex: 1; min-width: 0; } }
+  @media (max-width: 1250px) {
+    &, &.sans-agence { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .fg-periode { grid-column: span 2; }
+    .fg-recherche { grid-column: 1 / -1; }
+  }
+  @media (max-width: 700px) {
+    &, &.sans-agence { grid-template-columns: 1fr 1fr; }
+    .fg-periode, .fg-recherche { grid-column: 1 / -1; }
+  }
+  @media (max-width: 420px) { &, &.sans-agence { grid-template-columns: 1fr; } }
 }
-.filters-left  { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.filters-right { display: flex; align-items: center; gap: 8px; }
-.filter-item {
-  display: flex; align-items: center;
-  background: var(--white); border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md); padding: 0 10px; height: 34px;
-  i { color: var(--gray-400); margin-right: 6px; font-size: 12px; }
-  input { border: none; outline: none; font-size: 12px; font-family: var(--font-body); background: transparent; color: var(--gray-700); height: 100%; }
-  &.filter-search { min-width: 200px; }
+.filtres-actions {
+  display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--gray-100);
+  align-items: center; flex-wrap: wrap; min-height: 32px;
+  .filtres-sep { flex: 1; }
+  .muted { font-size: 13px; color: var(--gray-500); }
 }
-.filter-count { font-size: 12px; color: var(--gray-400); white-space: nowrap; }
+.info-msg {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
+  background: var(--info-light, #eff6ff); color: var(--navy); border-left: 3px solid var(--info, #3b82f6);
+  padding: 9px 14px; border-radius: var(--radius-md); font-size: 13px;
+}
+.fichier-nom { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13px; }
 .btn-excel {
   display: flex; align-items: center; gap: 6px;
   background: #1d6f42; color: white; border: none;
@@ -163,6 +183,17 @@
 // ── Table grand livre ─────────────────────────────────────────────────
 .table-scroll-x { overflow-x: auto; }
 .gl-table { min-width: 1100px; th, td { font-size: 12px; white-space: nowrap; } }
+.ubi-table {
+  th.num, td.num { text-align: right; }
+  th.sortable { cursor: pointer; user-select: none; i { font-size: 10px; color: var(--gray-400); margin-left: 3px; } }
+  .vide { color: var(--gray-300); }
+  .muted-cell { color: var(--gray-400); }
+  .mono { font-family: monospace; font-size: 11px; }
+  .cell-libelle  { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+  .cell-ecriture { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+  tr.ligne-cliquable { cursor: pointer; &:hover td { background: var(--gray-50); } }
+  tfoot td { font-weight: 700; color: var(--navy); background: var(--gray-50); border-top: 2px solid var(--gray-200); font-size: 13px; }
+}
 
 .agence-code {
   background: var(--navy); color: white;
@@ -276,7 +307,7 @@
 // Résumé origines
 .origine-list { display: flex; flex-direction: column; gap: 10px; }
 .origine-row {
-  display: grid; grid-template-columns: 12px 80px 80px 1fr 100px;
+  display: grid; grid-template-columns: 12px minmax(90px, 160px) 80px 140px 1fr;
   align-items: center; gap: 10px; font-size: 12px;
 }
 .origine-dot   { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }

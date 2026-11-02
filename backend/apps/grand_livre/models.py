@@ -12,6 +12,8 @@ class ImportGrandLivre(models.Model):
     nb_importees = models.IntegerField(default=0)
     nb_doublons  = models.IntegerField(default=0)
     nb_erreurs   = models.IntegerField(default=0)
+    code_agence    = models.CharField(max_length=20, blank=True, db_index=True, verbose_name="Code agence")
+    libelle_agence = models.CharField(max_length=200, blank=True, verbose_name="Libellé agence")
     importe_par  = models.ForeignKey(
         'accounts.User', on_delete=models.SET_NULL,
         null=True, blank=True, verbose_name="Importé par"

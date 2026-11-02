@@ -1,11 +1,14 @@
 """UbiFleet — Grand Livre Views"""
-from rest_framework import viewsets, status, filters
+from rest_framework import viewsets, mixins, status, filters
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Sum, Count
+from django.db import transaction
+from django.db.models import Sum, Count, Min, Max
+from django.db.models.functions import TruncMonth
 
 from .models import ImportGrandLivre, LigneGrandLivre
 from .serializers import ImportGrandLivreSerializer, LigneGrandLivreSerializer
@@ -14,13 +17,53 @@ from apps.accounts.permissions import IsGestionnaire
 from apps.core.agences import filtrer_grand_livre, voit_toutes_agences
 
 
-class ImportGrandLivreViewSet(viewsets.ReadOnlyModelViewSet):
-    """Historique des imports de grand livre."""
+class LigneGrandLivreFilter(django_filters.FilterSet):
+    """Filtres des écritures : période sur la date comptable, compte par
+    préfixe (« 6 » = classe 6, « 6241 » = sous-compte), agence et origine
+    sans tenir compte de la casse."""
+    date_debut  = django_filters.DateFilter(field_name='date_comptable', lookup_expr='gte')
+    date_fin    = django_filters.DateFilter(field_name='date_comptable', lookup_expr='lte')
+    compte      = django_filters.CharFilter(field_name='compte', lookup_expr='startswith')
+    code_agence = django_filters.CharFilter(field_name='code_agence', lookup_expr='iexact')
+    origine     = django_filters.CharFilter(field_name='origine', lookup_expr='iexact')
+
+    class Meta:
+        model  = LigneGrandLivre
+        fields = ['import_source']
+
+
+def _montants(lignes, solde=True):
+    for r in lignes:
+        r['debit']  = float(r['debit']  or 0)
+        r['credit'] = float(r['credit'] or 0)
+        if solde:
+            r['solde'] = round(r['debit'] - r['credit'], 2)
+    return lignes
+
+
+class ImportGrandLivreViewSet(mixins.DestroyModelMixin, viewsets.ReadOnlyModelViewSet):
+    """Historique des imports de grand livre. La suppression d'un import
+    retire toutes les écritures qu'il a créées."""
     queryset           = ImportGrandLivre.objects.select_related('importe_par').all()
     serializer_class   = ImportGrandLivreSerializer
     permission_classes = [IsGestionnaire]
     filter_backends    = [filters.OrderingFilter]
     ordering_fields    = ['date_import']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if not voit_toutes_agences(self.request.user):
+            qs = qs.filter(code_agence__iexact=self.request.user.agence.code)
+        return qs
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        if not voit_toutes_agences(self.request.user):
+            raise PermissionDenied(
+                "La suppression d'un import est réservée aux utilisateurs « Toutes les agences »."
+            )
+        instance.lignes.all().delete()
+        instance.delete()
 
     @action(
         detail=False, methods=['post'],
@@ -43,6 +86,8 @@ class ImportGrandLivreViewSet(viewsets.ReadOnlyModelViewSet):
                 status=400
             )
 
+        if fichier.size > 20 * 1024 * 1024:
+            return Response({'detail': 'Fichier trop volumineux (20 Mo maximum).'}, status=400)
         fichier_bytes = fichier.read()
 
         import_obj = ImportGrandLivre.objects.create(
@@ -60,6 +105,8 @@ class ImportGrandLivreViewSet(viewsets.ReadOnlyModelViewSet):
         import_obj.nb_importees = result['importees']
         import_obj.nb_doublons  = result['doublons']
         import_obj.nb_erreurs   = result['erreurs']
+        import_obj.code_agence    = result['code_agence']
+        import_obj.libelle_agence = result['libelle_agence'][:200]
         import_obj.save()
 
         return Response({
@@ -81,10 +128,7 @@ class LigneGrandLivreViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = LigneGrandLivreSerializer
     permission_classes = [IsGestionnaire]
     filter_backends  = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = [
-        'code_agence', 'compte', 'origine',
-        'date_analytique', 'date_comptable', 'import_source',
-    ]
+    filterset_class  = LigneGrandLivreFilter
     search_fields    = [
         'compte', 'libelle_compte', 'piece',
         'libelle_ecriture', 'code_agence', 'libelle_agence',
@@ -105,45 +149,26 @@ class LigneGrandLivreViewSet(viewsets.ReadOnlyModelViewSet):
             total_credit = Sum('credit'),
         )
 
-        par_agence = list(
-            qs.values('code_agence', 'libelle_agence')
-              .annotate(nb=Count('id'), debit=Sum('debit'), credit=Sum('credit'))
-              .order_by('code_agence')
-        )
-        # Convertir Decimal → float pour JSON
-        for r in par_agence:
-            r['debit']  = float(r['debit']  or 0)
-            r['credit'] = float(r['credit'] or 0)
-            r['solde']  = round(r['debit'] - r['credit'], 2)
+        def grouper(*champs, tri=None):
+            return _montants(list(
+                qs.values(*champs)
+                  .annotate(nb=Count('id'), debit=Sum('debit'), credit=Sum('credit'))
+                  .order_by(*(tri or champs))
+            ))
 
-        par_compte = list(
-            qs.values('compte', 'libelle_compte')
+        par_agence        = grouper('code_agence', 'libelle_agence')
+        par_compte        = grouper('compte', 'libelle_compte')
+        par_agence_compte = grouper('code_agence', 'libelle_agence', 'compte', 'libelle_compte')
+        par_origine       = grouper('origine', tri=['-debit'])
+        par_mois = _montants(list(
+            qs.exclude(date_comptable=None)
+              .annotate(mois=TruncMonth('date_comptable'))
+              .values('mois')
               .annotate(nb=Count('id'), debit=Sum('debit'), credit=Sum('credit'))
-              .order_by('compte')
-        )
-        for r in par_compte:
-            r['debit']  = float(r['debit']  or 0)
-            r['credit'] = float(r['credit'] or 0)
-            r['solde']  = round(r['debit'] - r['credit'], 2)
-
-        par_agence_compte = list(
-            qs.values('code_agence', 'libelle_agence', 'compte', 'libelle_compte')
-              .annotate(nb=Count('id'), debit=Sum('debit'), credit=Sum('credit'))
-              .order_by('code_agence', 'compte')
-        )
-        for r in par_agence_compte:
-            r['debit']  = float(r['debit']  or 0)
-            r['credit'] = float(r['credit'] or 0)
-            r['solde']  = round(r['debit'] - r['credit'], 2)
-
-        par_origine = list(
-            qs.values('origine')
-              .annotate(nb=Count('id'), debit=Sum('debit'), credit=Sum('credit'))
-              .order_by('-debit')
-        )
-        for r in par_origine:
-            r['debit']  = float(r['debit']  or 0)
-            r['credit'] = float(r['credit'] or 0)
+              .order_by('mois')
+        ))
+        for r in par_mois:
+            r['mois'] = r['mois'].strftime('%Y-%m')
 
         total_debit  = float(agg['total_debit']  or 0)
         total_credit = float(agg['total_credit'] or 0)
@@ -157,4 +182,20 @@ class LigneGrandLivreViewSet(viewsets.ReadOnlyModelViewSet):
             'par_compte':        par_compte,
             'par_agence_compte': par_agence_compte,
             'par_origine':       par_origine,
+            'par_mois':          par_mois,
+        })
+
+    @action(detail=False, methods=['get'])
+    def options(self, request):
+        """Valeurs disponibles pour les filtres (agences, origines, période couverte)."""
+        qs = self.get_queryset()
+        bornes = qs.aggregate(debut=Min('date_comptable'), fin=Max('date_comptable'))
+        return Response({
+            'agences': list(qs.values('code_agence', 'libelle_agence')
+                              .distinct().order_by('code_agence')),
+            'origines': [o for o in qs.exclude(origine='').values_list('origine', flat=True)
+                                      .distinct().order_by('origine')],
+            'date_debut': bornes['debut'],
+            'date_fin':   bornes['fin'],
+            'nb_lignes':  qs.count(),
         })

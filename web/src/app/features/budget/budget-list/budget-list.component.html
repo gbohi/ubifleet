@@ -460,7 +460,7 @@
               <!-- Lignes budget par catégorie -->
               <div class="budget-lines">
                 @for (p of postes; track p.value) {
-                  @if (montantPoste(b, p.value) > 0 || (b.realise[p.value] ?? 0) > 0) {
+                  @if (montantPoste(b, p.value) > 0 || (b.realise[p.value] || 0) > 0) {
                     <div class="budget-line">
                       <span class="bl-name">{{ p.label }}</span>
                       <div class="progress bl-progress">
@@ -470,7 +470,7 @@
                         </div>
                       </div>
                       <span class="bl-amounts">
-                        {{ formatFCFA(b.realise[p.value] ?? 0) }} /
+                        {{ formatFCFA(b.realise[p.value] || 0) }} /
                         {{ formatFCFA(montantPoste(b, p.value)) }}
                       </span>
                     </div>

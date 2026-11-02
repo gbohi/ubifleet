@@ -57,6 +57,14 @@ export class GrandLivreApiService extends ApiBaseService {
     const params = filters ? this.buildParams(filters) : undefined;
     return this.http.get<any>(`${API}/grand-livre/lignes/stats/`, { params });
   }
+
+  getOptions(): Observable<any> {
+    return this.http.get<any>(`${API}/grand-livre/lignes/options/`);
+  }
+
+  supprimerImport(id: string): Observable<any> {
+    return this.http.delete<any>(`${API}/grand-livre/imports/${id}/`);
+  }
 }
 
 // ── Auth API ──
