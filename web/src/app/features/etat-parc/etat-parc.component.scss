@@ -2,8 +2,8 @@
 
 // ── KPI Cards ─────────────────────────────────────────────────────────
 .kpi-grid {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px;
-  @media (max-width: 1100px) { grid-template-columns: repeat(3, 1fr); }
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;
+  @media (max-width: 1100px) { grid-template-columns: repeat(2, 1fr); }
   @media (max-width: 600px)  { grid-template-columns: repeat(2, 1fr); }
 }
 .kpi-card {
@@ -122,3 +122,31 @@
   i { font-size: 28px; }
   p { font-size: 14px; margin: 0; }
 }
+
+// ── Filtres (grille avec libellés) ────────────────────────────────────
+.filtres-ep {
+  display: grid; gap: 10px 12px; align-items: end;
+  grid-template-columns: minmax(220px, 1.6fr) repeat(4, minmax(0, 1fr));
+  &.sans-agence { grid-template-columns: minmax(220px, 1.6fr) repeat(3, minmax(0, 1fr)); }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .filter-label {
+    font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .5px;
+    display: flex; align-items: center; gap: 5px; i { font-size: 10px; color: var(--gray-400); }
+  }
+  .form-control { height: 36px; padding: 0 10px; font-size: 13px; width: 100%; box-sizing: border-box; }
+  @media (max-width: 1100px) { &, &.sans-agence { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fe-recherche { grid-column: 1 / -1; } }
+  @media (max-width: 520px)  { &, &.sans-agence { grid-template-columns: 1fr; } }
+}
+.filters-footer {
+  display: flex !important; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--gray-100);
+  .ff-sep { flex: 1; }
+  .filter-count { font-size: 13px; color: var(--gray-500); }
+}
+.kpi-card { cursor: pointer; transition: box-shadow .15s, border-color .15s;
+  &.actif { border-color: var(--navy) !important; box-shadow: 0 0 0 2px rgba(9, 36, 64, .15); }
+  .kpi-val small { font-size: 13px; font-weight: 500; color: var(--gray-400); }
+  .kpi-lien { cursor: pointer; text-decoration: underline dotted; }
+}
+a.immat-badge { text-decoration: none; cursor: pointer; &:hover { opacity: .85; } }
+a.lien { color: var(--navy); text-decoration: none; &:hover { text-decoration: underline; } }

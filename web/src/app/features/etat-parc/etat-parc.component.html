@@ -7,7 +7,7 @@
         <i class="fas fa-clipboard-list" style="color:var(--green-dark)"></i>
         État du Parc
       </h1>
-      <p class="page-subtitle">Tableau de bord des indicateurs de maintenance, documents et disponibilité</p>
+      <p class="page-subtitle">Disponibilité, révisions, pneus et documents de chaque véhicule actif</p>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline btn-sm" (click)="loadEtatParc()">
@@ -31,48 +31,42 @@
     <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ error() }}</div>
   } @else {
 
-    <!-- ── KPIs ── -->
+    <!-- ── KPIs (cliquables : filtrent le tableau) ── -->
     @if (kpis(); as k) {
       <div class="kpi-grid">
-        <div class="kpi-card" (click)="filterAlerte.set(''); filterStatut.set('')">
-          <div class="kpi-icon kpi-blue"><i class="fas fa-car"></i></div>
-          <div class="kpi-content">
-            <div class="kpi-val">{{ k.total }}</div>
-            <div class="kpi-label">Véhicules actifs</div>
-          </div>
-        </div>
-        <div class="kpi-card" (click)="filterStatut.set('en_service')">
+        <div class="kpi-card" [class.actif]="kpiActif('__dispo', '')" (click)="filtrerKpi('__dispo', '')">
           <div class="kpi-icon kpi-green"><i class="fas fa-check-circle"></i></div>
           <div class="kpi-content">
-            <div class="kpi-val">{{ k.disponibles }}</div>
+            <div class="kpi-val">{{ k.disponibles }} <small>/ {{ k.total }}</small></div>
             <div class="kpi-label">Disponibles</div>
+            <div class="kpi-sub">{{ k.indisponibles }} indisponible(s)</div>
           </div>
         </div>
-        <div class="kpi-card kpi-card-warn" (click)="filterAlerte.set('revision')">
+        <div class="kpi-card kpi-card-warn" [class.actif]="kpiActif('', 'revision')" (click)="filtrerKpi('', 'revision')">
           <div class="kpi-icon kpi-orange"><i class="fas fa-tools"></i></div>
           <div class="kpi-content">
             <div class="kpi-val">{{ k.revision_urgente }}</div>
-            <div class="kpi-label">Révisions urgentes</div>
+            <div class="kpi-label">Révisions urgentes ou dépassées</div>
             @if (k.revision_attention > 0) {
-              <div class="kpi-sub">+ {{ k.revision_attention }} à surveiller</div>
+              <div class="kpi-sub kpi-lien" (click)="$event.stopPropagation(); filtrerKpi('', 'revision_attention')">+ {{ k.revision_attention }} à surveiller</div>
             }
           </div>
         </div>
-        <div class="kpi-card kpi-card-danger" (click)="filterAlerte.set('docs')">
+        <div class="kpi-card kpi-card-danger" [class.actif]="kpiActif('', 'docs_expires')" (click)="filtrerKpi('', 'docs_expires')">
           <div class="kpi-icon kpi-red"><i class="fas fa-file-times"></i></div>
           <div class="kpi-content">
             <div class="kpi-val">{{ k.docs_expires }}</div>
-            <div class="kpi-label">Documents expirés</div>
+            <div class="kpi-label">Véhicules avec document expiré</div>
             @if (k.docs_urgents > 0) {
-              <div class="kpi-sub">+ {{ k.docs_urgents }} urgents (≤ 7j)</div>
+              <div class="kpi-sub kpi-lien" (click)="$event.stopPropagation(); filtrerKpi('', 'docs')">+ {{ k.docs_urgents }} avec échéance urgente</div>
             }
           </div>
         </div>
-        <div class="kpi-card kpi-card-warn" (click)="filterAlerte.set('pneus')">
+        <div class="kpi-card kpi-card-warn" [class.actif]="kpiActif('', 'pneus')" (click)="filtrerKpi('', 'pneus')">
           <div class="kpi-icon kpi-orange"><i class="fas fa-circle-notch"></i></div>
           <div class="kpi-content">
             <div class="kpi-val">{{ k.pneus_urgents }}</div>
-            <div class="kpi-label">Pneus urgents</div>
+            <div class="kpi-label">Pneus à remplacer</div>
           </div>
         </div>
       </div>
@@ -80,60 +74,69 @@
 
     <!-- ── Filtres ── -->
     <div class="filters-bar card">
-      <div class="filters-grid-5">
-        <div class="filter-item filter-search">
-          <i class="fas fa-search"></i>
-          <input type="text" placeholder="Immat., marque, chauffeur..."
-                 (input)="onFilter('texte',$event)" />
+      <div class="filtres-ep" [class.sans-agence]="agences().length <= 1">
+        <div class="filter-group fe-recherche">
+          <label class="filter-label" for="ep-texte"><i class="fas fa-search"></i> Recherche</label>
+          <input id="ep-texte" type="search" class="form-control" placeholder="Immatriculation, marque, chauffeur…"
+                 [value]="filterTexte()" (input)="onFilter('texte',$event)" />
         </div>
-        <div class="filter-item">
-          <select (change)="onFilter('agence',$event)">
-            <option value="">Toutes les agences</option>
-            @for (a of agences(); track a) { <option [value]="a">{{ a }}</option> }
+        @if (agences().length > 1) {
+          <div class="filter-group">
+            <label class="filter-label" for="ep-agence"><i class="fas fa-building"></i> Agence</label>
+            <select id="ep-agence" class="form-control" (change)="onFilter('agence',$event)">
+              <option value="" [selected]="!filterAgence()">Toutes</option>
+              @for (a of agences(); track a) { <option [value]="a" [selected]="filterAgence() === a">{{ a }}</option> }
+            </select>
+          </div>
+        }
+        <div class="filter-group">
+          <label class="filter-label" for="ep-type"><i class="fas fa-car-side"></i> Type</label>
+          <select id="ep-type" class="form-control" (change)="onFilter('type',$event)">
+            <option value="" [selected]="!filterType()">Tous</option>
+            @for (t of types(); track t) { <option [value]="t" [selected]="filterType() === t">{{ t }}</option> }
           </select>
         </div>
-        <div class="filter-item">
-          <select (change)="onFilter('type',$event)">
-            <option value="">Tous les types</option>
-            @for (t of types(); track t) { <option [value]="t">{{ t }}</option> }
+        <div class="filter-group">
+          <label class="filter-label" for="ep-statut"><i class="fas fa-flag"></i> Statut</label>
+          <select id="ep-statut" class="form-control" (change)="onFilter('statut',$event)">
+            <option value="" [selected]="!filterStatut()">Tous</option>
+            <option value="__dispo" [selected]="filterStatut() === '__dispo'">Disponibles</option>
+            <option value="__indispo" [selected]="filterStatut() === '__indispo'">Indisponibles</option>
+            @for (st of statuts(); track st.code) {
+              <option [value]="st.code" [selected]="filterStatut() === st.code">{{ st.libelle }}</option>
+            }
           </select>
         </div>
-        <div class="filter-item">
-          <select (change)="onFilter('statut',$event)">
-            <option value="">Tous les statuts</option>
-            <option value="en_service">En service</option>
-            <option value="en_revision">En révision</option>
-            <option value="en_panne">En panne</option>
-            <option value="immobilise">Immobilisé</option>
-          </select>
-        </div>
-        <div class="filter-item">
-          <select (change)="onFilter('alerte',$event)">
-            <option value="">Toutes les alertes</option>
-            <option value="revision">Révision urgente</option>
-            <option value="pneus">Pneus urgents</option>
-            <option value="docs">Documents expirés/urgents</option>
+        <div class="filter-group">
+          <label class="filter-label" for="ep-alerte"><i class="fas fa-exclamation-triangle"></i> Échéances</label>
+          <select id="ep-alerte" class="form-control" (change)="onFilter('alerte',$event)">
+            <option value="" [selected]="!filterAlerte()">Toutes</option>
+            <option value="revision" [selected]="filterAlerte() === 'revision'">Révision urgente ou dépassée</option>
+            <option value="revision_attention" [selected]="filterAlerte() === 'revision_attention'">Révision à surveiller</option>
+            <option value="pneus" [selected]="filterAlerte() === 'pneus'">Pneus à remplacer</option>
+            <option value="docs_expires" [selected]="filterAlerte() === 'docs_expires'">Document expiré</option>
+            <option value="docs" [selected]="filterAlerte() === 'docs'">Document expiré ou urgent</option>
+            <option value="nc" [selected]="filterAlerte() === 'nc'">Information manquante</option>
           </select>
         </div>
       </div>
       <div class="filters-footer">
-        <span class="filter-count">{{ vehiculesFiltres().length }} véhicule(s) affiché(s)</span>
-        <div style="display:flex;gap:8px">
+        @if (nbFiltresActifs() > 0) {
           <button class="btn btn-outline btn-sm" (click)="resetFiltres()">
-            <i class="fas fa-times"></i> Réinitialiser
+            <i class="fas fa-times"></i> Réinitialiser ({{ nbFiltresActifs() }})
           </button>
-          <button class="btn btn-excel" [disabled]="exporting()" (click)="exportCsv()">
-            @if (exporting()) { <i class="fas fa-circle-notch fa-spin"></i> }
-            @else { <i class="fas fa-file-excel"></i> }
-            Exporter Excel
-          </button>
-        </div>
+        }
+        <span class="ff-sep"></span>
+        <span class="filter-count"><strong>{{ vehiculesFiltres().length }}</strong> véhicule(s) sur {{ vehicules().length }}</span>
+        <button class="btn btn-excel btn-sm" [disabled]="vehiculesFiltres().length === 0" (click)="exportCsv()">
+          <i class="fas fa-file-excel"></i> Exporter
+        </button>
       </div>
     </div>
 
     <!-- ── Tableau ── -->
     @if (vehiculesFiltres().length === 0) {
-      <div class="empty-state"><i class="fas fa-clipboard-check"></i><p>Aucun véhicule correspondant.</p></div>
+      <div class="card empty-state"><i class="fas fa-clipboard-check"></i><p>Aucun véhicule ne correspond aux filtres.</p></div>
     } @else {
       <div class="card">
         <div class="table-container table-scroll-x">
@@ -141,7 +144,7 @@
             <thead>
               <tr>
                 <th class="col-sticky">Véhicule</th>
-                <th>Agence</th>
+                @if (agences().length > 1) { <th>Agence</th> }
                 <th>Chauffeur</th>
                 <th>Km actuel</th>
                 <th>Statut</th>
@@ -161,13 +164,15 @@
                   <!-- Véhicule -->
                   <td class="col-sticky">
                     <div class="td-immat">
-                      <span class="immat-badge">{{ v.immatriculation }}</span>
+                      <a class="immat-badge" [routerLink]="['/vehicules', v.id]" title="Ouvrir la fiche du véhicule">{{ v.immatriculation }}</a>
                       <div class="td-sub">{{ v.marque }} {{ v.modele }}</div>
                       <div class="td-type">{{ v.type_vehicule }}</div>
                     </div>
                   </td>
-                  <td style="font-size:12px">{{ v.agence_nom || '—' }}</td>
-                  <td style="font-size:12px">{{ v.chauffeur_nom || '—' }}</td>
+                  @if (agences().length > 1) { <td style="font-size:12px">{{ v.agence_nom || '—' }}</td> }
+                  <td style="font-size:12px">
+                    @if (v.chauffeur_id) { <a class="lien" [routerLink]="['/chauffeurs', v.chauffeur_id]">{{ v.chauffeur_nom }}</a> } @else { — }
+                  </td>
 
                   <!-- Km actuel -->
                   <td style="text-align:right;font-weight:700;font-family:monospace">
@@ -231,9 +236,7 @@
 
                   <!-- Âge -->
                   <td style="text-align:right;font-size:12px">
-                    @if (v.age_mois !== null) {
-                      {{ v.age_mois | number:'1.0-0' }} mois
-                    } @else { — }
+                    {{ formatAge(v.age_mois) }}
                   </td>
 
                   <!-- Commentaire -->
@@ -250,8 +253,8 @@
         <!-- Légende -->
         <div class="legende">
           <div class="legende-item ind-ok"><i class="fas fa-check"></i> OK</div>
-          <div class="legende-item ind-attention"><i class="fas fa-exclamation"></i> Attention (≤ 2 000 km / 30j)</div>
-          <div class="legende-item ind-urgent"><i class="fas fa-exclamation-triangle"></i> Urgent (≤ 500 km / 7j)</div>
+          <div class="legende-item ind-attention"><i class="fas fa-exclamation"></i> Attention @if (legende(); as l) { ({{ l.attention }}) }</div>
+          <div class="legende-item ind-urgent"><i class="fas fa-exclamation-triangle"></i> Urgent @if (legende(); as l) { ({{ l.urgent }}) }</div>
           <div class="legende-item ind-depasse"><i class="fas fa-times-circle"></i> Dépassé</div>
           <div class="legende-item ind-nc"><i class="fas fa-question"></i> Non renseigné</div>
         </div>

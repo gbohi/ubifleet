@@ -200,19 +200,13 @@ class DashboardDGView(APIView):
             for item in repartition_qs if item['total']
         ]
 
-        # Assurances expirant
+        # Assurances : fin de couverture par véhicule (contrats et documents « Assurance »)
+        from apps.vehicules.assurance import fins_assurance
         aujourd_hui = timezone.localdate()
-        contrats = ContratAssurance.objects.filter(is_active=True, vehicule__in=vehicules)
-        # Contrat expiré : sans contrat plus récent sur le même véhicule
-        # Véhicules dont l'assurance expire dans 30 jours sans contrat déjà renouvelé
         dans_30j = aujourd_hui + datetime.timedelta(days=30)
-        from django.db.models import Exists, OuterRef
-        renouvele = ContratAssurance.objects.filter(
-            vehicule=OuterRef('vehicule'), is_active=True, date_fin__gt=dans_30j)
-        assurances_critiques = contrats.filter(date_fin__range=(aujourd_hui, dans_30j)).exclude(
-            Exists(renouvele)).values('vehicule').distinct().count()
-        assurances_expirees = contrats.filter(date_fin__lt=aujourd_hui).exclude(
-            vehicule__contrats_assurance__date_fin__gte=aujourd_hui).values('vehicule').distinct().count()
+        fins = fins_assurance(list(vehicules.values_list('id', flat=True))).values()
+        assurances_critiques = sum(1 for f in fins if aujourd_hui <= f <= dans_30j)
+        assurances_expirees = sum(1 for f in fins if f < aujourd_hui)
 
         return Response({
             'periode': {'mois': mois, 'annee': annee},

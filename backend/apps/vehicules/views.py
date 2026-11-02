@@ -340,7 +340,7 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         from apps.vehicules.models import AffectationVehicule
 
         qs = self.get_queryset().filter(is_active=True).select_related(
-            'agence'
+            'agence', 'statut'
         ).prefetch_related(
             'documents__type_document',
             'affectations__chauffeur',
@@ -353,7 +353,8 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         if type_veh: qs = qs.filter(type_vehicule=type_veh)
         if statut:   qs = qs.filter(statut__code=statut)
 
-        today = dt_date.today()
+        from django.utils import timezone as tz
+        today = tz.localdate()
         resultats = []
 
         # ── Seuils des échéances (Paramètres › Échéances) ────────────
@@ -374,17 +375,22 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         for p in pneus_qs:
             pneus_par_vehicule.setdefault(str(p.vehicule_id), []).append(p)
 
+        from .assurance import fins_assurance
+        fins_ass = fins_assurance(vehicule_ids)
+
         for v in qs.order_by('immatriculation'):
             vid = str(v.id)
 
             # ── Chauffeur actif : affectation la plus récente
             # (date_fin nulle OU dans le futur), triée par date_debut DESC ──
             chauffeur_nom = None
+            chauffeur_id = None
             for aff in sorted(v.affectations.all(),
                                key=lambda a: a.date_debut, reverse=True):
                 if aff.date_fin is None or aff.date_fin >= today:
                     c = aff.chauffeur
                     chauffeur_nom = f"{c.prenom} {c.nom}" if c else None
+                    chauffeur_id = str(c.id) if c else None
                     break
 
             # ── Km révision ──────────────────────────────────────────
@@ -410,7 +416,9 @@ class VehiculeViewSet(viewsets.ModelViewSet):
                 doc = max(docs, key=lambda d: d.date_expiration)
                 return (doc.date_expiration - today).days
 
-            jr_assurance     = jours_restants(TypeDocumentVehicule.CODE_ASSURANCE)
+            # Assurance : contrat (Sinistres & Assurances) ou document, le plus lointain
+            fin_ass          = fins_ass.get(v.id)
+            jr_assurance     = (fin_ass - today).days if fin_ass else None
             jr_ct            = jours_restants(TypeDocumentVehicule.CODE_CT)
             jr_carte_transp  = jours_restants(TypeDocumentVehicule.CODE_CARTE_TRANSPORT)
             jr_vignette      = jours_restants(TypeDocumentVehicule.CODE_VIGNETTE)
@@ -429,7 +437,8 @@ class VehiculeViewSet(viewsets.ModelViewSet):
                 'annee':               v.annee,
                 'type_vehicule':       v.get_type_vehicule_display(),
                 'statut':              v.statut.code if v.statut else '',
-                'statut_display':      v.statut.libelle if v.statut else '',
+                'statut_display':      v.statut.libelle if v.statut else 'Sans statut',
+                'statut_couleur':      v.statut.couleur if v.statut else 'gray',
                 'disponible':          bool(v.statut and v.statut.code == 'en_service'),
                 'agence_nom':          v.agence.nom if v.agence else None,
                 'chauffeur_nom':       chauffeur_nom,
@@ -449,6 +458,7 @@ class VehiculeViewSet(viewsets.ModelViewSet):
                 'jr_vignette':         jr_vignette,
                 'statut_vignette':     statut('vignette', jr_vignette),
                 'age_mois':            age_mois,
+                'chauffeur_id':        chauffeur_id,
                 'notes':               v.notes or '',
             })
 
@@ -482,6 +492,8 @@ class VehiculeViewSet(viewsets.ModelViewSet):
                 for code, (att, urg) in seuils.items()
             },
             'vehicules': resultats,
+            # Statuts paramétrés présents dans le parc (pour le filtre)
+            'statuts': [{'code': c, 'libelle': l} for c, l in sorted({(r['statut'], r['statut_display']) for r in resultats}, key=lambda x: x[1])],
         })
 
 

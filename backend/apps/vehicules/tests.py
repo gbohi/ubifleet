@@ -131,3 +131,35 @@ class VehiculeSaisieTests(UtilisateursMixin, APITestCase):
         self.client.force_authenticate(self.super_admin)
         self.client.delete(f'/api/v1/vehicules/{v}/')
         self.assertIsNone(Vehicule.objects.get(pk=v).chauffeur_attitré)
+
+
+class EtatParcTests(UtilisateursMixin, APITestCase):
+    """État du parc : assurance par contrat ou document, couleur du statut ;
+    alertes d'assurance alignées sur les contrats."""
+
+    def test_assurance_contrat_et_document(self):
+        import datetime
+        from django.utils import timezone
+        from apps.alertes.models import Alerte
+        from apps.alertes.tasks import _check_documents
+        from apps.parametrage.models import StatutVehicule
+        from apps.sinistres.models import Assureur, ContratAssurance
+        from apps.vehicules.models import DocumentVehicule, TypeDocumentVehicule, Vehicule
+        jour = timezone.localdate()
+        st = StatutVehicule.objects.get(code='en_panne')
+        v = Vehicule.objects.create(immatriculation='EP-1', agence=self.agence_a, annee=2020, statut=st)
+        # Ancien document expiré, mais contrat valide 200 jours
+        DocumentVehicule.objects.create(vehicule=v, type_document=TypeDocumentVehicule.objects.get(code='assurance'),
+                                        date_expiration=jour - datetime.timedelta(days=5))
+        ContratAssurance.objects.create(vehicule=v, assureur=Assureur.objects.create(nom='A'), numero_police='X',
+                                        date_debut=jour, date_fin=jour + datetime.timedelta(days=200), prime_annuelle=1)
+        Alerte.objects.create(vehicule=v, type_alerte='assurance_expiree', titre='t', message='m', agence=self.agence_a)
+        self.client.force_authenticate(self.responsable_flotte)
+        d = self.client.get('/api/v1/vehicules/etat_parc/').data
+        ligne = d['vehicules'][0]
+        self.assertEqual((ligne['jr_assurance'], ligne['statut_assurance']), (200, 'ok'))
+        self.assertEqual((ligne['statut_display'], ligne['statut_couleur']), ('En panne', st.couleur))
+        self.assertEqual(d['statuts'], [{'code': 'en_panne', 'libelle': 'En panne'}])
+        # La vérification des échéances clôt l'alerte devenue sans objet
+        _check_documents()
+        self.assertFalse(Alerte.objects.filter(vehicule=v, statut__in=['active', 'lue']).exists())

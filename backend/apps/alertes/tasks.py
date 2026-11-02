@@ -54,36 +54,48 @@ def _check_documents():
                                                     'Vignette'),
     }
 
-    # Document le plus récent par (véhicule, type)
+    # Échéance la plus lointaine par (véhicule, type) ; l'assurance tient
+    # compte aussi des contrats (Sinistres & Assurances).
+    from apps.vehicules.assurance import fins_assurance
+    from apps.vehicules.models import Vehicule
     derniers = {}
     for doc in (DocumentVehicule.objects
                 .filter(date_expiration__isnull=False, type_document__code__in=CODE_MAP,
                         vehicule__is_active=True)
                 .select_related('vehicule', 'vehicule__agence', 'type_document')):
         k = (doc.vehicule_id, doc.type_document.code)
-        if k not in derniers or doc.date_expiration > derniers[k].date_expiration:
-            derniers[k] = doc
+        if k not in derniers or doc.date_expiration > derniers[k][0]:
+            derniers[k] = (doc.date_expiration, doc.vehicule)
+    fins = fins_assurance()
+    vehicules = {v.id: v for v in Vehicule.objects.filter(id__in=fins, is_active=True).select_related('agence')}
+    for vid, fin in fins.items():
+        if vid in vehicules:
+            derniers[(vid, TypeDocumentVehicule.CODE_ASSURANCE)] = (fin, vehicules[vid])
 
-    for (_, code), doc in derniers.items():
+    for (_, code), (date_expiration, v) in derniers.items():
         type_exp, type_expire, label = CODE_MAP[code]
-        jours = (doc.date_expiration - today).days
+        jours = (date_expiration - today).days
         niv   = niveau(jours, *seuils[code])
         if niv in (OK, NC):
+            # Échéance renouvelée : l'alerte éventuelle n'a plus lieu d'être
+            Alerte.objects.filter(vehicule=v, type_alerte__in=[type_exp, type_expire],
+                                  statut__in=[Alerte.Statut.ACTIVE, Alerte.Statut.LUE]).update(
+                statut=Alerte.Statut.TRAITEE, date_traitement=timezone.now(),
+                notes_traitement='Échéance renouvelée.')
             continue
-        v = doc.vehicule
         if niv == DEPASSE:
             _signaler(niv, {'vehicule': v}, type_expire, {
                 'titre':   f'{label} EXPIRÉ — {v.immatriculation}',
                 'message': (f"Le document « {label} » du véhicule {v.immatriculation} "
-                            f"a expiré le {doc.date_expiration}. Renouvellement urgent requis."),
-                'agence': v.agence, 'date_echeance': doc.date_expiration,
+                            f"a expiré le {date_expiration:%d/%m/%Y}. Renouvellement urgent requis."),
+                'agence': v.agence, 'date_echeance': date_expiration,
             })
         else:
             _signaler(niv, {'vehicule': v}, type_exp, {
                 'titre':   f'{label} expire J-{jours} — {v.immatriculation}',
                 'message': (f"Le document « {label} » du véhicule {v.immatriculation} "
-                            f"expire le {doc.date_expiration} (dans {jours} jour(s))."),
-                'agence': v.agence, 'date_echeance': doc.date_expiration,
+                            f"expire le {date_expiration:%d/%m/%Y} (dans {jours} jour(s))."),
+                'agence': v.agence, 'date_echeance': date_expiration,
             })
 
 
