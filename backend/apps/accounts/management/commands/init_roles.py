@@ -130,8 +130,28 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--reset', action='store_true',
                             help='Réinitialiser les permissions existantes')
+        parser.add_argument('--roles-seulement', action='store_true',
+                            help="Vérifier seulement les rôles système (création si absents, "
+                                 "marqués « système ») sans toucher aux noms ni aux permissions. "
+                                 "Utilisé à chaque démarrage du serveur.")
 
     def handle(self, *args, **options):
+        if options['roles_seulement']:
+            crees = marques = 0
+            for code, nom, niveau, desc in ROLES_SYSTEME:
+                role, created = Role.objects.get_or_create(
+                    code=code, defaults={'nom': nom, 'niveau': niveau, 'description': desc,
+                                         'is_system': True, 'is_active': True})
+                if created:
+                    crees += 1
+                elif not role.is_system or role.niveau != niveau or not role.is_active:
+                    # Rôle système : niveau de référence, actif et non supprimable
+                    role.is_system, role.niveau, role.is_active = True, niveau, True
+                    role.save(update_fields=['is_system', 'niveau', 'is_active'])
+                    marques += 1
+            self.stdout.write(f'Rôles système : {crees} créé(s), {marques} corrigé(s).')
+            return
+
         # 1. Créer les rôles système
         roles_map = {}
         created_r = updated_r = 0

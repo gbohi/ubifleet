@@ -1,4 +1,5 @@
 """UbiFleet — Véhicules Views"""
+import logging
 
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
@@ -187,13 +188,13 @@ class VehiculeViewSet(viewsets.ModelViewSet):
         # Compteur recalculé à partir des saisies (un relevé antérieur ne le fait pas baisser)
         recalculer_kilometrage(vehicule)
 
-        # Déclencher vérification alertes
-        from apps.alertes.tasks import check_vehicule_alerts
-        # Déclencher les alertes si Celery/Redis est disponible
+        # Alertes de révision : vérification directe (rapide). L'appel Celery
+        # bloquait la requête une vingtaine de secondes quand Redis était absent.
+        from apps.alertes.tasks import _check_vehicule_km
         try:
-            check_vehicule_alerts.delay(str(vehicule.id))
+            _check_vehicule_km()
         except Exception:
-            pass  # Redis non disponible — les alertes seront vérifiées au prochain cycle
+            logging.getLogger(__name__).exception("Vérification des alertes kilométrage impossible")
 
         return Response({
             'detail': 'Kilométrage mis à jour.',

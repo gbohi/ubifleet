@@ -9,11 +9,20 @@ from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-ubifleet-change-in-production')
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-DEBUG = config('DEBUG', default=True, cast=bool)
+# Clé secrète : obligatoire hors mode debug (signature des jetons de connexion)
+SECRET_KEY = config('SECRET_KEY', default='')
+if not SECRET_KEY:
+    if not DEBUG:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(
+            "SECRET_KEY doit être défini dans .env (générer avec : "
+            "python -c \"import secrets; print(secrets.token_urlsafe(50))\").")
+    SECRET_KEY = 'django-insecure-dev-uniquement'
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
+
+ALLOWED_HOSTS = [h.strip() for h in config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',') if h.strip()]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -131,6 +140,8 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     # Conserver les Decimal comme strings pour éviter la perte de précision float
     'COERCE_DECIMAL_TO_STRING': True,
+    # Limite les tentatives de connexion (mots de passe devinés)
+    'DEFAULT_THROTTLE_RATES': {'connexion': config('THROTTLE_CONNEXION', default='10/min')},
 }
 
 # ── JWT ──
@@ -148,6 +159,39 @@ CORS_ALLOWED_ORIGINS = config(
     default='http://localhost:4200,http://127.0.0.1:4200'
 ).split(',')
 CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in config('CSRF_TRUSTED_ORIGINS', default='').split(',') if o.strip()]
+
+# ── Sécurité ─────────────────────────────────────────────────────────
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'
+SESSION_COOKIE_HTTPONLY = True
+
+# HTTPS (certificat installé sur le serveur web en frontal) : HTTPS=True dans .env
+HTTPS = config('HTTPS', default=False, cast=bool)
+if HTTPS:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')   # le proxy transmet le protocole
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # Redirection HTTP → HTTPS : faite par le serveur web ; à activer ici si besoin
+    SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+    # HSTS : le navigateur refuse ensuite tout accès HTTP. Ne l'activer qu'une
+    # fois HTTPS stable (ex. HSTS_SECONDS=31536000).
+    SECURE_HSTS_SECONDS = config('HSTS_SECONDS', default=0, cast=int)
+
+# Taille maximale d'un envoi (imports, pièces jointes) : 25 Mo
+DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+
+# ── Journalisation (sortie standard, lue par Docker) ─────────────────
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {'simple': {'format': '{asctime} {levelname} {name} : {message}', 'style': '{'}},
+    'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'simple'}},
+    'root': {'handlers': ['console'], 'level': 'WARNING'},
+    'loggers': {'django.request': {'handlers': ['console'], 'level': 'ERROR', 'propagate': False}},
+}
 
 # ── DRF SPECTACULAR (OpenAPI/Swagger) ──
 SPECTACULAR_SETTINGS = {

@@ -1,6 +1,6 @@
 """UbiFleet — Accounts Models (rôles 100% dynamiques)"""
 
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 import uuid
 
@@ -74,8 +74,19 @@ class Role(models.Model):
         return self.niveau >= 10
 
 
+class UbiFleetUserManager(UserManager):
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        """« manage.py createsuperuser » : le compte reçoit aussi le rôle
+        super administrateur de l'application (sinon il n'aurait aucun droit)."""
+        if 'role' not in extra_fields:
+            extra_fields['role'] = Role.objects.filter(code='super_admin').first()
+        return super().create_superuser(username, email, password, **extra_fields)
+
+
 class User(AbstractUser):
     """Utilisateur UbiFleet."""
+
+    objects = UbiFleetUserManager()
 
     id        = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email     = models.EmailField(unique=True)

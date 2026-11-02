@@ -45,6 +45,9 @@ export class LoginComponent {
         this.loading.set(false);
         if (err.status === 401) {
           this.errorMsg.set('Email ou mot de passe incorrect.');
+        } else if (err.status === 429) {
+          const attente = Number(err.headers?.get?.('Retry-After')) || 60;
+          this.errorMsg.set(`Trop de tentatives de connexion. Réessayez dans ${attente} secondes.`);
         } else if (err.status === 0) {
           this.errorMsg.set('Impossible de contacter le serveur. Vérifiez votre connexion.');
         } else {
