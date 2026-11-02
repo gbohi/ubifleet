@@ -10,12 +10,38 @@
     }
   </div>
 
-  <div class="card filtres">
-    <input class="form-control" placeholder="Rechercher dans le libellé ou la description…" [value]="recherche()"
-           (input)="recherche.set($any($event.target).value)" (keyup.enter)="filtrer()" />
-    <label>Du <input type="date" class="form-control" [value]="dateDebut()" (change)="dateDebut.set($any($event.target).value); filtrer()" /></label>
-    <label>au <input type="date" class="form-control" [value]="dateFin()" (change)="dateFin.set($any($event.target).value); filtrer()" /></label>
-    <button class="btn btn-outline btn-sm" (click)="filtrer()"><i class="fas fa-search"></i> Rechercher</button>
+  <div class="card filtres-fm">
+    <div class="ff-grille" [class.avec-agence]="toutesAgences() && agences().length > 1">
+      <div class="filter-group ff-recherche">
+        <label class="filter-label" for="fm-search"><i class="fas fa-search"></i> Recherche</label>
+        <input id="fm-search" type="search" class="form-control" placeholder="Libellé ou description…"
+               [value]="recherche()" (input)="saisirRecherche($any($event.target).value)" />
+      </div>
+      <div class="filter-group ff-periode">
+        <label class="filter-label" for="fm-du"><i class="fas fa-calendar"></i> Période</label>
+        <div class="ff-dates">
+          <input id="fm-du" type="date" class="form-control" title="Du" [value]="dateDebut()" (change)="dateDebut.set($any($event.target).value); filtrer()" />
+          <span>→</span>
+          <input id="fm-au" type="date" class="form-control" title="Au" [value]="dateFin()" (change)="dateFin.set($any($event.target).value); filtrer()" />
+        </div>
+      </div>
+      @if (toutesAgences() && agences().length > 1) {
+        <div class="filter-group">
+          <label class="filter-label" for="fm-agence"><i class="fas fa-building"></i> Agence</label>
+          <select id="fm-agence" class="form-control" (change)="filtreAgence.set($any($event.target).value); filtrer()">
+            <option value="" [selected]="!filtreAgence()">Toutes</option>
+            @for (a of agences(); track a.id) { <option [value]="a.id" [selected]="filtreAgence() === a.id">{{ a.nom }}</option> }
+          </select>
+        </div>
+      }
+    </div>
+    <div class="ff-pied">
+      @if (nbFiltresActifs() > 0) {
+        <button class="btn btn-outline btn-sm" (click)="reinitialiser()"><i class="fas fa-times"></i> Réinitialiser ({{ nbFiltresActifs() }})</button>
+      }
+      <span class="ff-sep"></span>
+      <span class="ff-compte"><strong>{{ total() }}</strong> fait(s) marquant(s)</span>
+    </div>
   </div>
 
   @if (notice(); as n) {
@@ -28,7 +54,7 @@
   @if (chargement()) {
     <div class="fm-vide"><i class="fas fa-circle-notch fa-spin"></i></div>
   } @else if (faits().length === 0) {
-    <div class="fm-vide"><i class="fas fa-flag"></i><p>Aucun fait marquant.</p></div>
+    <div class="fm-vide"><i class="fas fa-flag"></i><p>{{ nbFiltresActifs() ? 'Aucun fait marquant ne correspond aux filtres.' : 'Aucun fait marquant.' }}</p></div>
   } @else {
     <ol class="chronologie">
       @for (f of faits(); track f.id) {
@@ -120,7 +146,7 @@
         </div>
         <div class="fm-actions">
           <button type="button" class="btn btn-outline" (click)="faitEdite.set(undefined)">Annuler</button>
-          <button type="submit" class="btn btn-green" [disabled]="form.invalid || enregistrement()">
+          <button type="submit" class="btn btn-green" [disabled]="enregistrement()">
             @if (enregistrement()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-save"></i> }
             Enregistrer
           </button>

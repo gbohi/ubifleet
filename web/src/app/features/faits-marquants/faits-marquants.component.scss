@@ -56,3 +56,17 @@
   .fm-grille { grid-template-columns: 1fr; }
   .filtres label input { width: 140px; }
 }
+
+.filtres-fm { padding: 14px 18px; margin-bottom: 14px; }
+.ff-grille {
+  display: grid; gap: 10px 12px; align-items: end; grid-template-columns: minmax(220px, 1.4fr) minmax(280px, 1.2fr);
+  &.avec-agence { grid-template-columns: minmax(220px, 1.4fr) minmax(280px, 1.2fr) minmax(160px, .8fr); }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .filter-label { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .5px;
+    display: flex; align-items: center; gap: 5px; i { font-size: 10px; color: var(--gray-400); } }
+  .form-control { height: 36px; padding: 0 10px; font-size: 13px; width: 100%; box-sizing: border-box; }
+  .ff-dates { display: flex; align-items: center; gap: 6px; span { color: var(--gray-400); } .form-control { flex: 1; min-width: 0; } }
+  @media (max-width: 800px) { &, &.avec-agence { grid-template-columns: 1fr; } }
+}
+.ff-pied { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-100); min-height: 30px;
+  .ff-sep { flex: 1; } .ff-compte { font-size: 13px; color: var(--gray-500); } }

@@ -9,6 +9,7 @@ import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AgenceApiService, FaitsMarquantsApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { messageErreurApi } from '../../core/services/fenetre-saisie.service';
 
 const EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'xls', 'xlsx', 'odt', 'ods', 'txt'];
 const TAILLE_MAX_MO = 10;
@@ -41,6 +42,9 @@ export class FaitsMarquantsComponent implements OnInit {
   recherche  = signal('');
   dateDebut  = signal('');
   dateFin    = signal('');
+  filtreAgence = signal('');
+  private minuterie?: ReturnType<typeof setTimeout>;
+  nbFiltresActifs = computed(() => [this.recherche(), this.dateDebut(), this.dateFin(), this.filtreAgence()].filter(v => !!v).length);
   notice     = signal<{ type: 'ok' | 'err'; texte: string } | null>(null);
   agences    = signal<any[]>([]);
 
@@ -71,14 +75,24 @@ export class FaitsMarquantsComponent implements OnInit {
     this.chargement.set(true);
     this.api.getAll({
       page: this.page(), page_size: this.parPage, search: this.recherche(),
-      date_debut: this.dateDebut(), date_fin: this.dateFin(),
+      date_debut: this.dateDebut(), date_fin: this.dateFin(), agence: this.filtreAgence(),
     }).subscribe({
       next: res => { this.faits.set(res.results ?? []); this.total.set(res.count ?? 0); this.chargement.set(false); },
       error: () => { this.chargement.set(false); this.notice.set({ type: 'err', texte: 'Impossible de charger les faits marquants.' }); },
     });
   }
 
-  filtrer(): void { this.page.set(1); this.charger(); }
+  filtrer(): void { clearTimeout(this.minuterie); this.page.set(1); this.charger(); }
+  /** Recherche appliquée après une courte pause de saisie. */
+  saisirRecherche(v: string): void {
+    this.recherche.set(v.trim());
+    clearTimeout(this.minuterie);
+    this.minuterie = setTimeout(() => this.filtrer(), 350);
+  }
+  reinitialiser(): void {
+    this.recherche.set(''); this.dateDebut.set(''); this.dateFin.set(''); this.filtreAgence.set('');
+    this.filtrer();
+  }
   allerPage(p: number): void { this.page.set(p); this.charger(); }
 
   ouvrir(f: any | null): void {
@@ -112,7 +126,11 @@ export class FaitsMarquantsComponent implements OnInit {
   }
 
   enregistrer(): void {
-    if (this.form.invalid || this.enregistrement()) return;
+    this.form.markAllAsTouched();
+    if (this.form.invalid || this.enregistrement()) {
+      if (this.form.invalid) this.erreurForm.set('Renseignez le libellé et la date.');
+      return;
+    }
     const v = this.form.value;
     const fd = new FormData();
     fd.append('libelle', v.libelle ?? '');
@@ -129,13 +147,12 @@ export class FaitsMarquantsComponent implements OnInit {
         this.enregistrement.set(false);
         this.faitEdite.set(undefined);
         this.notice.set({ type: 'ok', texte: f ? 'Fait marquant modifié.' : 'Fait marquant enregistré.' });
+        setTimeout(() => this.notice.set(null), 5000);
         this.charger();
       },
       error: (err: any) => {
         this.enregistrement.set(false);
-        const e = err?.error ?? {};
-        this.erreurForm.set(e.detail ?? (e.document ? `Document : ${[].concat(e.document).join(' ')}` : null)
-          ?? Object.values(e).flat().join(' ') ?? "Erreur lors de l'enregistrement.");
+        this.erreurForm.set(messageErreurApi(err, "Erreur lors de l'enregistrement."));
       },
     });
   }
@@ -144,7 +161,7 @@ export class FaitsMarquantsComponent implements OnInit {
     if (!confirm(`Supprimer le fait marquant « ${f.libelle} » et son document ?`)) return;
     this.api.delete(f.id).subscribe({
       next: () => { this.notice.set({ type: 'ok', texte: 'Fait marquant supprimé.' }); this.charger(); },
-      error: (err: any) => this.notice.set({ type: 'err', texte: err?.error?.detail ?? 'Suppression impossible.' }),
+      error: (err: any) => this.notice.set({ type: 'err', texte: messageErreurApi(err, 'Suppression impossible.') }),
     });
   }
 

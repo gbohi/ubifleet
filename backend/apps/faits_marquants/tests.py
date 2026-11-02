@@ -63,3 +63,16 @@ class FaitsMarquantsTests(UtilisateursMixin, APITestCase):
         fait = FaitMarquant.objects.get(libelle='Groupe')
         resp = self.client.patch(reverse('fait-marquant-detail', args=[fait.id]), {'libelle': 'y'}, format='json')
         self.assertEqual(resp.status_code, 403)
+
+    def test_document_remplace_supprime_l_ancien(self):
+        import os
+        doc = SimpleUploadedFile('a.pdf', b'%PDF-1.4 a', content_type='application/pdf')
+        fid = self.creer(self.gestionnaire, document=doc).data['id']
+        ancien = FaitMarquant.objects.get(pk=fid).document.path
+        self.assertTrue(os.path.exists(ancien))
+        nouveau = SimpleUploadedFile('b.pdf', b'%PDF-1.4 b', content_type='application/pdf')
+        r = self.client.patch(reverse('fait-marquant-detail', args=[fid]), {'document': nouveau}, format='multipart')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertFalse(os.path.exists(ancien))
+        r = self.client.patch(reverse('fait-marquant-detail', args=[fid]), {'libelle': '   '}, format='multipart')
+        self.assertEqual(r.status_code, 400)
