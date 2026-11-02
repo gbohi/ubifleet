@@ -9,7 +9,6 @@ import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
 
 import { DashboardStore } from '../../store/dashboard/dashboard.store';
-import { AlertesStore }   from '../../store/alertes/alertes.store';
 import { AgenceApiService } from '../../core/services/api.service';
 import { Agence } from '../../core/models';
 
@@ -27,7 +26,6 @@ import { Agence } from '../../core/models';
 })
 export class DashboardComponent implements OnInit {
   dashStore    = inject(DashboardStore);
-  alertesStore = inject(AlertesStore);
   private agenceApi = inject(AgenceApiService);
 
   // Signal pour les agences (évite le problème d'itérabilité)
@@ -57,13 +55,12 @@ export class DashboardComponent implements OnInit {
 
   // ── Chart: Évolution coûts (Line) ──
   get lineChartData(): ChartData<'line'> {
-    const couts = this.dashStore.coutMensuelChart();
-    // Données de démo si l'API n'est pas connectée
-    const data = couts.length > 0 ? couts : this.demoLineData;
+    const data = this.dashStore.coutMensuelChart();
     return {
+      // « Déc 25 », « Jan 26 » : les 12 mois se terminent au mois choisi
       labels: data.map((c: any) => {
-        const m = this.moisList.find(x => x.val === (c.mois ?? c));
-        return m ? m.label.substring(0, 3) : `M${c.mois}`;
+        const m = this.moisList.find(x => x.val === c.mois);
+        return `${m ? m.label.substring(0, 3) : 'M' + c.mois} ${String(c.annee).slice(-2)}`;
       }),
       datasets: [{
         label: 'Coûts totaux (FCFA)',
@@ -79,21 +76,6 @@ export class DashboardComponent implements OnInit {
     };
   }
 
-  // Données de démo pour le graphique quand l'API est inaccessible
-  private demoLineData = [
-    { mois: 6,  total: 16800000 },
-    { mois: 7,  total: 17200000 },
-    { mois: 8,  total: 15900000 },
-    { mois: 9,  total: 18100000 },
-    { mois: 10, total: 17600000 },
-    { mois: 11, total: 18800000 },
-    { mois: 12, total: 19200000 },
-    { mois: 1,  total: 17100000 },
-    { mois: 2,  total: 16500000 },
-    { mois: 3,  total: 18400000 },
-    { mois: 4,  total: 17900000 },
-    { mois: 5,  total: 18400000 },
-  ];
 
   lineChartOptions: ChartConfiguration<'line'>['options'] = {
     responsive: true,
@@ -154,11 +136,12 @@ export class DashboardComponent implements OnInit {
         }]
       };
     }
+    const palette = ['#06b6d4', '#84cc16', '#f97316', '#ec4899', '#64748b'];   // catégories ajoutées dans les paramètres
     return {
       labels: rep.map(r => r.label),
       datasets: [{
         data: rep.map(r => r.montant),
-        backgroundColor: rep.map(r => this.categorieColors[r.categorie] ?? '#94a3b8'),
+        backgroundColor: rep.map((r, i) => this.categorieColors[r.categorie] ?? palette[i % palette.length]),
         borderWidth: 0,
         hoverOffset: 6,
       }]
@@ -258,8 +241,6 @@ export class DashboardComponent implements OnInit {
 
     // Charger le dashboard — le store gère lui-même les états loading/error
     this.dashStore.loadDashboard();
-    this.alertesStore.loadResume();
-    this.alertesStore.loadAlertes();
   }
 
   onMoisChange(event: Event): void {
@@ -280,8 +261,50 @@ export class DashboardComponent implements OnInit {
     this.dashStore.loadDashboard();
   }
 
+  /** Couleur d'un statut véhicule (Paramètres › Statuts véhicule) → classe de la barre. */
+  classeStatut(couleur: string): string {
+    return ({ green: 'green', orange: 'warning', red: 'danger', blue: 'blue', gray: 'gray' } as Record<string, string>)[couleur] ?? 'gray';
+  }
+
+  /** Export Excel (CSV) de la page : indicateurs, parc, coûts, alertes prioritaires. */
+  exporter(): void {
+    const d: any = this.dashStore.data();
+    if (!d) return;
+    const cell = (v: any) => `"${String(typeof v === 'number' && !Number.isInteger(v) ? v.toFixed(2).replace('.', ',') : v ?? '').replace(/"/g, '""')}"`;
+    const l = (...c: any[]) => c.map(cell).join(';');
+    const agence = this.agences().find(a => a.id === this.dashStore.agenceFilter())?.nom ?? 'Toutes les agences';
+    const n = (v: any) => Number(v) || 0;
+    const lignes = [
+      l(`Tableau de bord UbiFleet — ${this.dashStore.periodLabel()} — ${agence}`), '',
+      l('Indicateur', 'Valeur'),
+      l('Véhicules actifs', d.parc.total), ...d.parc.par_statut.map((s: any) => l(`  ${s.libelle}`, s.nb)),
+      l('Carburant — montant (FCFA)', n(d.carburant.montant)), l('Carburant — volume (L)', n(d.carburant.volume)),
+      l('Consommation moyenne (L/100 km)', n(d.carburant.conso_moy)), l('Anomalies de consommation', d.carburant.anomalies),
+      l('Entretiens planifiés', d.entretien.planifiees), l('Entretiens terminés', d.entretien.terminees),
+      l('Coût des entretiens terminés (FCFA)', n(d.entretien.cout)),
+      l('Alertes à traiter', d.alertes.total), l('dont critiques', d.alertes.critiques),
+      l('Sinistres en cours', d.sinistres.en_cours),
+      l('Assurances expirant dans 30 jours', d.assurances_critiques), l('Véhicules avec assurance expirée', d.assurances_expirees ?? 0),
+      ...(d.chauffeurs ? [l('Chauffeurs en poste', d.chauffeurs.total), l('Permis expirés', d.chauffeurs.permis_expires),
+        l('Permis à renouveler (60 j)', d.chauffeurs.permis_a_renouveler), l('Documents chauffeur expirés', d.chauffeurs.documents_expires)] : []),
+      '', l('Mois', 'Coûts (FCFA)'), ...d.cout_mensuel.map((m: any) => l(`${this.moisList[m.mois - 1].label} ${m.annee}`, n(m.total))),
+      '', l('Catégorie', 'Montant du mois (FCFA)'), ...d.repartition_couts.map((r: any) => l(r.label, n(r.montant))),
+      '', l('Véhicule', 'Conso (L/100 km)', 'Référence', 'Écart (%)'),
+      ...d.top_ecart_conso.map((v: any) => l(v.vehicule__immatriculation, n(v.conso), n(v.reference), n(v.ecart_pct))),
+      '', l('Alerte prioritaire', 'Priorité', 'Véhicule', 'Chauffeur'),
+      ...d.alertes.prioritaires.map((a: any) => l(a.titre, a.priorite_display, a.vehicule_immat ?? '', a.chauffeur_nom ?? '')),
+    ];
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\uFEFF' + lignes.join('\r\n')], { type: 'text/csv;charset=utf-8;' }));
+    a.download = `tableau_de_bord_${this.dashStore.periode().annee}_${String(this.dashStore.periode().mois).padStart(2, '0')}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   formatFCFA(value: number): string {
-    if (!value || isNaN(value)) return '—';
+    value = Number(value);
+    if (isNaN(value)) return '—';
+    if (!value) return '0';
     if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
     if (value >= 1_000)     return `${(value / 1_000).toFixed(0)} K`;
     return new Intl.NumberFormat('fr-FR').format(value);

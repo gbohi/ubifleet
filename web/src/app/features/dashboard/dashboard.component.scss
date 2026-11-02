@@ -382,3 +382,9 @@
 
   &.text-danger { color: var(--danger); }
 }
+
+// Alertes et indicateurs cliquables
+.timeline-lien { text-decoration: none; color: inherit; border-radius: 8px; &:hover { background: var(--gray-50, #f6f8fa); } }
+.metric-lien { text-decoration: none; color: inherit; &:hover .metric-label { color: var(--navy); } }
+.dot.gray, .progress-bar.gray { background: var(--gray-400, #9ca3af); }
+.dot.blue, .progress-bar.blue { background: #3b82f6; }

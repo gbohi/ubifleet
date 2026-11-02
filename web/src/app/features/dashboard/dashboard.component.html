@@ -11,12 +11,14 @@
     </div>
     <div class="header-actions">
       <!-- Filtre agence -->
-      <select class="form-control filter-select" (change)="onAgenceChange($event)">
-        <option value="">Toutes les agences</option>
-        @for (agence of agences(); track agence.id) {
-          <option [value]="agence.id">{{ agence.nom }}</option>
-        }
-      </select>
+      @if (agences().length > 1) {
+        <select class="form-control filter-select" (change)="onAgenceChange($event)">
+          <option value="" [selected]="!dashStore.agenceFilter()">Toutes les agences</option>
+          @for (agence of agences(); track agence.id) {
+            <option [value]="agence.id" [selected]="dashStore.agenceFilter() === agence.id">{{ agence.nom }}</option>
+          }
+        </select>
+      }
 
       <!-- Filtre mois -->
       <select
@@ -25,7 +27,7 @@
         (change)="onMoisChange($event)"
       >
         @for (m of moisList; track m.val) {
-          <option [value]="m.val">{{ m.label }}</option>
+          <option [value]="m.val" [selected]="m.val === dashStore.periode().mois">{{ m.label }}</option>
         }
       </select>
 
@@ -36,12 +38,12 @@
         (change)="onAnneeChange($event)"
       >
         @for (a of anneesDisponibles; track a) {
-          <option [value]="a">{{ a }}</option>
+          <option [value]="a" [selected]="a === dashStore.periode().annee">{{ a }}</option>
         }
       </select>
 
-      <button class="btn btn-outline btn-sm">
-        <i class="fas fa-download"></i> Exporter
+      <button class="btn btn-outline btn-sm" [disabled]="!dashStore.data()" (click)="exporter()">
+        <i class="fas fa-file-excel"></i> Exporter
       </button>
     </div>
   </div>
@@ -128,13 +130,9 @@
       </div>
       <div class="kpi-body">
         <div class="kpi-value">{{ dashStore.nbAlertesActives() }}</div>
-        <div class="kpi-label">Alertes actives</div>
+        <div class="kpi-label">Alertes à traiter</div>
         <div class="kpi-sub">
-          <span class="dot red"></span>{{ dashStore.nbAlertesCritiques() }} critiques
-          @if (dashStore.assurancesCritiques() > 0) {
-            &nbsp;&bull;&nbsp;
-            <span class="dot orange"></span>{{ dashStore.assurancesCritiques() }} assurance(s) urgente(s)
-          }
+          <span class="dot red"></span>{{ dashStore.nbAlertesCritiques() }} critique(s)
         </div>
       </div>
       @if (dashStore.nbAlertesCritiques() > 0) {
@@ -153,7 +151,7 @@
       <div class="card-header">
         <div>
           <div class="card-title">Évolution des coûts</div>
-          <div class="card-subtitle">12 derniers mois — toutes charges confondues</div>
+          <div class="card-subtitle">12 mois jusqu'à {{ dashStore.periodLabel() }} — toutes les dépenses</div>
         </div>
       </div>
       <div class="card-body">
@@ -198,54 +196,46 @@
   <!-- ── LIGNE INFOS SECONDAIRES ── -->
   <div class="info-row">
 
-    <!-- Alertes actives -->
+    <!-- Alertes à traiter (les plus prioritaires) -->
     <div class="card info-card">
       <div class="card-header">
         <div class="card-title">
           <i class="fas fa-bell" style="color:var(--danger);margin-right:6px"></i>
-          Alertes actives
+          Alertes à traiter
         </div>
-        <span class="badge badge-danger">
-          {{ alertesStore.totalActives() }} nouvelle(s)
-        </span>
+        <span class="badge" [class]="dashStore.nbAlertesCritiques() ? 'badge-danger' : 'badge-gray'">{{ dashStore.nbAlertesActives() }}</span>
       </div>
       <div class="card-body alerts-list">
-        @if (alertesStore.isLoading()) {
+        @if (dashStore.isLoading()) {
           <div class="skeleton-list">
             @for (i of [1,2,3]; track i) {
-              <div class="skeleton-item">
-                <div class="skeleton skeleton-dot"></div>
-                <div class="skeleton skeleton-text"></div>
-              </div>
+              <div class="skeleton-item"><div class="skeleton skeleton-dot"></div><div class="skeleton skeleton-text"></div></div>
             }
           </div>
-        } @else if (alertesStore.alertesParPriorite().length === 0) {
+        } @else if (dashStore.alertesPrioritaires().length === 0) {
           <div class="empty-state-sm">
             <i class="fas fa-check-circle"></i>
-            <span>Aucune alerte active</span>
+            <span>Aucune alerte à traiter</span>
           </div>
         } @else {
           <div class="timeline">
-            @for (alerte of alertesStore.alertesParPriorite().slice(0, 5); track alerte.id) {
-              <div class="timeline-item">
+            @for (alerte of dashStore.alertesPrioritaires(); track alerte.id) {
+              <a class="timeline-item timeline-lien" routerLink="/alertes" [title]="'Ouvrir les alertes'">
                 <div class="timeline-dot" [class]="alerteDotClass(alerte.priorite)"></div>
                 <div>
                   <div class="timeline-title">{{ alerte.titre }}</div>
                   <div class="timeline-sub">
-                    @if (alerte.vehicule_immat) {
-                      {{ alerte.vehicule_immat }} &bull;
-                    }
-                    <span class="badge" [class]="alertePrioriteBadgeClass(alerte.priorite)">
-                      {{ alerte.priorite_display }}
-                    </span>
+                    @if (alerte.vehicule_immat) { {{ alerte.vehicule_immat }} &bull; }
+                    @else if (alerte.chauffeur_nom) { {{ alerte.chauffeur_nom }} &bull; }
+                    <span class="badge" [class]="alertePrioriteBadgeClass(alerte.priorite)">{{ alerte.priorite_display }}</span>
                   </div>
                 </div>
-              </div>
+              </a>
             }
           </div>
-          @if (alertesStore.totalActives() > 5) {
+          @if (dashStore.nbAlertesActives() > dashStore.alertesPrioritaires().length) {
             <a routerLink="/alertes" class="see-all-link">
-              Voir toutes les alertes ({{ alertesStore.totalActives() }})
+              Voir toutes les alertes ({{ dashStore.nbAlertesActives() }})
               <i class="fas fa-arrow-right"></i>
             </a>
           }
@@ -285,57 +275,23 @@
       </div>
       <div class="card-body">
 
-        <!-- Statut parc -->
-        <div class="parc-stat">
-          <div class="parc-stat-header">
-            <span class="parc-stat-label">
-              <span class="dot green"></span>En service
-            </span>
-            <span class="parc-stat-value">{{ dashStore.nbEnService() }}</span>
+        <!-- Répartition par statut (Paramètres › Statuts véhicule) -->
+        @for (st of dashStore.parStatut(); track st.code) {
+          <div class="parc-stat">
+            <div class="parc-stat-header">
+              <span class="parc-stat-label">
+                <span class="dot" [class]="st.couleur"></span>{{ st.libelle }}
+              </span>
+              <span class="parc-stat-value">{{ st.nb }}</span>
+            </div>
+            <div class="progress">
+              <div class="progress-bar" [class]="classeStatut(st.couleur)"
+                   [style.width.%]="dashStore.nbVehicules() > 0 ? (st.nb / dashStore.nbVehicules()) * 100 : 0"></div>
+            </div>
           </div>
-          <div class="progress">
-            <div
-              class="progress-bar green"
-              [style.width.%]="dashStore.nbVehicules() > 0
-                ? (dashStore.nbEnService() / dashStore.nbVehicules()) * 100
-                : 0"
-            ></div>
-          </div>
-        </div>
-
-        <div class="parc-stat">
-          <div class="parc-stat-header">
-            <span class="parc-stat-label">
-              <span class="dot orange"></span>En révision
-            </span>
-            <span class="parc-stat-value">{{ dashStore.nbEnRevision() }}</span>
-          </div>
-          <div class="progress">
-            <div
-              class="progress-bar warning"
-              [style.width.%]="dashStore.nbVehicules() > 0
-                ? (dashStore.nbEnRevision() / dashStore.nbVehicules()) * 100
-                : 0"
-            ></div>
-          </div>
-        </div>
-
-        <div class="parc-stat">
-          <div class="parc-stat-header">
-            <span class="parc-stat-label">
-              <span class="dot red"></span>Immobilisés
-            </span>
-            <span class="parc-stat-value">{{ dashStore.nbImmobilises() }}</span>
-          </div>
-          <div class="progress">
-            <div
-              class="progress-bar danger"
-              [style.width.%]="dashStore.nbVehicules() > 0
-                ? (dashStore.nbImmobilises() / dashStore.nbVehicules()) * 100
-                : 0"
-            ></div>
-          </div>
-        </div>
+        } @empty {
+          <div class="empty-state-sm"><span>Aucun véhicule</span></div>
+        }
 
         <div class="divider"></div>
 
@@ -348,20 +304,41 @@
           </div>
         </div>
 
-        <!-- Assurances urgentes -->
+        <!-- Assurances -->
         <div class="metric-row">
           <i class="fas fa-shield-alt metric-icon"
-             [class.danger]="dashStore.assurancesCritiques() > 0"
-             [class.green]="dashStore.assurancesCritiques() === 0">
+             [class.danger]="dashStore.assurancesCritiques() + dashStore.assurancesExpirees() > 0"
+             [class.green]="dashStore.assurancesCritiques() + dashStore.assurancesExpirees() === 0">
           </i>
           <div class="metric-info">
-            <span class="metric-label">Assurances expirant bientôt</span>
-            <span class="metric-value"
-                  [class.text-danger]="dashStore.assurancesCritiques() > 0">
-              {{ dashStore.assurancesCritiques() }}
-            </span>
+            <span class="metric-label">Assurances expirant dans 30 jours</span>
+            <span class="metric-value" [class.text-danger]="dashStore.assurancesCritiques() > 0">{{ dashStore.assurancesCritiques() }}</span>
           </div>
         </div>
+        @if (dashStore.assurancesExpirees() > 0) {
+          <div class="metric-row">
+            <i class="fas fa-shield-alt metric-icon danger"></i>
+            <div class="metric-info">
+              <span class="metric-label">Véhicules sans assurance valide</span>
+              <span class="metric-value text-danger">{{ dashStore.assurancesExpirees() }}</span>
+            </div>
+          </div>
+        }
+
+        <!-- Chauffeurs -->
+        @if (dashStore.chauffeurs(); as ch) {
+          <a class="metric-row metric-lien" routerLink="/chauffeurs">
+            <i class="fas fa-id-card metric-icon"
+               [class.danger]="ch.permis_expires + ch.documents_expires > 0"
+               [class.green]="ch.permis_expires + ch.permis_a_renouveler + ch.documents_expires === 0"></i>
+            <div class="metric-info">
+              <span class="metric-label">Chauffeurs : permis expirés / à renouveler · documents expirés</span>
+              <span class="metric-value" [class.text-danger]="ch.permis_expires + ch.documents_expires > 0">
+                {{ ch.permis_expires }} / {{ ch.permis_a_renouveler }} · {{ ch.documents_expires }}
+              </span>
+            </div>
+          </a>
+        }
 
       </div>
     </div>

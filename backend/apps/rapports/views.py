@@ -49,6 +49,13 @@ class DashboardDGView(APIView):
             'en_service': vehicules.filter(statut__code='en_service').count(),
             'en_revision': vehicules.filter(statut__code='en_revision').count(),
             'immobilises': vehicules.filter(statut__code__in=['immobilise', 'en_panne', 'accidente']).count(),
+            # Répartition selon les statuts paramétrés (Paramètres › Statuts véhicule), sans statut compris
+            'par_statut': [
+                {'code': r['statut__code'] or '', 'libelle': r['statut__libelle'] or 'Sans statut',
+                 'couleur': r['statut__couleur'] or 'gray', 'nb': r['nb']}
+                for r in vehicules.order_by().values('statut__code', 'statut__libelle', 'statut__couleur')
+                                  .annotate(nb=Count('id')).order_by('-nb')
+            ],
         }
 
         # Carburant du mois
@@ -99,12 +106,33 @@ class DashboardDGView(APIView):
             'annee': sinistres.filter(date_sinistre__year=annee).count(),
         }
 
-        # Alertes actives
-        alertes_qs = Alerte.objects.filter(statut='active', **agence_filter)
+        # Alertes à traiter (actives ou lues) de l'agence, les plus prioritaires d'abord
+        from django.db.models import Case, IntegerField, Value, When
+        alertes_qs = Alerte.objects.filter(statut__in=['active', 'lue'], **agence_filter)
+        rang = Case(When(priorite='critique', then=Value(0)), When(priorite='haute', then=Value(1)),
+                    When(priorite='normale', then=Value(2)), default=Value(3), output_field=IntegerField())
         alertes = {
             'total': alertes_qs.count(),
             'critiques': alertes_qs.filter(priorite='critique').count(),
             'hautes': alertes_qs.filter(priorite='haute').count(),
+            'prioritaires': [{
+                'id': str(a.id), 'titre': a.titre, 'priorite': a.priorite, 'priorite_display': a.get_priorite_display(),
+                'type_alerte': a.type_alerte, 'vehicule_immat': a.vehicule.immatriculation if a.vehicule else None,
+                'chauffeur_nom': a.chauffeur.nom_complet if a.chauffeur else None, 'date_echeance': a.date_echeance,
+            } for a in alertes_qs.select_related('vehicule', 'chauffeur').annotate(rang=rang)
+                                 .order_by('rang', '-created_at')[:6]],
+        }
+
+        # Chauffeurs en poste : permis et documents à renouveler
+        from apps.chauffeurs.models import Chauffeur, DocumentChauffeur
+        jour = timezone.localdate()
+        en_poste = Chauffeur.objects.exclude(statut=Chauffeur.Statut.DEPART).filter(**agence_filter)
+        chauffeurs = {
+            'total': en_poste.count(),
+            'permis_expires': en_poste.filter(date_expiration_permis__lt=jour).count(),
+            'permis_a_renouveler': en_poste.filter(
+                date_expiration_permis__range=(jour, jour + datetime.timedelta(days=60))).count(),
+            'documents_expires': DocumentChauffeur.objects.filter(chauffeur__in=en_poste, date_expiration__lt=jour).count(),
         }
 
         # Coûts mensuels : les 12 mois qui se terminent au mois choisi (une requête)
@@ -164,6 +192,7 @@ class DashboardDGView(APIView):
             'entretien': entretien,
             'sinistres': sinistr,
             'alertes': alertes,
+            'chauffeurs': chauffeurs,
             'cout_mensuel': cout_mensuel,
             'top_consommation': top_conso,
             'top_ecart_conso': top_ecart_conso,

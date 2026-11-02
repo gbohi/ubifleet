@@ -65,6 +65,10 @@ export const DashboardStore = signalStore(
     nbAlertesCritiques:computed(() => store.data()?.alertes.critiques    ?? 0),
 
     assurancesCritiques: computed(() => store.data()?.assurances_critiques ?? 0),
+    assurancesExpirees:  computed(() => store.data()?.assurances_expirees ?? 0),
+    parStatut:          computed(() => (store.data() as any)?.parc?.par_statut ?? []),
+    alertesPrioritaires:computed(() => (store.data() as any)?.alertes?.prioritaires ?? []),
+    chauffeurs:         computed(() => (store.data() as any)?.chauffeurs ?? null),
 
     // Données graphiques
     coutMensuelChart:  computed(() => store.data()?.cout_mensuel          ?? []),

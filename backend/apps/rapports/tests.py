@@ -54,3 +54,32 @@ class RapportsLibellesTests(UtilisateursMixin, APITestCase):
         d = self.client.get('/api/v1/rapports/dashboard/', {'mois': 2, 'annee': 2026}).data
         mois = [(m['annee'], m['mois']) for m in d['cout_mensuel']]
         self.assertEqual((mois[0], mois[-1], len(set(mois))), ((2025, 3), (2026, 2), 12))   # 12 mois distincts finissant au mois choisi
+
+
+class TableauDeBordTests(UtilisateursMixin, APITestCase):
+    """Page d'accueil : statuts paramétrés, alertes prioritaires, échéances chauffeurs."""
+
+    def test_accueil(self):
+        import datetime
+        from django.utils import timezone
+        from apps.alertes.models import Alerte
+        from apps.chauffeurs.models import Chauffeur
+        from apps.parametrage.models import StatutVehicule
+        from apps.vehicules.models import Vehicule
+        st = StatutVehicule.objects.get(code='en_panne')
+        v = Vehicule.objects.create(immatriculation='TB-1', agence=self.agence_a, annee=2020, statut=st)
+        Vehicule.objects.create(immatriculation='TB-2', agence=self.agence_a, annee=2020)        # sans statut
+        Chauffeur.objects.create(matricule='TB-C', nom='N', prenom='P', numero_permis='X', categories_permis='B',
+                                 agence=self.agence_a, date_expiration_permis=timezone.localdate() - datetime.timedelta(days=1))
+        for prio, titre in (('normale', 'N'), ('critique', 'C'), ('haute', 'H')):
+            Alerte.objects.create(type_alerte='revision_due', priorite=prio, titre=titre, message='m',
+                                  vehicule=v, agence=self.agence_a)
+        Alerte.objects.create(type_alerte='revision_due', priorite='critique', titre='Traitée', message='m',
+                              vehicule=v, agence=self.agence_a, statut='traitee')
+        self.client.force_authenticate(self.responsable_flotte)
+        d = self.client.get('/api/v1/rapports/dashboard/').data
+        statuts = {s['libelle']: s['nb'] for s in d['parc']['par_statut']}
+        self.assertEqual(statuts, {'En panne': 1, 'Sans statut': 1})
+        self.assertEqual([a['titre'] for a in d['alertes']['prioritaires']], ['C', 'H', 'N'])   # traitée exclue
+        self.assertEqual((d['alertes']['total'], d['alertes']['critiques']), (3, 1))
+        self.assertEqual(d['chauffeurs']['permis_expires'], 1)
