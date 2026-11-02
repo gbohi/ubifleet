@@ -1,5 +1,6 @@
 """UbiFleet — Entretien Serializers"""
 
+from django.utils import timezone
 from rest_framework import serializers
 from apps.core.referentiels import NbUtilisationsField
 from .models import Intervention, TypeIntervention, Prestataire, SuiviPneus, DocumentIntervention
@@ -38,6 +39,13 @@ class InterventionSerializer(serializers.ModelSerializer):
     statut_display = serializers.CharField(source='get_statut_display', read_only=True)
     priorite_display = serializers.CharField(source='get_priorite_display', read_only=True)
     agence_nom = serializers.CharField(source='agence.nom', read_only=True)
+    vehicule_km = serializers.IntegerField(source='vehicule.kilometrage_actuel', read_only=True)
+    en_retard = serializers.SerializerMethodField()
+    nb_documents = serializers.SerializerMethodField()
+
+    # Statuts modifiables par le formulaire ; « terminé » et « annulé » passent par
+    # les actions terminer / annuler (coût réel, motif, statut du véhicule)
+    STATUTS_FORMULAIRE = ('planifie', 'en_cours', 'attente_piece')
 
     class Meta:
         model = Intervention
@@ -51,9 +59,50 @@ class InterventionSerializer(serializers.ModelSerializer):
             'statut', 'statut_display', 'priorite', 'priorite_display',
             'description', 'rapport_intervention',
             'facture', 'bon_travail',
-            'agence', 'agence_nom', 'created_at'
+            'agence', 'agence_nom', 'created_at', 'vehicule_km', 'en_retard', 'nb_documents',
         ]
-        read_only_fields = ['created_at']
+        # Agence : celle du véhicule (imposée à l'enregistrement)
+        read_only_fields = ['created_at', 'agence']
+
+    def get_en_retard(self, obj):
+        return obj.statut == 'planifie' and obj.date_planifiee < timezone.localdate()
+
+    def get_nb_documents(self, obj):
+        return obj.documents.count()
+
+    def validate_statut(self, value):
+        if self.instance and self.instance.statut in ('termine', 'annule') and value != self.instance.statut:
+            raise serializers.ValidationError(
+                "Intervention terminée ou annulée : son statut ne se modifie plus.")
+        if value not in self.STATUTS_FORMULAIRE and (not self.instance or value != self.instance.statut):
+            raise serializers.ValidationError(
+                "Pour terminer ou annuler l'intervention, utilisez les boutons « Clôturer » ou « Annuler » de sa fiche.")
+        return value
+
+    def validate_type_intervention(self, value):
+        actuel = self.instance.type_intervention_id if self.instance else None
+        if not value.is_active and value.pk != actuel:
+            raise serializers.ValidationError(f"Type « {value.nom} » désactivé dans Paramètres.")
+        return value
+
+    def validate_prestataire(self, value):
+        actuel = self.instance.prestataire_id if self.instance else None
+        if value and not value.is_active and value.pk != actuel:
+            raise serializers.ValidationError(f"Prestataire « {value.nom} » désactivé dans Paramètres.")
+        return value
+
+    def validate(self, attrs):
+        for champ in ('cout_estime', 'cout_reel'):
+            if attrs.get(champ) is not None and attrs[champ] < 0:
+                raise serializers.ValidationError({champ: 'Le coût ne peut pas être négatif.'})
+        debut = attrs.get('date_debut', getattr(self.instance, 'date_debut', None))
+        fin = attrs.get('date_fin', getattr(self.instance, 'date_fin', None))
+        if debut and fin and fin < debut:
+            raise serializers.ValidationError({'date_fin': 'La date de fin précède la date de début.'})
+        if self.instance and 'vehicule' in attrs and attrs['vehicule'] != self.instance.vehicule \
+                and self.instance.statut in ('termine', 'annule'):
+            raise serializers.ValidationError({'vehicule': "Intervention clôturée : le véhicule ne change plus."})
+        return attrs
 
 
 class PneusSerializer(serializers.ModelSerializer):

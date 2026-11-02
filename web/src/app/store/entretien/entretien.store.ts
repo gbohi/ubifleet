@@ -78,7 +78,8 @@ export const EntretienStore = signalStore(
           const params: Record<string, any> = { page: p.page, page_size: p.pageSize };
           if (f.search)   params['search']   = f.search;
           if (f.agence)   params['agence']   = f.agence;
-          if (f.statut)   params['statut']   = f.statut;
+          if (f.statut === 'en_retard') params['en_retard'] = 1;      // planifiées à date dépassée
+          else if (f.statut) params['statut'] = f.statut;
           if (f.priorite) params['priorite'] = f.priorite;
           if (f.vehicule) params['vehicule'] = f.vehicule;
 

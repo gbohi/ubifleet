@@ -85,3 +85,7 @@
   border-radius: 4px; line-height: 1;
   &:hover { background: #fef2f2; color: var(--danger); }
 }
+
+.aide { display: block; color: var(--gray-400); font-size: 11px; margin-top: 4px; }
+.form-control-lecture { background: var(--gray-50, #f6f8fa); color: var(--gray-600, #4b5563); display: flex; align-items: center; }
+::ng-deep ubi-intervention-form ubi-select-recherche .sr-champ { width: 100%; }

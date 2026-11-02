@@ -88,9 +88,20 @@
               <i class="fas fa-check"></i> Clôturer
             </button>
           }
-          @if (i.statut !== 'termine' && i.statut !== 'annule') {
-            <button class="btn btn-outline btn-sm" (click)="goToEdit()">
+          @if (i.statut !== 'annule') {
+            <button class="btn btn-outline btn-sm" (click)="goToEdit()"
+                    [title]="i.statut === 'termine' ? 'Corriger le coût, le prestataire ou la description' : 'Modifier'">
               <i class="fas fa-edit"></i> Modifier
+            </button>
+          }
+          @if (i.statut !== 'termine' && i.statut !== 'annule') {
+            <button class="btn btn-outline btn-sm btn-danger-outline" (click)="ouvrirAnnulation()">
+              <i class="fas fa-ban"></i> Annuler
+            </button>
+          }
+          @if (i.statut === 'planifie' || i.statut === 'annule') {
+            <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="showSuppression.set(true)">
+              <i class="fas fa-trash"></i>
             </button>
           }
           <button class="btn btn-outline btn-sm" (click)="goBack()">
@@ -264,6 +275,18 @@
           }
         </div>
 
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label">Date de fin *</label>
+            <input type="date" formControlName="date_fin" class="form-control" [max]="aujourdhui" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Kilométrage à l'intervention</label>
+            <input type="number" formControlName="kilometrage_intervention" class="form-control" min="0" />
+          </div>
+        </div>
+        @if (clotureErreur()) { <div class="alert-error-sm"><i class="fas fa-exclamation-triangle"></i> {{ clotureErreur() }}</div> }
+
         <div class="form-group">
           <label class="form-label">Prochain entretien (km)</label>
           <input
@@ -340,6 +363,41 @@
 }
 
 <!-- MODAL DÉMARRAGE INTERVENTION -->
+@if (showAnnulation()) {
+  <div class="modal-backdrop" (click)="showAnnulation.set(false)">
+    <div class="modal-container" style="max-width:480px" (click)="$event.stopPropagation()">
+      <div class="modal-header"><div class="modal-title">Annuler l'intervention</div></div>
+      <p class="aide-modal">L'intervention reste dans l'historique avec le statut « Annulé ». Si elle était en cours, le
+        véhicule est remis « En service » (sauf autre intervention en cours).</p>
+      <div class="form-group">
+        <label class="form-label" for="motif-annulation">Motif *</label>
+        <textarea id="motif-annulation" class="form-control" rows="2" [value]="motifAnnulation()"
+                  (input)="motifAnnulation.set($any($event.target).value)"></textarea>
+      </div>
+      @if (actionError()) { <div class="alert-error-sm">{{ actionError() }}</div> }
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn btn-outline" (click)="showAnnulation.set(false)">Retour</button>
+        <button class="btn btn-danger" [disabled]="!motifAnnulation().trim() || actionLoading()" (click)="confirmerAnnulation()">
+          <i class="fas fa-ban"></i> Annuler l'intervention</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showSuppression()) {
+  <div class="modal-backdrop" (click)="showSuppression.set(false)">
+    <div class="modal-container" style="max-width:440px" (click)="$event.stopPropagation()">
+      <div class="modal-header"><div class="modal-title">Supprimer l'intervention ?</div></div>
+      <p class="aide-modal">Elle sera définitivement supprimée avec ses documents.</p>
+      @if (actionError()) { <div class="alert-error-sm">{{ actionError() }}</div> }
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn btn-outline" (click)="showSuppression.set(false)">Retour</button>
+        <button class="btn btn-danger" (click)="confirmerSuppression()"><i class="fas fa-trash"></i> Supprimer</button>
+      </div>
+    </div>
+  </div>
+}
+
 @if (showDemarrer()) {
   <div class="modal-backdrop" (click)="closeDemarrer()">
     <div class="modal-container modal-sm" (click)="$event.stopPropagation()">

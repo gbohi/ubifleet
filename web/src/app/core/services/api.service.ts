@@ -447,8 +447,25 @@ export class EntretienApiService extends ApiBaseService {
   demarrer(id: string, data: { date_debut?: string } = {}): Observable<any> {
     return this.http.post(`${API}/entretien/interventions/${id}/demarrer/`, data);
   }
-  terminer(id: string, data: { cout_reel?: number; rapport?: string; prochain_km?: number }): Observable<any> {
+  terminer(id: string, data: Record<string, any>): Observable<any> {
     return this.http.post(`${API}/entretien/interventions/${id}/terminer/`, data);
+  }
+  annuler(id: string, motif: string): Observable<any> {
+    return this.http.post(`${API}/entretien/interventions/${id}/annuler/`, { motif });
+  }
+  /** Compteurs de toutes les interventions filtrées (pas de la seule page). */
+  getSynthese(params?: Record<string, any>): Observable<any> {
+    const p = params ? this.buildParams(params) : undefined;
+    return this.http.get(`${API}/entretien/interventions/synthese/`, { params: p });
+  }
+  supprimer(id: string): Observable<any> {
+    return this.http.delete(`${API}/entretien/interventions/${id}/`);
+  }
+  enregistrerPneu(data: Record<string, any>, id?: string): Observable<any> {
+    return id ? this.http.patch(`${API}/entretien/pneus/${id}/`, data) : this.http.post(`${API}/entretien/pneus/`, data);
+  }
+  supprimerPneu(id: string): Observable<any> {
+    return this.http.delete(`${API}/entretien/pneus/${id}/`);
   }
 
   // Documents

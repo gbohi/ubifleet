@@ -142,3 +142,13 @@
   &.active { background: var(--navy); color: var(--white); border-color: var(--navy); font-weight: 600; }
   &:disabled { opacity: 0.4; cursor: not-allowed; }
 }
+
+button.qs-item { background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
+.filtre-vehicule { width: 220px; max-width: 100%;
+  ::ng-deep .sr-champ { height: 38px; width: 100%; box-sizing: border-box; padding: 0 12px; font-size: 13px;
+    border: 1.5px solid var(--gray-200); border-radius: var(--radius-md, 8px); background: var(--white, #fff); } }
+.pneus-tete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; .pneus-sep { flex: 1; } }
+.aide-pneus { font-size: 12px; color: var(--gray-500); margin: 0 0 12px; }
+.pneu-modal { width: 640px; max-width: calc(100vw - 32px); }
+.pneu-grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; @media (max-width: 600px) { grid-template-columns: 1fr; } }
+.alert-error-sm { background: var(--danger-light, #fde9e7); color: var(--danger, #c8453a); padding: 8px 12px; border-radius: 8px; font-size: 12px; margin-bottom: 10px; }

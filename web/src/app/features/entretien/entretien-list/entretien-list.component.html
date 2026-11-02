@@ -7,13 +7,13 @@
       <h1 class="page-title">Entretiens & Réparations</h1>
       <p class="page-subtitle">
         {{ store.pagination().total }} intervention(s) &bull;
-        {{ nbUrgentes }} urgente(s) &bull;
-        {{ nbEnCours }} en cours
+        {{ synthese()?.urgentes ?? 0 }} urgente(s) &bull;
+        {{ synthese()?.par_statut?.en_cours ?? 0 }} en cours
       </p>
     </div>
     <div class="header-actions">
-      <button class="btn btn-outline btn-sm">
-        <i class="fas fa-download"></i> Exporter
+      <button class="btn btn-outline btn-sm" [disabled]="exportEnCours()" (click)="exporter()">
+        <i class="fas fa-file-excel"></i> {{ exportEnCours() ? 'Export…' : 'Exporter' }}
       </button>
       <button class="btn btn-green" (click)="goToNew()">
         <i class="fas fa-plus"></i> Planifier
@@ -21,32 +21,35 @@
     </div>
   </div>
 
-  <!-- STATS RAPIDES -->
+  <!-- STATS RAPIDES (toutes les interventions filtrées) -->
+  @if (synthese(); as sy) {
   <div class="quick-stats">
-    <div class="qs-item">
-      <span class="qs-dot navy"></span>
-      <span class="qs-val">{{ store.nbPlanifiees() }}</span>
-      <span class="qs-lbl">Planifiées</span>
+    <button type="button" class="qs-item" (click)="onStatutFilter('planifie')">
+      <span class="qs-dot navy"></span><span class="qs-val">{{ sy.par_statut.planifie }}</span><span class="qs-lbl">Planifiées</span>
+    </button>
+    <div class="qs-sep"></div>
+    <button type="button" class="qs-item" (click)="onStatutFilter('en_retard')">
+      <span class="qs-dot red"></span><span class="qs-val">{{ sy.en_retard }}</span><span class="qs-lbl">En retard</span>
+    </button>
+    <div class="qs-sep"></div>
+    <button type="button" class="qs-item" (click)="onStatutFilter('en_cours')">
+      <span class="qs-dot blue"></span><span class="qs-val">{{ sy.par_statut.en_cours + sy.par_statut.attente_piece }}</span><span class="qs-lbl">En cours / attente pièces</span>
+    </button>
+    <div class="qs-sep"></div>
+    <div class="qs-item" title="Priorité critique ou haute, non terminées">
+      <span class="qs-dot orange"></span><span class="qs-val">{{ sy.urgentes }}</span><span class="qs-lbl">Urgentes</span>
     </div>
     <div class="qs-sep"></div>
-    <div class="qs-item">
-      <span class="qs-dot blue"></span>
-      <span class="qs-val">{{ nbEnCours }}</span>
-      <span class="qs-lbl">En cours</span>
-    </div>
+    <button type="button" class="qs-item" (click)="onStatutFilter('termine')">
+      <span class="qs-dot green"></span><span class="qs-val">{{ sy.par_statut.termine }}</span>
+      <span class="qs-lbl">Terminées · {{ sy.cout_reel_terminees | number:'1.0-0' }} FCFA</span>
+    </button>
     <div class="qs-sep"></div>
-    <div class="qs-item">
-      <span class="qs-dot red"></span>
-      <span class="qs-val">{{ nbUrgentes }}</span>
-      <span class="qs-lbl">Urgentes</span>
-    </div>
-    <div class="qs-sep"></div>
-    <div class="qs-item">
-      <span class="qs-dot orange"></span>
-      <span class="qs-val">{{ nbPneusAChanger }}</span>
-      <span class="qs-lbl">Pneus à changer</span>
-    </div>
+    <button type="button" class="qs-item" (click)="activeTab.set('pneus')">
+      <span class="qs-dot orange"></span><span class="qs-val">{{ sy.pneus_a_changer }}</span><span class="qs-lbl">Pneus à changer</span>
+    </button>
   </div>
+  }
 
   <!-- ONGLETS -->
   <div class="tabs">
@@ -61,8 +64,8 @@
     <button class="tab" [class.active]="activeTab() === 'pneus'"
             (click)="activeTab.set('pneus')">
       <i class="fas fa-circle-notch"></i> Pneus
-      @if (nbPneusAChanger > 0) {
-        <span class="tab-badge">{{ nbPneusAChanger }}</span>
+      @if (synthese()?.pneus_a_changer) {
+        <span class="tab-badge">{{ synthese()?.pneus_a_changer }}</span>
       }
     </button>
   </div>
@@ -80,12 +83,18 @@
           (input)="onSearch($event)"
         />
       </div>
-      <select class="form-control filter-select" (change)="onAgenceFilter($event)">
-        <option value="">Toutes les agences</option>
-        @for (a of agences(); track a.id) {
-          <option [value]="a.id">{{ a.nom }}</option>
-        }
-      </select>
+      <div class="filtre-vehicule">
+        <ubi-select-recherche [options]="vehicules()" placeholder="Véhicule…"
+                              [selection]="store.filters().vehicule || null" (choix)="onVehiculeFilter($event)" />
+      </div>
+      @if (agences().length > 1) {
+        <select class="form-control filter-select" (change)="onAgenceFilter($event)">
+          <option value="" [selected]="!store.filters().agence">Toutes les agences</option>
+          @for (a of agences(); track a.id) {
+            <option [value]="a.id" [selected]="store.filters().agence === a.id">{{ a.nom }}</option>
+          }
+        </select>
+      }
     </div>
 
     <div class="chips-row">
@@ -263,58 +272,56 @@
 
   <!-- ── ONGLET : PNEUS ── -->
   @if (activeTab() === 'pneus') {
-    @if (store.pneusAChanger().length === 0) {
+    <div class="pneus-tete">
+      <div class="chips-row" style="margin:0">
+        <button class="chip" [class.active]="pneusVue() === 'a_changer'" (click)="pneusVue.set('a_changer'); chargerPneus()">À changer</button>
+        <button class="chip" [class.active]="pneusVue() === 'tous'" (click)="pneusVue.set('tous'); chargerPneus()">Tous les pneus</button>
+      </div>
+      <div class="filtre-vehicule">
+        <ubi-select-recherche [options]="vehicules()" placeholder="Véhicule…" [selection]="pneusVehicule() || null"
+                              (choix)="pneusVehicule.set($event ?? ''); chargerPneus()" />
+      </div>
+      <span class="pneus-sep"></span>
+      <button class="btn btn-green btn-sm" (click)="ouvrirPneu(null)"><i class="fas fa-plus"></i> Ajouter un pneu</button>
+    </div>
+    <p class="aide-pneus">Pneus montés sur chaque véhicule : l'usure se calcule d'après le kilométrage de montage et celui prévu
+      pour le remplacement ; une alerte est créée quand il est atteint. Le coût d'un changement de pneus se saisit dans
+      une intervention de type « pneus ».</p>
+    @if (pneus().length === 0) {
       <div class="empty-state">
         <i class="fas fa-circle-notch"></i>
-        <h3>Aucun pneu à remplacer</h3>
-        <p>Tous les pneus sont en bon état.</p>
+        <h3>{{ pneusVue() === 'a_changer' && !pneusVehicule() ? 'Aucun pneu à remplacer' : 'Aucun pneu enregistré' }}</h3>
+        <p>Ajoutez les pneus montés pour suivre leur usure.</p>
       </div>
     } @else {
       <div class="card">
         <div class="table-container">
           <table class="ubi-table">
             <thead>
-              <tr>
-                <th>Véhicule</th>
-                <th>Position</th>
-                <th>Marque / Dimension</th>
-                <th>Monté le</th>
-                <th>Km parcourus</th>
-                <th>Usure</th>
-                <th>Statut</th>
-              </tr>
+              <tr><th>Véhicule</th><th>Position</th><th>Marque / Dimension</th><th>Monté le</th><th>Km parcourus</th>
+                <th>Usure</th><th>Statut</th><th></th></tr>
             </thead>
             <tbody>
-              @for (p of store.pneusAChanger(); track p.id) {
+              @for (p of pneus(); track p.id) {
                 <tr>
                   <td><strong>{{ p.vehicule_immat }}</strong></td>
                   <td>{{ p.position_display }}</td>
-                  <td>
-                    <div>{{ p.marque || '—' }}</div>
-                    <div class="td-sub">{{ p.dimension || '—' }}</div>
-                  </td>
-                  <td>{{ p.date_montage | date:'dd/MM/yyyy' }}</td>
-                  <td>{{ p.kilometrage_utilise | number:'1.0-0' }} km</td>
+                  <td><div>{{ p.marque || '—' }}</div><div class="td-sub">{{ p.dimension || '—' }}</div></td>
+                  <td>{{ p.date_montage | date:'dd/MM/yyyy' }}<div class="td-sub">{{ p.kilometrage_montage | number:'1.0-0' }} km</div></td>
+                  <td>{{ p.kilometrage_utilise | number:'1.0-0' }} km
+                    @if (p.kilometrage_remplacement) { <div class="td-sub">remplacement à {{ p.kilometrage_remplacement | number:'1.0-0' }} km</div> }</td>
                   <td>
                     @if (p.usure_pct !== null) {
                       <div class="usure-bar">
-                        <div class="progress">
-                          <div
-                            class="progress-bar"
-                            [class]="usurePctClass(p.usure_pct)"
-                            [style.width.%]="p.usure_pct"
-                          ></div>
-                        </div>
-                        <span class="usure-val" [class]="usurePctClass(p.usure_pct)">
-                          {{ p.usure_pct }}%
-                        </span>
+                        <div class="progress"><div class="progress-bar" [class]="usurePctClass(p.usure_pct)" [style.width.%]="p.usure_pct"></div></div>
+                        <span class="usure-val" [class]="usurePctClass(p.usure_pct)">{{ p.usure_pct }}%</span>
                       </div>
-                    } @else {
-                      <span style="color:var(--gray-400)">—</span>
-                    }
+                    } @else { <span style="color:var(--gray-400)">—</span> }
                   </td>
-                  <td>
-                    <span class="badge badge-danger">{{ p.statut_display }}</span>
+                  <td><span class="badge" [class]="p.statut === 'a_changer' ? 'badge-danger' : p.statut === 'change' ? 'badge-gray' : 'badge-green'">{{ p.statut_display }}</span></td>
+                  <td style="white-space:nowrap">
+                    <button class="btn btn-icon" title="Modifier" (click)="ouvrirPneu(p)"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-icon btn-icon-danger" title="Supprimer" (click)="pneuASupprimer.set(p)"><i class="fas fa-trash"></i></button>
                   </td>
                 </tr>
               }
@@ -323,6 +330,68 @@
         </div>
       </div>
     }
+  }
+
+  @if (pneuEdite() !== undefined) {
+    <div class="modal-backdrop" (click)="pneuEdite.set(undefined)">
+      <div class="modal-container pneu-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-title">{{ pneuEdite() ? 'Modifier le pneu' : 'Ajouter un pneu' }}</div>
+          <button class="btn-close-modal" (click)="pneuEdite.set(undefined)"><i class="fas fa-times"></i></button>
+        </div>
+        @if (pneuErreur()) { <div class="alert-error-sm"><i class="fas fa-exclamation-triangle"></i> {{ pneuErreur() }}</div> }
+        <form [formGroup]="pneuForm" (ngSubmit)="enregistrerPneu()" novalidate>
+          <div class="pneu-grille">
+            <div class="form-group">
+              <label class="form-label">Véhicule *</label>
+              <ubi-select-recherche formControlName="vehicule" [options]="vehicules()" placeholder="Immatriculation…"
+                                    (choix)="choisirVehiculePneu($event)" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="pn-position">Position *</label>
+              <select id="pn-position" class="form-control" formControlName="position">
+                @for (p of positions; track p.value) { <option [value]="p.value">{{ p.label }}</option> }
+              </select>
+            </div>
+            <div class="form-group"><label class="form-label" for="pn-marque">Marque</label>
+              <input id="pn-marque" class="form-control" formControlName="marque" placeholder="ex. Michelin" /></div>
+            <div class="form-group"><label class="form-label" for="pn-dim">Dimension</label>
+              <input id="pn-dim" class="form-control" formControlName="dimension" placeholder="ex. 265/65 R17" /></div>
+            <div class="form-group"><label class="form-label" for="pn-date">Date de montage *</label>
+              <input id="pn-date" type="date" class="form-control" formControlName="date_montage" /></div>
+            <div class="form-group"><label class="form-label" for="pn-km">Km au montage *</label>
+              <input id="pn-km" type="number" min="0" class="form-control" formControlName="kilometrage_montage" /></div>
+            <div class="form-group"><label class="form-label" for="pn-kmr">Km prévu pour le remplacement</label>
+              <input id="pn-kmr" type="number" min="0" class="form-control" formControlName="kilometrage_remplacement" /></div>
+            <div class="form-group"><label class="form-label" for="pn-statut">Statut *</label>
+              <select id="pn-statut" class="form-control" formControlName="statut">
+                @for (s of statutsPneu; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
+              </select></div>
+            <div class="form-group"><label class="form-label" for="pn-cout">Coût (FCFA, informatif)</label>
+              <input id="pn-cout" type="number" min="0" class="form-control" formControlName="cout" /></div>
+          </div>
+          <div class="form-group"><label class="form-label" for="pn-notes">Notes</label>
+            <textarea id="pn-notes" class="form-control" rows="2" formControlName="notes"></textarea></div>
+          <div style="display:flex;justify-content:flex-end;gap:8px">
+            <button type="button" class="btn btn-outline" (click)="pneuEdite.set(undefined)">Annuler</button>
+            <button type="submit" class="btn btn-green"><i class="fas fa-save"></i> Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  @if (pneuASupprimer(); as p) {
+    <div class="modal-backdrop" (click)="pneuASupprimer.set(null)">
+      <div class="modal-container" style="max-width:420px" (click)="$event.stopPropagation()">
+        <div class="modal-header"><div class="modal-title">Supprimer ce pneu ?</div></div>
+        <p>{{ p.vehicule_immat }} — {{ p.position_display }} ({{ p.marque || 'sans marque' }}).</p>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn btn-outline" (click)="pneuASupprimer.set(null)">Annuler</button>
+          <button class="btn btn-danger" (click)="supprimerPneu()"><i class="fas fa-trash"></i> Supprimer</button>
+        </div>
+      </div>
+    </div>
   }
 
 </div>

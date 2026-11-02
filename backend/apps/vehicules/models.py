@@ -437,3 +437,19 @@ class HistoriqueStatutVehicule(models.Model):
         return (f"{self.vehicule.immatriculation} — "
                 f"{self.ancien_statut} → {self.nouveau_statut} "
                 f"({self.date_changement})")
+
+
+def changer_statut_vehicule(vehicule, code, motif, user=None, date=None):
+    """Passe le véhicule au statut `code` (Paramètres › Statuts véhicule) en
+    l'historisant ; sans effet si le statut n'existe pas ou est déjà celui-là."""
+    from django.utils import timezone
+    from apps.parametrage.models import StatutVehicule
+    nouveau = StatutVehicule.objects.filter(code=code).first()
+    if not nouveau or vehicule.statut_id == nouveau.pk:
+        return False
+    HistoriqueStatutVehicule.objects.create(
+        vehicule=vehicule, ancien_statut=vehicule.statut, nouveau_statut=nouveau,
+        date_changement=date or timezone.localdate(), motif=motif[:300], created_by=user)
+    vehicule.statut = nouveau
+    vehicule.save(update_fields=['statut'])
+    return True

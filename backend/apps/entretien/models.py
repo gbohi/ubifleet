@@ -1,6 +1,7 @@
 """UbiFleet — Entretien Models"""
 
 from django.db import models
+from apps.core.fichiers import VALIDATEURS_DOCUMENT
 from apps.core.models import UbiFleetBaseModel
 
 
@@ -226,7 +227,7 @@ class DocumentIntervention(models.Model):
         Intervention, on_delete=models.CASCADE,
         related_name='documents'
     )
-    fichier      = models.FileField(upload_to='entretien/documents/')
+    fichier      = models.FileField(upload_to='entretien/documents/', validators=VALIDATEURS_DOCUMENT)
     nom          = models.CharField(max_length=255, blank=True)
     type_doc     = models.CharField(
         max_length=20, choices=TypeDocument.choices,

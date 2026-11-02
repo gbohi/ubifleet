@@ -8,6 +8,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { EntretienApiService } from '../../../core/services/api.service';
 import { Intervention, StatutIntervention, PrioriteIntervention } from '../../../core/models';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 
 @Component({
   selector: 'ubi-intervention-detail',
@@ -38,11 +39,39 @@ export class InterventionDetailComponent implements OnInit {
   // Modal clôture
   showCloture   = signal(false);
 
+  readonly aujourdhui = new Date().toISOString().split('T')[0];
+  clotureErreur = signal('');
   clotureForm = this.fb.group({
-    cout_reel:  [null as number | null, Validators.required],
+    cout_reel:  [null as number | null, [Validators.required, Validators.min(0)]],
+    date_fin:   [this.aujourdhui, Validators.required],
+    kilometrage_intervention: [null as number | null],
     rapport:    [''],
     prochain_km:[null as number | null],
   });
+
+  // Annulation / suppression
+  showAnnulation  = signal(false);
+  showSuppression = signal(false);
+  motifAnnulation = signal('');
+
+  ouvrirAnnulation(): void { this.actionError.set(''); this.motifAnnulation.set(''); this.showAnnulation.set(true); }
+  confirmerAnnulation(): void {
+    this.actionLoading.set(true); this.actionError.set('');
+    this.entretienApi.annuler(this.id(), this.motifAnnulation().trim()).subscribe({
+      next: (i: Intervention) => {
+        this.intervention.set(i); this.actionLoading.set(false); this.showAnnulation.set(false);
+        this.actionSuccess.set('Intervention annulée.');
+      },
+      error: err => { this.actionLoading.set(false); this.actionError.set(messageErreurApi(err, 'Annulation impossible.')); },
+    });
+  }
+  confirmerSuppression(): void {
+    this.actionError.set('');
+    this.entretienApi.supprimer(this.id()).subscribe({
+      next: () => this.router.navigate(['/entretien']),
+      error: err => this.actionError.set(messageErreurApi(err, 'Suppression impossible.')),
+    });
+  }
 
   get cf() { return this.clotureForm.controls; }
 
@@ -84,17 +113,19 @@ export class InterventionDetailComponent implements OnInit {
         });
       },
       error: (err) => {
-        this.actionError.set(err?.error?.detail ?? 'Erreur lors du démarrage.');
+        this.actionError.set(messageErreurApi(err, 'Erreur lors du démarrage.'));
         this.actionLoading.set(false);
       },
     });
   }
 
   openCloture(): void {
-    const i = this.intervention();
-    if (i?.cout_estime) {
-      this.clotureForm.patchValue({ cout_reel: Number(i.cout_estime) });
-    }
+    const i: any = this.intervention();
+    this.clotureErreur.set('');
+    this.clotureForm.reset({
+      cout_reel: i?.cout_estime ? Number(i.cout_estime) : null, date_fin: this.aujourdhui,
+      kilometrage_intervention: i?.kilometrage_intervention ?? i?.vehicule_km ?? null, rapport: '', prochain_km: null,
+    });
     this.showCloture.set(true);
   }
 
@@ -143,15 +174,16 @@ export class InterventionDetailComponent implements OnInit {
   }
 
   submitCloture(): void {
-    if (this.clotureForm.invalid || this.actionLoading()) return;
+    if (this.actionLoading()) return;
+    if (this.clotureForm.invalid) { this.clotureForm.markAllAsTouched(); return; }
     this.actionLoading.set(true);
-    this.actionError.set('');
+    this.actionError.set(''); this.clotureErreur.set('');
 
     const val = this.clotureForm.value;
-    const payload: Record<string, any> = {};
-    if (val.cout_reel !== null)    payload['cout_reel']   = val.cout_reel;
-    if (val.rapport)               payload['rapport']     = val.rapport;
-    if (val.prochain_km !== null)  payload['prochain_km'] = val.prochain_km;
+    const payload: Record<string, any> = { cout_reel: val.cout_reel, date_fin: val.date_fin };
+    if (val.rapport)                         payload['rapport']     = val.rapport;
+    if (val.prochain_km !== null)            payload['prochain_km'] = val.prochain_km;
+    if (val.kilometrage_intervention !== null) payload['kilometrage_intervention'] = val.kilometrage_intervention;
 
     this.entretienApi.terminer(this.id(), payload).subscribe({
       next: () => {
@@ -172,7 +204,7 @@ export class InterventionDetailComponent implements OnInit {
         });
       },
       error: (err) => {
-        this.actionError.set(err?.error?.detail ?? 'Erreur lors de la clôture.');
+        this.clotureErreur.set(messageErreurApi(err, 'Erreur lors de la clôture.'));
         this.actionLoading.set(false);
       },
     });
@@ -191,7 +223,7 @@ export class InterventionDetailComponent implements OnInit {
   }
 
   canTerminer(statut: StatutIntervention): boolean {
-    return statut === 'en_cours' || statut === 'attente_piece';
+    return statut === 'en_cours' || statut === 'attente_piece' || statut === 'planifie';   // clôture directe d'une intervention déjà réalisée
   }
 
   statutBadgeClass(statut: StatutIntervention): string {
