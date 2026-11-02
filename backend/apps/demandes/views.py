@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -14,11 +15,11 @@ from django.db.models import Count, Q
 
 from .models import (
     TypeDemande, NiveauValidation, Demande,
-    ValidationDemande, LigneDemandeAchat,
+    ValidationDemande, LigneDemandeAchat, PieceJointeDemande,
 )
 from .serializers import (
     TypeDemandeSerializer, NiveauValidationSerializer,
-    LigneDemandeAchatSerializer,
+    LigneDemandeAchatSerializer, PieceJointeDemandeSerializer,
     DemandeListSerializer, DemandeDetailSerializer, DemandeWriteSerializer,
 )
 from apps.accounts.permissions import IsSuperAdmin, RoleBasedPermission
@@ -85,6 +86,27 @@ def verifier_validateur(user, demande, verbe):
                        f"{niveau_requis.role_min.nom})."},
             status=status.HTTP_403_FORBIDDEN
         )
+    return None
+
+
+def filtrer_dates(qs, params):
+    if params.get('date_debut'):
+        qs = qs.filter(created_at__date__gte=params['date_debut'])
+    if params.get('date_fin'):
+        qs = qs.filter(created_at__date__lte=params['date_fin'])
+    return qs
+
+
+def controler_circuit(demande):
+    """Message d'erreur si la demande ne peut pas partir en validation, sinon None."""
+    t = demande.type_demande
+    niveaux = set(NiveauValidation.objects.filter(type_demande=t).values_list('niveau', flat=True))
+    manquants = [str(n) for n in range(1, t.nb_niveaux + 1) if n not in niveaux]
+    if manquants:
+        return (f"Le circuit de validation « {t.nom} » est incomplet (niveau {', '.join(manquants)} "
+                f"non configuré). Contactez l'administrateur (Paramètres › Circuits de validation).")
+    if t.code == 'achat' and not demande.lignes_achat.exists():
+        return "Ajoutez au moins une ligne de matériel avant de soumettre la demande d'achat."
     return None
 
 
@@ -380,11 +402,11 @@ class DemandeViewSet(viewsets.ModelViewSet):
                             'valider', 'rejeter', 'soumettre', 'annuler']:
             return demandes_visibles(user).select_related(
                 'type_demande', 'demandeur', 'agence', 'vehicule', 'chauffeur'
-            ).prefetch_related('validations__validateur', 'lignes_achat')
+            ).prefetch_related('validations__validateur', 'lignes_achat', 'pieces_jointes__created_by')
 
         qs = Demande.objects.select_related(
             'type_demande', 'demandeur', 'agence', 'vehicule', 'chauffeur'
-        ).prefetch_related('validations__validateur', 'lignes_achat')
+        ).prefetch_related('validations__validateur', 'lignes_achat', 'pieces_jointes')
 
         vue = self.request.query_params.get('vue', 'mes_demandes')
         if vue == 'mes_demandes':
@@ -399,19 +421,14 @@ class DemandeViewSet(viewsets.ModelViewSet):
         else:
             qs = qs.filter(demandeur=user)
 
-        date_debut = self.request.query_params.get('date_debut')
-        date_fin   = self.request.query_params.get('date_fin')
-        if date_debut:
-            qs = qs.filter(created_at__date__gte=date_debut)
-        if date_fin:
-            qs = qs.filter(created_at__date__lte=date_fin)
-
-        return qs
+        return filtrer_dates(qs, self.request.query_params)
 
     def perform_create(self, serializer):
         user   = self.request.user
         controler_agence(user, serializer.validated_data)
-        agence = agence_pour_creation(user, serializer.validated_data.get('agence'))
+        vehicule = serializer.validated_data.get('vehicule')
+        agence = agence_pour_creation(
+            user, serializer.validated_data.get('agence') or (vehicule.agence if vehicule else None))
         serializer.save(demandeur=user, created_by=user, agence=agence)
 
     def perform_update(self, serializer):
@@ -421,7 +438,10 @@ class DemandeViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         verifier_modifiable(self.request.user, instance)
+        fichiers = [pj.fichier for pj in instance.pieces_jointes.all() if pj.fichier]
         instance.delete()
+        for f in fichiers:
+            f.storage.delete(f.name)
 
     # ── Workflow ─────────────────────────────────────────────────────
     @action(detail=True, methods=['post'])
@@ -434,6 +454,9 @@ class DemandeViewSet(viewsets.ModelViewSet):
                 {'detail': 'Seule une demande en brouillon peut être soumise.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        erreur = controler_circuit(demande)
+        if erreur:
+            return Response({'detail': erreur}, status=status.HTTP_400_BAD_REQUEST)
         workflow.soumettre(demande)
         return Response(DemandeDetailSerializer(demande).data)
 
@@ -546,7 +569,9 @@ class DemandeViewSet(viewsets.ModelViewSet):
             )
         with transaction.atomic():
             demande.statut = Demande.Statut.ANNULEE
+            demande.date_traitement = timezone.now()
             demande.save()
+            _supprimer_alerte_demande(demande)
             demande_cloturee.send(sender=Demande, demande=demande, decision='annulee',
                                   utilisateur=request.user)
         return Response({'detail': 'Demande annulée.'})
@@ -577,7 +602,7 @@ class DemandeViewSet(viewsets.ModelViewSet):
             qs = filtrer_par_agence(Demande.objects.filter(
                 statut__in=['soumise', 'en_validation']
             ), user).select_related('type_demande', 'demandeur', 'agence')
-            return Response(DemandeListSerializer(qs, many=True).data)
+            return Response(DemandeListSerializer(self._filtrer_a_valider(qs), many=True).data)
 
         if not user_role:
             return Response([])
@@ -601,4 +626,55 @@ class DemandeViewSet(viewsets.ModelViewSet):
             'type_demande', 'demandeur', 'agence'
         ).distinct()
 
-        return Response(DemandeListSerializer(qs, many=True).data)
+        return Response(DemandeListSerializer(self._filtrer_a_valider(qs), many=True).data)
+
+    def _filtrer_a_valider(self, qs):
+        p = self.request.query_params
+        for champ in ('statut', 'priorite', 'type_demande'):
+            if p.get(champ):
+                qs = qs.filter(**{champ: p[champ]})
+        if p.get('search'):
+            qs = qs.filter(Q(numero__icontains=p['search']) | Q(titre__icontains=p['search']))
+        return filtrer_dates(qs, p).prefetch_related('lignes_achat', 'pieces_jointes').order_by('-created_at')
+
+
+# ── Pièces jointes ────────────────────────────────────────────────────
+class PieceJointeDemandeViewSet(viewsets.ModelViewSet):
+    """Fichiers joints à une demande (?demande=<id>) : PDF, images, bureautique ; 10 Mo.
+    Le demandeur en ajoute tant que la demande n'est pas traitée ; seul l'auteur
+    (ou le super admin) retire un fichier, et pas sur une demande traitée."""
+    serializer_class   = PieceJointeDemandeSerializer
+    parser_classes     = [MultiPartParser, FormParser, JSONParser]
+    pagination_class   = None
+    module             = 'demandes'
+    permission_classes = [RoleBasedPermission]
+    role_map = {a: 'chauffeur' for a in ('list', 'retrieve', 'create', 'destroy')}
+    EN_COURS = (Demande.Statut.BROUILLON, Demande.Statut.SOUMISE, Demande.Statut.EN_VALIDATION)
+
+    def get_queryset(self):
+        qs = PieceJointeDemande.objects.filter(
+            demande__in=demandes_visibles(self.request.user)).select_related('created_by')
+        if self.request.query_params.get('demande'):
+            qs = qs.filter(demande_id=self.request.query_params['demande'])
+        return qs
+
+    def perform_create(self, serializer):
+        user, demande = self.request.user, serializer.validated_data['demande']
+        if not demandes_visibles(user).filter(pk=demande.pk).exists():
+            raise PermissionDenied("Demande introuvable.")
+        if demande.demandeur_id != user.id and not user.is_super_admin:
+            raise PermissionDenied("Seul le demandeur peut joindre des fichiers à cette demande.")
+        if demande.statut not in self.EN_COURS:
+            raise ValidationError({'detail': 'Cette demande est déjà traitée.'})
+        serializer.save(created_by=user)
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if instance.created_by_id != user.id and not user.is_super_admin:
+            raise PermissionDenied("Seul l'auteur du fichier peut le retirer.")
+        if instance.demande.statut not in self.EN_COURS:
+            raise ValidationError({'detail': 'Cette demande est déjà traitée.'})
+        nom = instance.fichier.name
+        instance.delete()
+        if nom:
+            instance.fichier.storage.delete(nom)

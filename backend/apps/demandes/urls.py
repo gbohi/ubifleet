@@ -4,7 +4,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 from .views import (
     TypeDemandeViewSet, DemandeViewSet,
-    NiveauValidationViewSet, LigneDemandeAchatViewSet,
+    NiveauValidationViewSet, LigneDemandeAchatViewSet, PieceJointeDemandeViewSet,
 )
 
 # Routers séparés pour chaque ViewSet auxiliaire
@@ -44,6 +44,14 @@ urlpatterns = [
     path('<uuid:pk>/annuler/',
          DemandeViewSet.as_view({'post': 'annuler'}),
          name='demande-annuler'),
+
+    # ══ PIÈCES JOINTES ══════════════════════════════════════════════
+    path('pieces-jointes/',
+         PieceJointeDemandeViewSet.as_view({'get': 'list', 'post': 'create'}),
+         name='demande-pj-list'),
+    path('pieces-jointes/<uuid:pk>/',
+         PieceJointeDemandeViewSet.as_view({'get': 'retrieve', 'delete': 'destroy'}),
+         name='demande-pj-detail'),
 
     # ══ LIGNES ACHAT ════════════════════════════════════════════════
     path('lignes/bulk_save/',

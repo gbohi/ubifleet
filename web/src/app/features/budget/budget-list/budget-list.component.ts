@@ -49,8 +49,9 @@ export class BudgetListComponent implements OnInit {
   ];
 
   // ── Filtres budgets ──────────────────────────────────────────────
-  filtreBudAnnee  = signal(new Date().getFullYear().toString());
-  filtreBudAgence = signal('');
+  /** Libellé de l'agence choisie dans la barre de période. */
+  agenceNom = computed(() => this.agences().find(a => a.id === this.store.filters().agence)?.nom ?? '');
+  private rechercheTimer: any = null;
 
   // ── Formulaire budget annuel ─────────────────────────────────────
   showBudgetModal = signal(false);
@@ -94,8 +95,34 @@ export class BudgetListComponent implements OnInit {
   get totalDepenses(): number {
     return this.store.depenses().reduce((a, d) => a + Number(d.montant), 0);
   }
+  /** Budget alloué de l'exercice et de l'agence choisis (tableau de bord serveur). */
   get budgetTotalAlloue(): number {
-    return this.budgets().reduce((a, b) => a + Number(b.budget_total), 0);
+    const b = this.store.tableauDeBord()?.budgets_prevus ?? {};
+    return Object.values(b).reduce((a: number, v: any) => a + Number(v || 0), 0);
+  }
+  get tauxExecution(): string {
+    return this.budgetTotalAlloue ? (this.store.totalRealise() / this.budgetTotalAlloue * 100).toFixed(0) : '0';
+  }
+  get nbDepensesAnnee(): number {
+    return (this.store.parCategorie() as any[]).reduce((a, c) => a + Number(c.nb || 0), 0);
+  }
+  /** Prévu / réalisé par poste du budget. */
+  postesSuivi = computed(() => {
+    const t = this.store.tableauDeBord(); if (!t) return [];
+    const prevus = t.budgets_prevus ?? {}, realises = t.realise_par_poste ?? {};
+    return this.postes.map(p => ({ poste: p.value, libelle: p.label,
+      prevu: Number(prevus[p.value] || 0), realise: Number(realises[p.value] || 0) }))
+      .filter(p => p.prevu > 0 || p.realise > 0);
+  });
+  /** Filtres appliqués en plus de la période par défaut. */
+  nbFiltresActifs = computed(() => {
+    const f = this.filtresDep(), d = this.periodeParDefaut();
+    return (['categorie', 'poste', 'origine', 'vehicule', 'recherche'] as const).filter(k => !!f[k]).length
+      + (f.date_min !== d.date_min || f.date_max !== d.date_max ? 1 : 0);
+  });
+  private periodeParDefaut(): { date_min: string; date_max: string } {
+    const a = this.store.filters().annee || String(new Date().getFullYear());
+    return { date_min: `${a}-01-01`, date_max: `${a}-12-31` };
   }
 
   get annees(): number[] {
@@ -135,9 +162,10 @@ export class BudgetListComponent implements OnInit {
       error: () => {},
     });
     this.store.loadTableauDeBord();
-    this.filtresDep.set({ ...this.store.filtresDepenses() });
-    this.store.loadDepenses();
-    this.store.loadEtat();
+    const f0 = this.store.filtresDepenses();
+    const periodeInitiale = !f0.date_max && (!f0.date_min || f0.date_min === filtresDepensesInitiaux().date_min);
+    this.filtresDep.set({ ...f0, ...(periodeInitiale ? this.periodeParDefaut() : {}) });
+    this.appliquerFiltresDepenses();
     this.options.vehicules().subscribe({
       next: l => this.vehiculesOptions.set(l.map(v => ({ value: v.value, label: v.label }))),
       error: () => {},
@@ -151,8 +179,9 @@ export class BudgetListComponent implements OnInit {
 
   loadBudgets(): void {
     const params: Record<string, any> = {};
-    if (this.filtreBudAnnee())  params['annee']  = this.filtreBudAnnee();
-    if (this.filtreBudAgence()) params['agence'] = this.filtreBudAgence();
+    const f = this.store.filters();
+    if (f.annee)  params['annee']  = f.annee;
+    if (f.agence) params['agence'] = f.agence;
     this.budgetApi.getBudgets(params).subscribe({
       next: (res: any) => this.budgets.set(Array.isArray(res) ? res : (res.results ?? [])),
       error: () => {},
@@ -165,12 +194,25 @@ export class BudgetListComponent implements OnInit {
   }
 
   appliquerFiltresDepenses(): void {
-    this.store.setFiltresDepenses(this.filtresDep());
+    this.store.setFiltresDepenses({ ...this.filtresDep(), agence: this.store.filters().agence ?? '' });
     this.rechargerDepenses();
   }
 
+  /** Change un filtre et recharge aussitôt. */
+  appliquerFiltreDep(cle: keyof FiltresDepenses, valeur: string | null | undefined): void {
+    this.majFiltreDep(cle, valeur);
+    this.appliquerFiltresDepenses();
+  }
+
+  /** Recherche texte : rechargement après une courte pause de frappe. */
+  rechercherDep(valeur: string): void {
+    this.majFiltreDep('recherche', valeur);
+    clearTimeout(this.rechercheTimer);
+    this.rechercheTimer = setTimeout(() => this.appliquerFiltresDepenses(), 350);
+  }
+
   reinitialiserFiltresDepenses(): void {
-    this.filtresDep.set(filtresDepensesInitiaux());
+    this.filtresDep.set({ ...filtresDepensesInitiaux(), ...this.periodeParDefaut() });
     this.appliquerFiltresDepenses();
   }
 
@@ -227,22 +269,23 @@ export class BudgetListComponent implements OnInit {
       });
   }
 
-  // ── Filtres budgets ──────────────────────────────────────────────
-  onBudFilter(field: string, e: Event): void {
-    const val = (e.target as HTMLInputElement | HTMLSelectElement).value;
-    if (field === 'annee')  this.filtreBudAnnee.set(val);
-    if (field === 'agence') this.filtreBudAgence.set(val);
-    this.loadBudgets();
-  }
-
+  // ── Période globale (exercice, agence) ───────────────────────────
   onAnneeFilter(event: Event): void {
     this.store.setFilter('annee', (event.target as HTMLSelectElement).value);
-    this.store.loadTableauDeBord();
+    // La période des dépenses suit l'exercice choisi
+    this.filtresDep.update(f => ({ ...f, ...this.periodeParDefaut() }));
+    this.rechargerTout();
   }
 
   onAgenceFilter(event: Event): void {
     this.store.setFilter('agence', (event.target as HTMLSelectElement).value);
+    this.rechargerTout();
+  }
+
+  private rechargerTout(): void {
     this.store.loadTableauDeBord();
+    this.loadBudgets();
+    this.appliquerFiltresDepenses();
   }
 
 
@@ -491,7 +534,7 @@ export class BudgetListComponent implements OnInit {
       ? this.budgetApi.updateBudget(this.editBudgetId()!, payload)
       : this.budgetApi.createBudget(payload);
     req.subscribe({
-      next: () => { this.budgetSaving.set(false); this.closeBudgetModal(); this.loadBudgets(); },
+      next: () => { this.budgetSaving.set(false); this.closeBudgetModal(); this.loadBudgets(); this.store.loadTableauDeBord(); },
       error: (err) => {
         this.budgetSaving.set(false);
         this.budgetError.set(err?.error?.detail ?? 'Erreur lors de l\'enregistrement.');

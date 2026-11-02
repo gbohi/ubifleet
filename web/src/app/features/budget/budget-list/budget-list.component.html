@@ -10,17 +10,6 @@
       </p>
     </div>
     <div class="header-actions">
-      <select class="form-control filter-select" (change)="onAnneeFilter($event)">
-        @for (a of annees; track a) {
-          <option [value]="a" [selected]="store.filters().annee === a.toString()">{{ a }}</option>
-        }
-      </select>
-      <select class="form-control filter-select" (change)="onAgenceFilter($event)">
-        <option value="">Toutes les agences</option>
-        @for (a of agences(); track a.id) {
-          <option [value]="a.id">{{ a.nom }}</option>
-        }
-      </select>
       <button class="btn btn-outline btn-sm" (click)="openBudgetModal()">
         <i class="fas fa-plus"></i> Budget
       </button>
@@ -28,6 +17,30 @@
         <i class="fas fa-plus"></i> Dépense
       </button>
     </div>
+  </div>
+
+  <!-- PÉRIODE GLOBALE : année et agence (tableau de bord, budgets, dépenses) -->
+  <div class="periode-bar">
+    <div class="periode-champ">
+      <label for="bud-annee"><i class="fas fa-calendar"></i> Exercice</label>
+      <select id="bud-annee" class="form-control" (change)="onAnneeFilter($event)">
+        @for (a of annees; track a) {
+          <option [value]="a" [selected]="store.filters().annee === a.toString()">{{ a }}</option>
+        }
+      </select>
+    </div>
+    @if (agences().length > 1) {
+      <div class="periode-champ">
+        <label for="bud-agence"><i class="fas fa-building"></i> Agence</label>
+        <select id="bud-agence" class="form-control" (change)="onAgenceFilter($event)">
+          <option value="">Toutes les agences</option>
+          @for (a of agences(); track a.id) {
+            <option [value]="a.id" [selected]="store.filters().agence === a.id">{{ a.nom }}</option>
+          }
+        </select>
+      </div>
+    }
+    <span class="periode-aide">S'applique au tableau de bord, aux budgets et à la période des dépenses.</span>
   </div>
 
   <!-- STATS RAPIDES -->
@@ -41,20 +54,20 @@
     <div class="qs-item">
       <span class="qs-dot orange"></span>
       <span class="qs-val">{{ formatFCFA(store.totalRealise()) }}</span>
-      <span class="qs-lbl">Réalisé</span>
+      <span class="qs-lbl">Réalisé{{ budgetTotalAlloue > 0 ? ' (' + tauxExecution + ' %)' : '' }}</span>
     </div>
     <div class="qs-sep"></div>
     <div class="qs-item">
-      <span class="qs-dot" [class.green]="store.totalRealise() <= budgetTotalAlloue"
-                           [class.red]="store.totalRealise() > budgetTotalAlloue"></span>
-      <span class="qs-val">{{ formatFCFA(budgetTotalAlloue - store.totalRealise()) }}</span>
+      <span class="qs-dot" [class.gray]="budgetTotalAlloue === 0" [class.green]="budgetTotalAlloue > 0 && store.totalRealise() <= budgetTotalAlloue"
+                           [class.red]="budgetTotalAlloue > 0 && store.totalRealise() > budgetTotalAlloue"></span>
+      <span class="qs-val">{{ budgetTotalAlloue > 0 ? formatFCFA(budgetTotalAlloue - store.totalRealise()) : '—' }}</span>
       <span class="qs-lbl">Solde disponible</span>
     </div>
     <div class="qs-sep"></div>
     <div class="qs-item">
       <span class="qs-dot blue"></span>
-      <span class="qs-val">{{ store.pagination().total }}</span>
-      <span class="qs-lbl">Dépenses</span>
+      <span class="qs-val">{{ nbDepensesAnnee }}</span>
+      <span class="qs-lbl">Dépenses {{ store.filters().annee }}</span>
     </div>
   </div>
 
@@ -83,6 +96,37 @@
           <i class="fas fa-circle-notch fa-spin"></i><span>Chargement...</span>
         </div>
       } @else {
+        <!-- Budget prévu / réalisé par poste -->
+        @if (postesSuivi().length) {
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+              <div class="card-title">Budget prévu et réalisé par poste — {{ store.filters().annee }}</div>
+              @if (budgetTotalAlloue === 0) { <span class="muted">Aucun budget saisi pour cet exercice : seul le réalisé est affiché.</span> }
+            </div>
+            <div class="card-body">
+              <div class="categorie-grid">
+                @for (p of postesSuivi(); track p.poste) {
+                  <div class="cat-item">
+                    <div class="cat-header">
+                      <span class="cat-name">{{ p.libelle }}</span>
+                      <span class="cat-amount">{{ formatFCFA(p.realise) }}@if (p.prevu > 0) { <span class="muted"> / {{ formatFCFA(p.prevu) }}</span> } FCFA</span>
+                    </div>
+                    <div class="progress">
+                      <div class="progress-bar" [class]="p.prevu > 0 ? budgetBarClass(p.realise, p.prevu) : 'green'"
+                           [style.width.%]="p.prevu > 0 ? budgetBarWidth(p.realise, p.prevu) : (store.totalRealise() ? p.realise / store.totalRealise() * 100 : 0)"></div>
+                    </div>
+                    <div class="cat-pct">
+                      @if (p.prevu > 0) {
+                        {{ (p.realise / p.prevu * 100).toFixed(0) }} % consommé · reste {{ formatFCFA(p.prevu - p.realise) }}
+                      } @else { pas de budget prévu }
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
         <!-- Répartition par catégorie -->
         @if (store.parCategorie().length > 0) {
           <div class="card" style="margin-bottom:16px">
@@ -99,7 +143,7 @@
                     </div>
                     <div class="progress">
                       <div class="progress-bar"
-                           [class]="budgetBarClass(cat.total, store.totalRealise())"
+                           [class]="'navy'"
                            [style.width.%]="budgetBarWidth(cat.total, store.totalRealise())">
                       </div>
                     </div>
@@ -165,22 +209,22 @@
   @if (activeTab() === 'depenses') {
     <div class="tab-content">
 
-      <!-- Filtres de l'état des dépenses -->
+      <!-- Filtres de l'état des dépenses (appliqués dès qu'on les change) -->
       <div class="card filters-card">
-        <div class="filters-grid-dep">
-          <div class="filter-group">
-            <label class="filter-label" for="dep-du">Du</label>
-            <input id="dep-du" type="date" class="form-control" [value]="filtresDep().date_min"
-                   (change)="majFiltreDep('date_min', $any($event.target).value)" />
-          </div>
-          <div class="filter-group">
-            <label class="filter-label" for="dep-au">Au</label>
-            <input id="dep-au" type="date" class="form-control" [value]="filtresDep().date_max"
-                   (change)="majFiltreDep('date_max', $any($event.target).value)" />
+        <div class="filtres-dep">
+          <div class="filter-group fd-periode">
+            <label class="filter-label" for="dep-du">Période</label>
+            <div class="fd-dates">
+              <input id="dep-du" type="date" class="form-control" title="Du" [value]="filtresDep().date_min"
+                     (change)="appliquerFiltreDep('date_min', $any($event.target).value)" />
+              <span>→</span>
+              <input id="dep-au" type="date" class="form-control" title="Au" [value]="filtresDep().date_max"
+                     (change)="appliquerFiltreDep('date_max', $any($event.target).value)" />
+            </div>
           </div>
           <div class="filter-group">
             <label class="filter-label" for="dep-poste">Poste du budget</label>
-            <select id="dep-poste" class="form-control" (change)="majFiltreDep('poste', $any($event.target).value)">
+            <select id="dep-poste" class="form-control" (change)="appliquerFiltreDep('poste', $any($event.target).value)">
               <option value="" [selected]="!filtresDep().poste">Tous</option>
               @for (p of postes; track p.value) {
                 <option [value]="p.value" [selected]="filtresDep().poste === p.value">{{ p.label }}</option>
@@ -189,7 +233,7 @@
           </div>
           <div class="filter-group">
             <label class="filter-label" for="dep-cat">Catégorie</label>
-            <select id="dep-cat" class="form-control" (change)="majFiltreDep('categorie', $any($event.target).value)">
+            <select id="dep-cat" class="form-control" (change)="appliquerFiltreDep('categorie', $any($event.target).value)">
               <option value="" [selected]="!filtresDep().categorie">Toutes</option>
               @for (cat of categories(); track cat.value) {
                 <option [value]="cat.value" [selected]="filtresDep().categorie === cat.value">{{ cat.label }}</option>
@@ -198,7 +242,7 @@
           </div>
           <div class="filter-group">
             <label class="filter-label" for="dep-origine">Origine</label>
-            <select id="dep-origine" class="form-control" (change)="majFiltreDep('origine', $any($event.target).value)">
+            <select id="dep-origine" class="form-control" (change)="appliquerFiltreDep('origine', $any($event.target).value)">
               <option value="" [selected]="!filtresDep().origine">Toutes</option>
               @for (o of origines; track o.value) {
                 <option [value]="o.value" [selected]="filtresDep().origine === o.value">{{ o.label }}</option>
@@ -206,41 +250,31 @@
             </select>
           </div>
           <div class="filter-group">
-            <label class="filter-label" for="dep-agence">Agence</label>
-            <select id="dep-agence" class="form-control" (change)="majFiltreDep('agence', $any($event.target).value)">
-              <option value="" [selected]="!filtresDep().agence">Toutes</option>
-              @for (a of agences(); track a.id) {
-                <option [value]="a.id" [selected]="filtresDep().agence === a.id">{{ a.nom }}</option>
-              }
-            </select>
-          </div>
-          <div class="filter-group">
             <label class="filter-label">Véhicule</label>
             <ubi-select-recherche [options]="vehiculesOptions()" placeholder="Immatriculation…"
-                                  [selection]="filtresDep().vehicule || null" (choix)="majFiltreDep('vehicule', $event)" />
+                                  [selection]="filtresDep().vehicule || null" (choix)="appliquerFiltreDep('vehicule', $event)" />
           </div>
-          <div class="filter-group">
+          <div class="filter-group fd-recherche">
             <label class="filter-label" for="dep-recherche">Recherche</label>
-            <input id="dep-recherche" type="text" class="form-control" placeholder="Description, fournisseur, facture…"
-                   [value]="filtresDep().recherche" (input)="majFiltreDep('recherche', $any($event.target).value)"
-                   (keyup.enter)="appliquerFiltresDepenses()" />
+            <input id="dep-recherche" type="search" class="form-control" placeholder="Description, fournisseur, n° facture…"
+                   [value]="filtresDep().recherche" (input)="rechercherDep($any($event.target).value)" />
           </div>
         </div>
         <div class="dep-actions">
-          <button class="btn btn-green btn-sm" (click)="appliquerFiltresDepenses()">
-            <i class="fas fa-search"></i> Filtrer
-          </button>
-          <button class="btn btn-outline btn-sm" (click)="reinitialiserFiltresDepenses()">
-            <i class="fas fa-undo"></i> Réinitialiser
-          </button>
+          @if (nbFiltresActifs() > 0) {
+            <button class="btn btn-outline btn-sm" (click)="reinitialiserFiltresDepenses()">
+              <i class="fas fa-undo"></i> Réinitialiser ({{ nbFiltresActifs() }} filtre(s))
+            </button>
+          }
+          <span class="muted">{{ store.etat()?.nb ?? 0 }} dépense(s) · {{ (store.etat()?.total ?? 0) | number:'1.0-0' }} FCFA</span>
           <span class="dep-actions-sep"></span>
+          @if (exportEnCours()) { <span class="muted">Préparation de l'export…</span> }
           <button class="btn btn-excel btn-sm" [disabled]="exportEnCours() || !store.etat()?.nb" (click)="exportDepensesExcel()">
             <i class="fas fa-file-excel"></i> Excel
           </button>
           <button class="btn btn-pdf btn-sm" [disabled]="exportEnCours() || !store.etat()?.nb" (click)="exportDepensesPdf()">
             <i class="fas fa-file-pdf"></i> PDF
           </button>
-          @if (exportEnCours()) { <span class="muted">Préparation de l'export…</span> }
         </div>
       </div>
 
@@ -382,32 +416,18 @@
   @if (activeTab() === 'budgets') {
     <div class="tab-content">
 
-      <!-- Filtres budgets -->
-      <div class="card filters-card">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-          <div class="filter-group">
-            <label class="filter-label"><i class="fas fa-calendar"></i> Année</label>
-            <select class="form-control" style="width:120px" (change)="onBudFilter('annee',$event)">
-              @for (a of annees; track a) { <option [value]="a">{{ a }}</option> }
-            </select>
-          </div>
-          <div class="filter-group">
-            <label class="filter-label"><i class="fas fa-building"></i> Agence</label>
-            <select class="form-control" style="width:200px" (change)="onBudFilter('agence',$event)">
-              <option value="">Toutes</option>
-              @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
-            </select>
-          </div>
-          <button class="btn btn-excel btn-sm" (click)="exportBudgetsExcel()">
-            <i class="fas fa-file-excel"></i> Excel
-          </button>
-          <button class="btn btn-pdf btn-sm" (click)="exportBudgetsPdf()">
-            <i class="fas fa-file-pdf"></i> PDF
-          </button>
-          <button class="btn btn-green btn-sm" (click)="openBudgetModal()">
-            <i class="fas fa-plus"></i> Nouveau budget
-          </button>
-        </div>
+      <div class="budgets-toolbar">
+        <span class="muted">Budgets de l'exercice {{ store.filters().annee }}{{ agenceNom() ? ' — ' + agenceNom() : '' }}</span>
+        <span class="dep-actions-sep"></span>
+        <button class="btn btn-excel btn-sm" [disabled]="!budgets().length" (click)="exportBudgetsExcel()">
+          <i class="fas fa-file-excel"></i> Excel
+        </button>
+        <button class="btn btn-pdf btn-sm" [disabled]="!budgets().length" (click)="exportBudgetsPdf()">
+          <i class="fas fa-file-pdf"></i> PDF
+        </button>
+        <button class="btn btn-green btn-sm" (click)="openBudgetModal()">
+          <i class="fas fa-plus"></i> Nouveau budget
+        </button>
       </div>
 
       @if (budgets().length === 0) {

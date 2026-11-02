@@ -817,8 +817,19 @@ export class DemandesApiService extends ApiBaseService {
     const p = vue ? this.buildParams({ vue }) : undefined;
     return this.http.get(`${API}/demandes/stats/`, { params: p });
   }
-  getAValider(): Observable<any[]> {
-    return this.http.get<any[]>(`${API}/demandes/a_valider/`).pipe(
+  supprimerDemande(id: string): Observable<any> {
+    return this.http.delete(`${API}/demandes/${id}/`);
+  }
+  envoyerPieceJointe(demandeId: string, fichier: File): Observable<any> {
+    const fd = new FormData();
+    fd.append('demande', demandeId); fd.append('fichier', fichier);
+    return this.http.post(`${API}/demandes/pieces-jointes/`, fd);
+  }
+  supprimerPieceJointe(id: string): Observable<any> {
+    return this.http.delete(`${API}/demandes/pieces-jointes/${id}/`);
+  }
+  getAValider(params?: Record<string, any>): Observable<any[]> {
+    return this.http.get<any[]>(`${API}/demandes/a_valider/`, { params: params ? this.buildParams(params) : undefined }).pipe(
       map(res => Array.isArray(res) ? res : (res as any).results ?? [])
     );
   }

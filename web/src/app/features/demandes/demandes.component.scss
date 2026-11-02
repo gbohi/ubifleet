@@ -20,7 +20,7 @@
   border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;
   &:hover{color:var(--navy);background:var(--gray-50);}
   &.active{color:var(--navy);border-bottom-color:var(--green-dark);font-weight:700;}}
-.tab-lien{margin-left:auto;text-decoration:none;font-size:13px;i.fa-external-link-alt{font-size:10px;opacity:.6;}}
+
 .tab-badge{background:var(--danger);color:white;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;}
 
 // Vue bar
@@ -252,3 +252,31 @@ textarea.form-control{height:auto;padding:10px 12px;}
   color: var(--gray-400); margin-bottom: 4px;
 }
 .val-info { display: flex; align-items: center; flex-wrap: wrap; }
+
+/* Popup formulaire */
+.modal-form { width: min(94vw, 780px); max-height: 90vh; display: flex; flex-direction: column; }
+.form-body { overflow-y: auto; flex: 1; }
+.modal-form .modal-footer { flex-wrap: wrap; }
+.is-invalid { border-color: var(--danger) !important; }
+.modal-form ::ng-deep .sr-champ { height: 36px; width: 100%; box-sizing: border-box; padding: 0 12px; font-size: 13px;
+  border: 1.5px solid var(--gray-200); border-radius: var(--radius-md); background: var(--white); }
+
+/* Pièces jointes */
+.pj-section { margin-top: 8px; border: 1px dashed var(--gray-200); border-radius: var(--radius-md); padding: 12px 14px; }
+.pj-aide { font-size: 12px; color: var(--gray-400); margin: 4px 0 8px; }
+.pj-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px;
+  li { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 10px; background: var(--gray-50);
+       border-radius: var(--radius-sm); i { color: var(--gray-400); }
+       a, span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--navy); }
+       small { color: var(--gray-400); font-size: 11px; white-space: nowrap; } }
+  li.pj-nouveau { background: #f0fdf4; } }
+
+.alert-fermer { border: none; background: transparent; color: inherit; cursor: pointer; opacity: .6; &:hover { opacity: 1; } }
+.btn-danger-text { color: var(--danger); margin-right: auto; }
+
+/* Filtres : recherche + 5 filtres, passent à la ligne sur petit écran */
+.filters-grid-6 { grid-template-columns: minmax(200px, 2fr) repeat(5, minmax(130px, 1fr)); }
+@media (max-width: 1100px) { .filters-grid-6 { grid-template-columns: repeat(3, 1fr); } .filter-search { grid-column: 1 / -1; } }
+@media (max-width: 600px)  { .filters-grid-6 { grid-template-columns: 1fr 1fr; } }
+.vue-bar { flex-wrap: wrap; }
+@media (max-width: 700px) { .demande-card { flex-wrap: wrap; } .demande-actions { flex-direction: row; width: 100%; justify-content: flex-end; } }

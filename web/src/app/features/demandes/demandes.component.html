@@ -6,7 +6,7 @@
       <h1 class="page-title"><i class="fas fa-file-alt" style="color:var(--green-dark)"></i> Demandes</h1>
       <p class="page-subtitle">Gestion des demandes avec workflow de validation</p>
     </div>
-    <button class="btn btn-green" (click)="activeTab.set('nouvelle')">
+    <button class="btn btn-green" (click)="ouvrirFormulaire()">
       <i class="fas fa-plus"></i> Nouvelle demande
     </button>
   </div>
@@ -15,7 +15,7 @@
   @if (stats(); as s) {
     <div class="kpi-row">
       <div class="kpi-card"><div class="kpi-icon blue"><i class="fas fa-file-alt"></i></div>
-        <div class="kpi-info"><div class="kpi-val">{{ s.total }}</div><div class="kpi-label">Total</div></div></div>
+        <div class="kpi-info"><div class="kpi-val">{{ s.total }}</div><div class="kpi-label">Total ({{ s.brouillons }} brouillon(s))</div></div></div>
       <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-hourglass-half"></i></div>
         <div class="kpi-info"><div class="kpi-val">{{ s.en_attente }}</div><div class="kpi-label">En attente</div></div></div>
       <div class="kpi-card"><div class="kpi-icon green"><i class="fas fa-check-circle"></i></div>
@@ -28,38 +28,36 @@
   <!-- Onglets -->
   <div class="tab-bar">
     <button class="tab" [class.active]="activeTab()==='liste'"     (click)="activeTab.set('liste');loadDemandes()">
-      <i class="fas fa-list"></i> Mes demandes
+      <i class="fas fa-list"></i> Demandes
     </button>
     <button class="tab" [class.active]="activeTab()==='a_valider'" (click)="activeTab.set('a_valider');loadAValider()">
       <i class="fas fa-stamp"></i> À valider
       @if (aValider().length > 0) { <span class="tab-badge">{{ aValider().length }}</span> }
     </button>
-    <button class="tab" [class.active]="activeTab()==='nouvelle'"  (click)="activeTab.set('nouvelle')">
-      <i class="fas fa-plus-circle"></i> Nouvelle
-    </button>
-    @if (peutConfigurerCircuits()) {
-      <a class="tab tab-lien" routerLink="/parametres" [queryParams]="{ section: 'circuits' }"
-         title="Les types de demande et les étapes de validation se configurent dans Paramètres">
-        <i class="fas fa-sitemap"></i> Circuits de validation <i class="fas fa-external-link-alt"></i>
-      </a>
-    }
   </div>
+
+  @if (messageListe(); as m) {
+    <div [class]="m.type === 'ok' ? 'alert-success' : 'alert-error'">
+      <i [class]="m.type === 'ok' ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i>
+      <span style="flex:1">{{ m.texte }}</span>
+      <button class="alert-fermer" (click)="messageListe.set(null)" title="Fermer"><i class="fas fa-times"></i></button>
+    </div>
+  }
 
   <!-- ══ LISTE ══ -->
   @if (activeTab() === 'liste') {
     <div class="vue-bar">
-      @for (v of [
-        {key:'mes_demandes',    label:'Mes demandes'},
-        {key:'validees_par_moi',label:'Validées par moi'},
-        {key:'agence',          label:'Mon agence'},
-        {key:'toutes',          label:'Toutes'}
-      ]; track v.key) {
+      @for (v of vues; track v.key) {
         <button class="vue-btn" [class.active]="vue()===v.key" (click)="onVueChange(v.key)">{{ v.label }}</button>
       }
     </div>
 
     <div class="card filters-card">
-      <div class="filters-grid-5">
+      <div class="filters-grid-5 filters-grid-6">
+        <div class="filter-group filter-search">
+          <label class="filter-label"><i class="fas fa-search"></i> Recherche</label>
+          <input type="search" class="form-control" placeholder="N°, titre, description…" (input)="onFiltreChange('search',$event)" />
+        </div>
         <div class="filter-group">
           <label class="filter-label"><i class="fas fa-circle"></i> Statut</label>
           <select class="form-control" (change)="onFiltreChange('statut',$event)">
@@ -70,6 +68,7 @@
             <option value="approuvee">Approuvée</option>
             <option value="rejetee">Rejetée</option>
             <option value="annulee">Annulée</option>
+            <option value="cloturee">Clôturée</option>
           </select>
         </div>
         <div class="filter-group">
@@ -126,6 +125,9 @@
                 @if (d.agence_nom) { <span><i class="fas fa-building"></i> {{ d.agence_nom }}</span> }
                 <span><i class="fas fa-clock"></i> {{ d.created_at | date:'dd/MM/yyyy' }}</span>
                 @if (d.date_souhaitee) { <span><i class="fas fa-calendar-alt"></i> Souhaité : {{ d.date_souhaitee | date:'dd/MM/yyyy' }}</span> }
+                @if (d.vehicule_immat) { <span><i class="fas fa-car"></i> {{ d.vehicule_immat }}</span> }
+                @if (d.nb_pieces) { <span><i class="fas fa-paperclip"></i> {{ d.nb_pieces }} fichier(s)</span> }
+                @if (d.total_achat || d.montant_estime) { <span><i class="fas fa-coins"></i> {{ (d.total_achat || d.montant_estime) | number:'1.0-0' }} FCFA</span> }
               </div>
               @if (d.statut === 'en_validation' || d.statut === 'approuvee') {
                 <div class="workflow-bar"><div class="workflow-fill" [style.width.%]="d.progression_pct"></div></div>
@@ -136,13 +138,18 @@
               <button class="btn btn-icon" title="Voir le détail" (click)="voirDetail(d)">
                 <i class="fas fa-eye"></i>
               </button>
-              @if (d.statut === 'brouillon') {
+              @if (modifiable(d)) {
+                <button class="btn btn-icon" title="Modifier" (click)="ouvrirFormulaire(d)">
+                  <i class="fas fa-edit"></i>
+                </button>
+              }
+              @if (d.statut === 'brouillon' && (estMaDemande(d) || moi()?.role === 'super_admin')) {
                 <button class="btn btn-green btn-sm" (click)="soumettreDemande(d.id)">
                   <i class="fas fa-paper-plane"></i> Soumettre
                 </button>
               }
-              @if (d.statut === 'brouillon' || d.statut === 'soumise' || d.statut === 'en_validation') {
-                <button class="btn btn-outline btn-sm" (click)="demanderAnnulation(d.id)" title="Annuler">
+              @if ((d.statut === 'brouillon' || d.statut === 'soumise' || d.statut === 'en_validation') && (estMaDemande(d) || moi()?.role === 'super_admin')) {
+                <button class="btn btn-outline btn-sm" (click)="demanderAnnulation(d.id)" title="Annuler la demande">
                   <i class="fas fa-times"></i>
                 </button>
               }
@@ -222,7 +229,10 @@
               <div class="demande-meta">
                 <span><i class="fas fa-tag"></i> {{ d.type_nom }}</span>
                 <span><i class="fas fa-user"></i> {{ d.demandeur_nom }}</span>
-                <span><i class="fas fa-layer-group"></i> Niveau {{ d.niveau_actuel }}</span>
+                <span><i class="fas fa-layer-group"></i> Niveau {{ d.niveau_actuel }} / {{ d.nb_niveaux_total }}</span>
+                @if (d.agence_nom) { <span><i class="fas fa-building"></i> {{ d.agence_nom }}</span> }
+                @if (d.nb_pieces) { <span><i class="fas fa-paperclip"></i> {{ d.nb_pieces }} fichier(s)</span> }
+                @if (d.total_achat || d.montant_estime) { <span><i class="fas fa-coins"></i> {{ (d.total_achat || d.montant_estime) | number:'1.0-0' }} FCFA</span> }
                 <span><i class="fas fa-clock"></i> {{ d.created_at | date:'dd/MM/yyyy' }}</span>
               </div>
             </div>
@@ -243,27 +253,40 @@
     }
   }
 
-  <!-- ══ NOUVELLE DEMANDE ══ -->
-  @if (activeTab() === 'nouvelle') {
-    <div class="card" style="max-width:700px">
-      <div class="card-header"><div class="card-title">Nouvelle demande</div></div>
-      <div class="card-body">
-        @if (newSuccess()) { <div class="alert-success"><i class="fas fa-check-circle"></i> {{ newSuccess() }}</div> }
-        @if (newError())   { <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ newError() }}</div> }
+</div>
+
+
+<!-- ══ POPUP : Création / modification ══ -->
+@if (formOuvert()) {
+  <div class="modal-backdrop" (click)="fermerFormulaire()">
+    <div class="modal-box modal-form" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i [class]="editId() ? 'fas fa-edit' : 'fas fa-plus-circle'" style="color:var(--green-dark)"></i>
+          {{ editId() ? 'Modifier la demande' : 'Nouvelle demande' }}
+        </div>
+        <button class="modal-close" (click)="fermerFormulaire()" title="Fermer"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body form-body">
+        @if (formChargement()) {
+          <div style="text-align:center;padding:24px"><i class="fas fa-circle-notch fa-spin"></i></div>
+        } @else {
         <form [formGroup]="demandeForm" novalidate>
           <div class="form-group">
-            <label class="form-label">Type de demande *</label>
-            <select class="form-control" formControlName="type_demande">
+            <label class="form-label" for="dm-type">Type de demande *</label>
+            <select id="dm-type" class="form-control" formControlName="type_demande"
+                    [class.is-invalid]="demandeForm.controls.type_demande.invalid && demandeForm.controls.type_demande.touched">
               <option value="">Sélectionner...</option>
               @for (t of typesSaisissables(); track t.id) {
-                <option [value]="t.id">{{ t.nom }} ({{ t.nb_niveaux }} niveau(x))</option>
+                <option [value]="t.id">{{ t.nom }} ({{ t.nb_niveaux }} niveau(x) de validation)</option>
               }
             </select>
           </div>
           <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">Titre *</label>
-              <input type="text" class="form-control" formControlName="titre" placeholder="Résumé de la demande" />
+              <input id="dm-titre" type="text" class="form-control" formControlName="titre" placeholder="Résumé de la demande" maxlength="200"
+                     [class.is-invalid]="demandeForm.controls.titre.invalid && demandeForm.controls.titre.touched" />
             </div>
             <div class="form-group">
               <label class="form-label">Priorité</label>
@@ -277,25 +300,47 @@
           </div>
           <div class="form-group">
             <label class="form-label">Description *</label>
-            <textarea class="form-control" rows="3" formControlName="description" placeholder="Détails de la demande..."></textarea>
+            <textarea id="dm-desc" class="form-control" rows="3" formControlName="description" placeholder="Détails de la demande..."
+                      [class.is-invalid]="demandeForm.controls.description.invalid && demandeForm.controls.description.touched"></textarea>
           </div>
           <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">Date souhaitée</label>
-              <input type="date" class="form-control" formControlName="date_souhaitee" />
+              <input id="dm-date" type="date" class="form-control" formControlName="date_souhaitee" />
             </div>
-            <div class="form-group">
-              <label class="form-label">Agence</label>
-              <select class="form-control" formControlName="agence">
-                <option value="">Sélectionner...</option>
-                @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
-              </select>
-            </div>
+            @if (agences().length > 1) {
+              <div class="form-group">
+                <label class="form-label">Agence</label>
+                <select class="form-control" formControlName="agence">
+                  <option value="">{{ showVehicule() ? "Celle du véhicule / la mienne" : "La mienne" }}</option>
+                  @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
+                </select>
+              </div>
+            } @else if (!showMateriel()) {
+              <div class="form-group">
+                <label class="form-label">Montant estimé (FCFA)</label>
+                <input type="number" min="0" class="form-control" formControlName="montant_estime" placeholder="optionnel" />
+              </div>
+            }
           </div>
+          @if (agences().length > 1 && !showMateriel()) {
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Montant estimé (FCFA)</label>
+                <input type="number" min="0" class="form-control" formControlName="montant_estime" placeholder="optionnel" />
+              </div>
+            </div>
+          }
           @if (showVehicule()) {
-            <div class="form-group">
-              <label class="form-label"><i class="fas fa-car"></i> Véhicule concerné (ID)</label>
-              <input type="text" class="form-control" formControlName="vehicule" placeholder="UUID du véhicule" />
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label"><i class="fas fa-car"></i> Véhicule concerné</label>
+                <ubi-select-recherche formControlName="vehicule" [options]="vehicules()" placeholder="Immatriculation…" />
+              </div>
+              <div class="form-group">
+                <label class="form-label"><i class="fas fa-id-card"></i> Chauffeur</label>
+                <ubi-select-recherche formControlName="chauffeur" [options]="chauffeurs()" placeholder="Nom ou matricule…" />
+              </div>
             </div>
           }
           @if (showMateriel()) {
@@ -397,22 +442,68 @@
               }
             </div>
           }
-          <div style="display:flex;gap:8px;margin-top:16px">
-            <button type="button" class="btn btn-outline" [disabled]="demandeForm.invalid||newLoading()" (click)="creerDemande(false)">
-              <i class="fas fa-save"></i> Brouillon
-            </button>
-            <button type="button" class="btn btn-green" [disabled]="demandeForm.invalid||newLoading()" (click)="creerDemande(true)">
-              @if (newLoading()) { <i class="fas fa-circle-notch fa-spin"></i> }
-              @else { <i class="fas fa-paper-plane"></i> }
-              Créer et soumettre
-            </button>
+
+          <!-- Pièces jointes -->
+          <div class="pj-section">
+            <div class="lignes-header">
+              <div class="lignes-title"><i class="fas fa-paperclip" style="color:var(--green-dark)"></i> Pièces jointes
+                <span class="lignes-count">{{ piecesExistantes().length + fichiersAEnvoyer().length }}</span></div>
+              <label class="btn btn-outline btn-sm">
+                <i class="fas fa-upload"></i> Joindre des fichiers
+                <input type="file" multiple hidden [accept]="acceptDocuments" (change)="choisirFichiers($event)" />
+              </label>
+            </div>
+            <p class="pj-aide">Devis, facture proforma, photos, bon de commande… PDF, images, Word, Excel ; 10 Mo au plus par fichier.</p>
+            @if (piecesExistantes().length || fichiersAEnvoyer().length) {
+              <ul class="pj-liste">
+                @for (pj of piecesExistantes(); track pj.id) {
+                  <li><i class="fas" [class.fa-image]="pj.est_image" [class.fa-file-alt]="!pj.est_image"></i>
+                    <a [href]="pj.fichier" target="_blank" rel="noopener">{{ pj.nom }}</a>
+                    <button type="button" class="btn-remove-ligne" title="Retirer ce fichier" (click)="supprimerPieceExistante(pj)"><i class="fas fa-trash"></i></button></li>
+                }
+                @for (f of fichiersAEnvoyer(); track $index; let i = $index) {
+                  <li class="pj-nouveau"><i class="fas fa-file-upload"></i> <span>{{ f.name }}</span>
+                    <small>{{ taille(f.size) }} · à envoyer</small>
+                    <button type="button" class="btn-remove-ligne" title="Retirer" (click)="retirerFichier(i)"><i class="fas fa-times"></i></button></li>
+                }
+              </ul>
+            }
           </div>
         </form>
+        }
+        @if (newError()) { <div class="alert-error" style="margin-top:12px"><i class="fas fa-exclamation-triangle"></i> {{ newError() }}</div> }
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" (click)="fermerFormulaire()" [disabled]="newLoading()">Fermer</button>
+        <button type="button" class="btn btn-outline" [disabled]="newLoading() || formChargement()" (click)="enregistrer(false)">
+          <i class="fas fa-save"></i> Enregistrer le brouillon
+        </button>
+        <button type="button" class="btn btn-green" [disabled]="newLoading() || formChargement()" (click)="enregistrer(true)">
+          @if (newLoading()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-paper-plane"></i> }
+          Enregistrer et soumettre
+        </button>
       </div>
     </div>
-  }
+  </div>
+}
 
-</div>
+<!-- ══ POPUP : Supprimer un brouillon ══ -->
+@if (supprimerConfirm(); as d) {
+  <div class="modal-backdrop modal-top" (click)="supprimerConfirm.set(null)">
+    <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-trash" style="color:var(--danger)"></i> Supprimer le brouillon</div>
+      </div>
+      <p style="color:var(--gray-600);font-size:14px;margin-bottom:24px">
+        Supprimer définitivement {{ d.numero }} « {{ d.titre }} » et ses fichiers joints ?
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" (click)="supprimerConfirm.set(null)">Non</button>
+        <button class="btn btn-danger" (click)="supprimerDemande()"><i class="fas fa-trash"></i> Supprimer</button>
+      </div>
+    </div>
+  </div>
+}
 
 <!-- ══ MODALE : Détail demande ══ -->
 @if (demandeDetail(); as d) {
@@ -452,6 +543,13 @@
               <div class="detail-field"><label>Date souhaitée</label><span>{{ d.date_souhaitee ? (d.date_souhaitee | date:'dd/MM/yyyy') : '—' }}</span></div>
               @if (d.vehicule_immat) {
                 <div class="detail-field"><label>Véhicule</label><span class="immat-badge">{{ d.vehicule_immat }}</span></div>
+              }
+              @if (d.chauffeur_nom) {
+                <div class="detail-field"><label>Chauffeur</label><span>{{ d.chauffeur_nom }}</span></div>
+              }
+              <div class="detail-field"><label>Créée le</label><span>{{ d.created_at | date:'dd/MM/yyyy HH:mm' }}</span></div>
+              @if (d.date_traitement) {
+                <div class="detail-field"><label>Traitée le</label><span>{{ d.date_traitement | date:'dd/MM/yyyy HH:mm' }}</span></div>
               }
               @if (d.montant_estime) {
                 <div class="detail-field"><label>Montant estimé</label><span style="font-weight:700;color:var(--navy)">{{ d.montant_estime | number:'1.0-0' }} FCFA</span></div>
@@ -505,6 +603,20 @@
             </div>
           }
 
+          <!-- Pièces jointes -->
+          @if (d.pieces_jointes?.length > 0) {
+            <div class="detail-section">
+              <div class="detail-section-title"><i class="fas fa-paperclip"></i> Pièces jointes ({{ d.pieces_jointes.length }})</div>
+              <ul class="pj-liste">
+                @for (pj of d.pieces_jointes; track pj.id) {
+                  <li><i class="fas" [class.fa-image]="pj.est_image" [class.fa-file-alt]="!pj.est_image"></i>
+                    <a [href]="pj.fichier" target="_blank" rel="noopener">{{ pj.nom }}</a>
+                    <small>{{ pj.auteur_nom }} · {{ pj.created_at | date:'dd/MM/yyyy' }}</small></li>
+                }
+              </ul>
+            </div>
+          }
+
           <!-- Historique validations -->
           @if (d.validations?.length > 0) {
             <div class="detail-section">
@@ -532,13 +644,24 @@
           }
         }
       </div>
+      @if (!demandeDetailLoading() && (modifiable(d) || ((d.statut === 'soumise' || d.statut === 'en_validation') && (estMaDemande(d) || moi()?.role === 'super_admin')))) {
+        <div class="modal-footer">
+          @if (modifiable(d)) {
+            <button class="btn btn-outline btn-danger-text" (click)="supprimerConfirm.set(d)"><i class="fas fa-trash"></i> Supprimer</button>
+            <button class="btn btn-outline" (click)="modifierDepuisDetail(d)"><i class="fas fa-edit"></i> Modifier</button>
+            <button class="btn btn-green" (click)="soumettreDemande(d.id)"><i class="fas fa-paper-plane"></i> Soumettre</button>
+          } @else {
+            <button class="btn btn-outline" (click)="demanderAnnulation(d.id)"><i class="fas fa-times"></i> Annuler la demande</button>
+          }
+        </div>
+      }
     </div>
   </div>
 }
 
 <!-- ══ POPUP : Annuler demande ══ -->
-@if (annulerConfirm()) {
-  <div class="modal-backdrop" (click)="annulerConfirmCancel()">
+ @if (annulerConfirm()) {
+  <div class="modal-backdrop modal-top" (click)="annulerConfirmCancel()">
     <div class="modal-container modal-sm" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <div class="modal-title"><i class="fas fa-times-circle" style="color:var(--danger)"></i> Annuler la demande</div>

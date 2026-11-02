@@ -2,6 +2,7 @@
 
 from django.db import models
 from apps.core.models import UbiFleetBaseModel
+from apps.core.fichiers import VALIDATEURS_DOCUMENT
 
 
 class TypeDemande(models.Model):
@@ -140,8 +141,10 @@ class Demande(UbiFleetBaseModel):
         from django.utils import timezone
         annee = timezone.now().year
         prefix = f"DEM-{annee}-"
-        last = Demande.objects.filter(numero__startswith=prefix).count()
-        return f"{prefix}{str(last + 1).zfill(4)}"
+        # Plus grand numéro existant + 1 (un comptage donnerait un doublon après une suppression)
+        derniers = Demande.objects.filter(numero__startswith=prefix).values_list('numero', flat=True)
+        rang = max((int(n[len(prefix):]) for n in derniers if n[len(prefix):].isdigit()), default=0)
+        return f"{prefix}{str(rang + 1).zfill(4)}"
 
     def peut_etre_soumise(self):
         return self.statut == self.Statut.BROUILLON
@@ -210,3 +213,19 @@ class LigneDemandeAchat(models.Model):
         if self.prix_unitaire:
             return self.quantite * self.prix_unitaire
         return None
+
+
+class PieceJointeDemande(UbiFleetBaseModel):
+    """Fichier joint à une demande (devis, facture proforma, photo, bon…)."""
+
+    demande = models.ForeignKey(Demande, on_delete=models.CASCADE, related_name='pieces_jointes')
+    nom     = models.CharField(max_length=150)
+    fichier = models.FileField(upload_to='demandes/pj/', validators=VALIDATEURS_DOCUMENT)
+
+    class Meta:
+        verbose_name        = "Pièce jointe de demande"
+        verbose_name_plural = "Pièces jointes de demande"
+        ordering            = ['created_at']
+
+    def __str__(self):
+        return f"{self.demande.numero} — {self.nom}"

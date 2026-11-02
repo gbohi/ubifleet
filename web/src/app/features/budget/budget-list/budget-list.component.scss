@@ -1,6 +1,19 @@
 // UbiFleet — Budget Styles
 .budget-page { animation: fadeInUp var(--transition-base) ease; }
 .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+// Barre de période globale
+.periode-bar {
+  display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+  .periode-champ { display: flex; flex-direction: column; gap: 4px;
+    label { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .4px; i { margin-right: 3px; } }
+    .form-control { width: auto; min-width: 130px; height: 36px; padding: 0 30px 0 10px; font-size: 13px; } }
+  .periode-champ:nth-child(2) .form-control { min-width: 200px; }
+  .periode-aide { font-size: 12px; color: var(--gray-400); padding-bottom: 9px; }
+}
+.budgets-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+  .dep-actions-sep { flex: 1; } .muted { font-size: 13px; color: var(--gray-500); } }
+.muted { color: var(--gray-500); font-size: 12px; }
 .filter-select { width: auto; min-width: 130px; padding: 8px 10px; font-size: 13px; }
 
 // Quick stats
@@ -18,6 +31,7 @@
   &.green { background: var(--green-dark); }
   &.red   { background: var(--danger); }
   &.blue  { background: var(--info); }
+  &.gray  { background: var(--gray-300); }
 }
 .qs-val { font-size: 18px; font-weight: 700; color: var(--navy); font-family: var(--font-display); }
 .qs-lbl { font-size: 12px; color: var(--gray-400); }
@@ -155,8 +169,25 @@
   @media (max-width: 1100px) { grid-template-columns: repeat(2, 1fr); }
   @media (max-width: 560px)  { grid-template-columns: 1fr; }
 }
+
+// Filtres des dépenses : une ligne sur grand écran, passage à la ligne propre ensuite
+.filtres-dep {
+  display: grid; gap: 10px 12px; align-items: end;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  .fd-periode, .fd-recherche { grid-column: span 2; }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .form-control { height: 36px; padding: 0 10px; font-size: 13px; width: 100%; box-sizing: border-box; }
+  ::ng-deep ubi-select-recherche .sr-champ {
+    height: 36px; font-size: 13px; padding: 0 10px; border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-md); width: 100%; box-sizing: border-box; background: var(--white);
+  }
+  .fd-dates { display: flex; align-items: center; gap: 6px; span { color: var(--gray-400); } .form-control { flex: 1; min-width: 0; } }
+  @media (min-width: 1700px) { grid-template-columns: 1.6fr repeat(4, minmax(0, 1fr)) 1.4fr; .fd-periode, .fd-recherche { grid-column: auto; } }
+  @media (max-width: 900px)  { grid-template-columns: 1fr 1fr; .fd-periode, .fd-recherche { grid-column: 1 / -1; } }
+  @media (max-width: 480px)  { grid-template-columns: 1fr; }
+}
 .dep-actions {
-  display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap;
+  display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--gray-100); align-items: center; flex-wrap: wrap;
   .dep-actions-sep { flex: 1; }
   .muted { font-size: 12px; color: var(--gray-500); }
 }

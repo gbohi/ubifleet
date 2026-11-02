@@ -208,3 +208,74 @@ class WorkflowDemandesTests(UtilisateursMixin, APITestCase):
         resp = self.client.patch(reverse('type-demande-detail', args=[self.type.id]),
                                  {'nb_niveaux': 1}, format='json')
         self.assertEqual(resp.status_code, 200)
+
+
+class PiecesJointesEtSoumissionTests(UtilisateursMixin, APITestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.type = TypeDemande.objects.create(code='test', nom='Test', nb_niveaux=2)
+        NiveauValidation.objects.create(type_demande=cls.type, niveau=1, libelle='Gestion',
+                                        role_min=cls.roles['gestionnaire'])
+
+    def setUp(self):
+        invalidate()
+
+    def demande(self, **kw):
+        return Demande.objects.create(type_demande=kw.pop('type_', self.type), demandeur=self.chauffeur,
+                                      agence=self.agence_a, titre='T', description='D', **kw)
+
+    def test_circuit_incomplet_refuse_la_soumission(self):
+        d = self.demande()
+        self.client.force_authenticate(self.chauffeur)
+        r = self.client.post(reverse('demande-soumettre', args=[d.id]))
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('incomplet', r.data['detail'])
+        NiveauValidation.objects.create(type_demande=self.type, niveau=2, libelle='Flotte',
+                                        role_min=self.roles['responsable_flotte'])
+        self.assertEqual(self.client.post(reverse('demande-soumettre', args=[d.id])).status_code, 200)
+
+    def test_achat_sans_ligne_refuse(self):
+        achat = TypeDemande.objects.create(code='achat', nom='Achat', nb_niveaux=1)
+        NiveauValidation.objects.create(type_demande=achat, niveau=1, libelle='G', role_min=self.roles['gestionnaire'])
+        d = self.demande(type_=achat)
+        self.client.force_authenticate(self.chauffeur)
+        self.assertEqual(self.client.post(reverse('demande-soumettre', args=[d.id])).status_code, 400)
+        LigneDemandeAchat.objects.create(demande=d, designation='Souris', quantite=2)
+        self.assertEqual(self.client.post(reverse('demande-soumettre', args=[d.id])).status_code, 200)
+
+    def test_pieces_jointes(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        d = self.demande()
+        url = reverse('demande-pj-list')
+        self.client.force_authenticate(self.operateur_b)
+        r = self.client.post(url, {'demande': d.id, 'fichier': SimpleUploadedFile('devis.pdf', b'%PDF')}, format='multipart')
+        self.assertIn(r.status_code, (400, 403))
+        self.client.force_authenticate(self.chauffeur)
+        r = self.client.post(url, {'demande': d.id, 'fichier': SimpleUploadedFile('virus.exe', b'MZ')}, format='multipart')
+        self.assertEqual(r.status_code, 400)
+        r = self.client.post(url, {'demande': d.id, 'fichier': SimpleUploadedFile('devis.pdf', b'%PDF')}, format='multipart')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['nom'], 'devis.pdf')
+        detail = self.client.get(reverse('demande-detail', args=[d.id])).data
+        self.assertEqual(len(detail['pieces_jointes']), 1)
+        d.statut = Demande.Statut.APPROUVEE; d.save()
+        self.assertEqual(self.client.delete(reverse('demande-pj-detail', args=[r.data['id']])).status_code, 400)
+        d.statut = Demande.Statut.BROUILLON; d.save()
+        self.assertEqual(self.client.delete(reverse('demande-pj-detail', args=[r.data['id']])).status_code, 204)
+
+    def test_numero_sans_doublon_apres_suppression(self):
+        a, b = self.demande(), self.demande()
+        a.delete()
+        c = self.demande()
+        self.assertNotEqual(c.numero, b.numero)
+
+    def test_filtres_a_valider(self):
+        NiveauValidation.objects.create(type_demande=self.type, niveau=2, libelle='F', role_min=self.roles['responsable_flotte'])
+        self.demande(statut=Demande.Statut.SOUMISE, priorite='urgente')
+        self.demande(statut=Demande.Statut.SOUMISE, priorite='basse')
+        gest = self.creer_utilisateur('gest_a', 'gestionnaire', self.agence_a)
+        self.client.force_authenticate(gest)
+        self.assertEqual(len(self.client.get(reverse('demande-a-valider')).data), 2)
+        self.assertEqual(len(self.client.get(reverse('demande-a-valider'), {'priorite': 'urgente'}).data), 1)

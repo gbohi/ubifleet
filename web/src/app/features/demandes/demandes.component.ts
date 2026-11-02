@@ -2,15 +2,17 @@
 import {
   Component, inject, OnInit, ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import {
-  DemandesApiService, AgenceApiService, ChauffeurApiService
-} from '../../core/services/api.service';
+import { Observable, concat, of, forkJoin } from 'rxjs';
+import { catchError, last, map, switchMap } from 'rxjs/operators';
+import { DemandesApiService, AgenceApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { messageErreurApi } from '../../core/services/fenetre-saisie.service';
+import { OptionVehicule, OptionsSaisieService } from '../../core/services/options-saisie.service';
+import { OptionRecherche, SelectRechercheComponent } from '../../shared/select-recherche/select-recherche.component';
 
-type Tab = 'liste' | 'nouvelle' | 'a_valider';
+type Tab = 'liste' | 'a_valider';
 
 interface LigneAchat {
   id?: number;
@@ -25,7 +27,7 @@ interface LigneAchat {
 @Component({
   selector: 'ubi-demandes',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, ReactiveFormsModule],
+  imports: [DatePipe, DecimalPipe, ReactiveFormsModule, SelectRechercheComponent],
   templateUrl: './demandes.component.html',
   styleUrls:   ['./demandes.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,21 +35,23 @@ interface LigneAchat {
 export class DemandesComponent implements OnInit {
   private api         = inject(DemandesApiService);
   private agenceApi   = inject(AgenceApiService);
-  private chauffeurApi= inject(ChauffeurApiService);
+  private options     = inject(OptionsSaisieService);
   private auth        = inject(AuthService);
   private fb          = inject(FormBuilder);
 
-  /** Lien vers Paramètres › Circuits de validation (profils ayant accès aux paramètres). */
-  peutConfigurerCircuits = computed(() => this.auth.peutAcceder('parametres'));
+  readonly acceptDocuments = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt';
+  moi = computed(() => this.auth.currentUser());
 
   activeTab = signal<Tab>('liste');
   stats     = signal<any>(null);
+  messageListe = signal<{ type: 'ok' | 'erreur'; texte: string } | null>(null);
 
   // ── Liste demandes ────────────────────────────────────────────────
   demandes        = signal<any[]>([]);
   demandesTotal   = signal(0);
   demandesLoading = signal(false);
   vue             = signal('mes_demandes');
+  filtreSearch    = signal('');
   filtreStatut    = signal('');
   filtrePrio      = signal('');
   filtreType      = signal('');
@@ -55,6 +59,12 @@ export class DemandesComponent implements OnInit {
   filtreFin       = signal('');
   filtrePage      = signal(1);
   readonly pageSize = 20;
+  readonly vues = [
+    { key: 'mes_demandes',     label: 'Mes demandes' },
+    { key: 'validees_par_moi', label: 'Validées par moi' },
+    { key: 'agence',           label: 'Mon agence' },
+    { key: 'toutes',           label: 'Toutes' },
+  ];
 
   // ── À valider ─────────────────────────────────────────────────────
   aValider          = signal<any[]>([]);
@@ -70,17 +80,27 @@ export class DemandesComponent implements OnInit {
   valLoading        = signal(false);
   valErreur         = signal('');
 
-  // ── Nouvelle demande ──────────────────────────────────────────────
+  // ── Formulaire (popup création / modification) ───────────────────
   typesDemande = signal<any[]>([]);
-  /** Types proposés dans « Nouvelle demande » (la dotation de tournée se demande depuis Paramètres › Tournées). */
-  typesSaisissables = computed(() => this.typesDemande().filter(t => t.actif !== false && t.code !== 'dotation'));
+  /** Types proposés à la saisie (la dotation de tournée se demande depuis Paramètres › Tournées). */
+  typesSaisissables = computed(() => this.typesDemande().filter(t =>
+    (t.actif !== false && t.code !== 'dotation') || String(t.id) === String(this.typeEdite())));
   agences      = signal<any[]>([]);
-  chauffeurs   = signal<any[]>([]);
+  vehicules    = signal<OptionVehicule[]>([]);
+  chauffeurs   = signal<OptionRecherche[]>([]);
+  formOuvert   = signal(false);
+  editId       = signal<string | null>(null);
+  private typeEdite = signal<string | number>('');
+  formChargement = signal(false);
   newLoading   = signal(false);
   newError     = signal('');
-  newSuccess   = signal('');
-  showMateriel = signal(false);
-  showVehicule = signal(false);
+  typeCode     = signal('');
+  showMateriel = computed(() => this.typeCode() === 'achat');
+  showVehicule = computed(() => ['vehicule', 'entretien', 'carburant'].includes(this.typeCode()));
+  /** Fichiers choisis, envoyés à l'enregistrement. */
+  fichiersAEnvoyer = signal<File[]>([]);
+  /** Pièces déjà jointes (modification). */
+  piecesExistantes = signal<any[]>([]);
 
   // Lignes d'achat (multi-lignes pour code='achat')
   lignesAchat = signal<LigneAchat[]>([]);
@@ -93,19 +113,15 @@ export class DemandesComponent implements OnInit {
   }
 
   demandeForm = this.fb.group({
-    type_demande:        ['', Validators.required],
-    titre:               ['', Validators.required],
+    type_demande:        ['' as string | number, Validators.required],
+    titre:               ['', [Validators.required, Validators.maxLength(200)]],
     description:         ['', Validators.required],
     priorite:            ['normale'],
     date_souhaitee:      [''],
     agence:              [''],
     vehicule:            [''],
     chauffeur:           [''],
-    materiel:            [''],
-    quantite:            [null as number | null],
-    unite:               [''],
-    fournisseur_suggere: [''],
-    montant_estime:      [null as number | null],
+    montant_estime:      [null as number | null, Validators.min(0)],
   });
 
   // ── Popup annulation demande ──────────────────────────────────────
@@ -116,27 +132,16 @@ export class DemandesComponent implements OnInit {
     this.loadDemandes();
     this.loadStats();
     this.loadAValider();
-    this.api.getTypesDemande(true).subscribe({
-      next: (l) => this.typesDemande.set(l), error: () => {}
-    });
+    this.api.getTypesDemande().subscribe({ next: (l) => this.typesDemande.set(l), error: () => {} });
     this.agenceApi.getAll().subscribe({
       next: (r: any) => this.agences.set(r.results ?? r ?? []), error: () => {}
     });
-    this.chauffeurApi.getAll({ page_size: 200 }).subscribe({
-      next: (r: any) => this.chauffeurs.set(
-        (r.results ?? []).map((c: any) => ({ id: c.id, nom_complet: c.nom_complet }))
-      ), error: () => {}
-    });
+    this.options.vehicules().subscribe({ next: l => this.vehicules.set(l), error: () => {} });
+    this.options.chauffeurs().subscribe({ next: l => this.chauffeurs.set(l), error: () => {} });
     this.demandeForm.get('type_demande')?.valueChanges.subscribe(id => {
-      const t = this.typesDemande().find(td => td.id === Number(id) || td.id === id);
-      if (t) {
-        const isAchat = t.code === 'achat';
-        this.showMateriel.set(isAchat);
-        this.showVehicule.set(['vehicule', 'entretien', 'carburant'].includes(t.code));
-        if (isAchat && this.lignesAchat().length === 0) {
-          this.ajouterLigne(); // ajouter une ligne vide par défaut
-        }
-      }
+      const t = this.typesDemande().find(td => String(td.id) === String(id));
+      this.typeCode.set(t?.code ?? '');
+      if (t?.code === 'achat' && this.lignesAchat().length === 0) this.ajouterLigne();
     });
   }
 
@@ -146,6 +151,7 @@ export class DemandesComponent implements OnInit {
     const params: Record<string, any> = {
       vue: this.vue(), page: this.filtrePage(), page_size: this.pageSize
     };
+    if (this.filtreSearch()) params['search']       = this.filtreSearch();
     if (this.filtreStatut()) params['statut']       = this.filtreStatut();
     if (this.filtrePrio())   params['priorite']     = this.filtrePrio();
     if (this.filtreType())   params['type_demande'] = this.filtreType();
@@ -175,7 +181,7 @@ export class DemandesComponent implements OnInit {
     if (this.aValiderType())   params['type_demande'] = this.aValiderType();
     if (this.aValiderDebut())  params['date_debut']   = this.aValiderDebut();
     if (this.aValiderFin())    params['date_fin']     = this.aValiderFin();
-    this.api.getAValider().subscribe({
+    this.api.getAValider(params).subscribe({
       next: (l) => { this.aValider.set(l); this.aValiderLoading.set(false); },
       error: () => this.aValiderLoading.set(false),
     });
@@ -189,6 +195,7 @@ export class DemandesComponent implements OnInit {
 
   onFiltreChange(field: string, e: Event): void {
     const val = (e.target as HTMLSelectElement | HTMLInputElement).value;
+    if (field === 'search') this.filtreSearch.set(val);
     if (field === 'statut') this.filtreStatut.set(val);
     if (field === 'prio')   this.filtrePrio.set(val);
     if (field === 'type')   this.filtreType.set(val);
@@ -233,78 +240,144 @@ export class DemandesComponent implements OnInit {
     this.lignesAchat.set(l);
   }
 
-  // ── Créer demande ─────────────────────────────────────────────────
-  creerDemande(soumettre = false): void {
-    if (this.demandeForm.invalid) return;
-    this.newLoading.set(true); this.newError.set('');
-    const raw = this.demandeForm.value as any;
-    const payload: any = {};
-    Object.entries(raw).forEach(([k, v]) => {
-      if (v !== null && v !== '' && v !== undefined) payload[k] = v;
+  // ── Popup création / modification ────────────────────────────────
+  ouvrirFormulaire(d?: any): void {
+    this.newError.set(''); this.fichiersAEnvoyer.set([]); this.piecesExistantes.set([]);
+    this.lignesAchat.set([]);
+    this.editId.set(d?.id ?? null);
+    this.typeEdite.set(d?.type_demande ?? '');
+    this.demandeForm.reset({ type_demande: '', priorite: 'normale', agence: '', vehicule: '', chauffeur: '' });
+    this.typeCode.set('');
+    this.formOuvert.set(true);
+    if (!d) return;
+    this.formChargement.set(true);
+    this.api.getDemande(d.id).subscribe({
+      next: (x: any) => {
+        this.typeEdite.set(x.type_demande ?? this.typesDemande().find(t => t.nom === x.type_nom)?.id ?? '');
+        this.lignesAchat.set((x.lignes_achat ?? []).map((l: any) => ({
+          id: l.id, designation: l.designation, quantite: Number(l.quantite), unite: l.unite ?? '',
+          prix_unitaire: l.prix_unitaire !== null ? Number(l.prix_unitaire) : null,
+          fournisseur: l.fournisseur ?? '', notes: l.notes ?? '',
+        })));
+        this.demandeForm.patchValue({
+          type_demande: this.typeEdite(), titre: x.titre, description: x.description ?? '',
+          priorite: x.priorite, date_souhaitee: x.date_souhaitee ?? '', agence: x.agence ?? '',
+          vehicule: x.vehicule ?? '', chauffeur: x.chauffeur ?? '',
+          montant_estime: x.montant_estime !== null ? Number(x.montant_estime) : null,
+        });
+        this.piecesExistantes.set(x.pieces_jointes ?? []);
+        this.formChargement.set(false);
+      },
+      error: err => { this.formChargement.set(false); this.newError.set(messageErreurApi(err, 'Demande introuvable.')); },
     });
-    if (payload.type_demande)   payload.type_demande   = Number(payload.type_demande);
-    if (payload.quantite)       payload.quantite       = Number(payload.quantite);
-    if (payload.montant_estime) payload.montant_estime = Number(payload.montant_estime);
+  }
 
-    this.api.createDemande(payload).subscribe({
-      next: (d: any) => {
-        // Sauvegarder les lignes d'achat si présentes
-        const lignes = this.lignesAchat().filter(l => l.designation.trim());
-        const saveLignes$ = lignes.length > 0
-          ? this.api.bulkSaveLignes(d.id, lignes)
-          : null;
+  fermerFormulaire(): void { if (!this.newLoading()) this.formOuvert.set(false); }
 
-        const afterLignes = () => {
-          if (soumettre) {
-            this.api.soumettre(d.id).subscribe({
-              next: () => {
-                this.newLoading.set(false);
-                this.newSuccess.set('Demande créée et soumise.');
-                this.resetNewForm();
-                this.loadDemandes(); this.loadStats();
-                setTimeout(() => { this.newSuccess.set(''); this.activeTab.set('liste'); }, 1500);
-              },
-              error: (err: any) => {
-                this.newLoading.set(false);
-                // Afficher l'erreur réelle pour diagnostic
-                const msg = err?.error?.detail ?? JSON.stringify(err?.error) ?? `HTTP ${err?.status}`;
-                this.newError.set(`Demande créée mais erreur soumission: ${msg}`);
-              },
-            });
-          } else {
-            this.newLoading.set(false);
-            this.newSuccess.set('Demande enregistrée en brouillon.');
-            this.resetNewForm();
-            this.loadDemandes(); this.loadStats();
-          }
-        };
+  choisirFichiers(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const nouveaux = Array.from(input.files ?? []);
+    const trop = nouveaux.filter(f => f.size > 10 * 1024 * 1024);
+    this.newError.set(trop.length ? `Fichier(s) de plus de 10 Mo ignoré(s) : ${trop.map(f => f.name).join(', ')}` : '');
+    this.fichiersAEnvoyer.set([...this.fichiersAEnvoyer(), ...nouveaux.filter(f => f.size <= 10 * 1024 * 1024)]);
+    input.value = '';
+  }
+  retirerFichier(i: number): void {
+    const l = [...this.fichiersAEnvoyer()]; l.splice(i, 1); this.fichiersAEnvoyer.set(l);
+  }
+  supprimerPieceExistante(pj: any): void {
+    this.api.supprimerPieceJointe(pj.id).subscribe({
+      next: () => this.piecesExistantes.set(this.piecesExistantes().filter(p => p.id !== pj.id)),
+      error: err => this.newError.set(messageErreurApi(err, 'Suppression impossible.')),
+    });
+  }
+  taille(o: number): string { return o < 1024 * 1024 ? `${Math.max(1, Math.round(o / 1024))} Ko` : `${(o / 1048576).toFixed(1)} Mo`; }
 
-        if (saveLignes$) {
-          saveLignes$.subscribe({
-            next: () => afterLignes(),
-            error: () => afterLignes(),
-          });
-        } else {
-          afterLignes();
-        }
+  enregistrer(soumettre = false): void {
+    if (this.demandeForm.invalid || this.newLoading()) { this.demandeForm.markAllAsTouched(); return; }
+    const lignes = this.showMateriel() ? this.lignesAchat().filter(l => l.designation.trim()) : [];
+    if (this.showMateriel() && lignes.some(l => !(Number(l.quantite) > 0))) {
+      this.newError.set('Chaque ligne de matériel doit avoir une quantité positive.'); return;
+    }
+    this.newLoading.set(true); this.newError.set('');
+    const raw = this.demandeForm.getRawValue() as any;
+    const vide = (v: any) => v === '' || v === undefined ? null : v;
+    const payload: any = {
+      type_demande: Number(raw.type_demande), titre: raw.titre.trim(), description: raw.description,
+      priorite: raw.priorite, date_souhaitee: vide(raw.date_souhaitee),
+      vehicule: this.showVehicule() ? vide(raw.vehicule) : null,
+      chauffeur: this.showVehicule() ? vide(raw.chauffeur) : null,
+      montant_estime: this.showMateriel() ? null : vide(raw.montant_estime),
+    };
+    if (raw.agence) payload.agence = raw.agence;
+    const id = this.editId();
+    const enregistrement$: Observable<any> = id ? this.api.updateDemande(id, payload) : this.api.createDemande(payload);
+
+    let demandeId = id;
+    const echecsFichiers: string[] = [];
+    enregistrement$.pipe(
+      switchMap((d: any) => {
+        demandeId = d.id ?? id;
+        const etapes: Observable<any>[] = [];
+        if (this.showMateriel() || id) etapes.push(this.api.bulkSaveLignes(demandeId!, lignes));
+        if (this.fichiersAEnvoyer().length) etapes.push(forkJoin(this.fichiersAEnvoyer().map(f =>
+          this.api.envoyerPieceJointe(demandeId!, f).pipe(catchError(err => {
+            echecsFichiers.push(`${f.name} : ${messageErreurApi(err, 'envoi impossible')}`); return of(null);
+          })))));
+        if (soumettre) etapes.push(this.api.soumettre(demandeId!));
+        return etapes.length ? concat(...etapes).pipe(last()) : of(d);
+      }),
+    ).subscribe({
+      next: () => {
+        this.newLoading.set(false);
+        this.formOuvert.set(false);
+        const base = soumettre ? 'Demande enregistrée et soumise pour validation.'
+                   : id ? 'Demande modifiée.' : 'Demande enregistrée en brouillon.';
+        this.messageListe.set(echecsFichiers.length
+          ? { type: 'erreur', texte: `${base} Fichiers non joints — ${echecsFichiers.join(' ; ')}` }
+          : { type: 'ok', texte: base });
+        this.rafraichir();
       },
       error: (err: any) => {
         this.newLoading.set(false);
-        this.newError.set(err?.error?.detail ?? JSON.stringify(err?.error) ?? 'Erreur.');
+        if (demandeId && !id) {
+          // La demande existe déjà (brouillon) : la suite se fera en modification
+          this.editId.set(demandeId);
+          this.typeEdite.set(payload.type_demande);
+          this.fichiersAEnvoyer.set([]);
+          this.api.getDemande(demandeId).subscribe({ next: (x: any) => this.piecesExistantes.set(x.pieces_jointes ?? []), error: () => {} });
+          this.rafraichir();
+        }
+        this.newError.set(messageErreurApi(err, 'Enregistrement impossible.')
+          + (demandeId && soumettre ? ' (la demande est enregistrée en brouillon)' : ''));
       },
     });
   }
 
-  private resetNewForm(): void {
-    this.demandeForm.reset({ priorite: 'normale' });
-    this.lignesAchat.set([]);
-    this.showMateriel.set(false);
-    this.showVehicule.set(false);
-  }
+  private rafraichir(): void { this.loadDemandes(); this.loadStats(); this.loadAValider(); }
 
   soumettreDemande(id: string): void {
-    this.api.soumettre(id).subscribe({ next: () => this.loadDemandes(), error: () => {} });
+    this.messageListe.set(null);
+    this.api.soumettre(id).subscribe({
+      next: () => { this.messageListe.set({ type: 'ok', texte: 'Demande soumise pour validation.' }); this.rafraichir();
+                    if (this.demandeDetail()?.id === id) this.voirDetail({ id }); },
+      error: err => this.messageListe.set({ type: 'erreur', texte: messageErreurApi(err, 'Soumission impossible.') }),
+    });
   }
+
+  supprimerConfirm = signal<any>(null);
+  supprimerDemande(): void {
+    const d = this.supprimerConfirm(); if (!d) return;
+    this.api.supprimerDemande(d.id).subscribe({
+      next: () => { this.supprimerConfirm.set(null); this.demandeDetail.set(null);
+                    this.messageListe.set({ type: 'ok', texte: `Brouillon ${d.numero} supprimé.` }); this.rafraichir(); },
+      error: err => { this.supprimerConfirm.set(null); this.messageListe.set({ type: 'erreur', texte: messageErreurApi(err, 'Suppression impossible.') }); },
+    });
+  }
+
+  estMaDemande(d: any): boolean { return !!d && String(d.demandeur) === String(this.moi()?.id); }
+  modifiable(d: any): boolean { return d?.statut === 'brouillon' && d?.type_code !== 'dotation' && (this.estMaDemande(d) || this.moi()?.role === 'super_admin'); }
+  modifierDepuisDetail(d: any): void { this.demandeDetail.set(null); this.ouvrirFormulaire(d); }
 
   // ── Annulation avec popup ─────────────────────────────────────────
   demanderAnnulation(id: string): void  { this.annulerConfirm.set(id); }
@@ -318,9 +391,12 @@ export class DemandesComponent implements OnInit {
       next: () => {
         this.annulerLoading.set(false);
         this.annulerConfirm.set(null);
-        this.loadDemandes(); this.loadStats();
+        if (this.demandeDetail()?.id === id) this.demandeDetail.set(null);
+        this.messageListe.set({ type: 'ok', texte: 'Demande annulée.' });
+        this.rafraichir();
       },
-      error: () => { this.annulerLoading.set(false); this.annulerConfirm.set(null); },
+      error: err => { this.annulerLoading.set(false); this.annulerConfirm.set(null);
+                      this.messageListe.set({ type: 'erreur', texte: messageErreurApi(err, 'Annulation impossible.') }); },
     });
   }
 
@@ -349,18 +425,13 @@ export class DemandesComponent implements OnInit {
       },
       error: (err: any) => {
         this.valLoading.set(false);
-        this.valErreur.set(err?.error?.detail ?? 'Erreur lors de la validation.');
+        this.valErreur.set(messageErreurApi(err, 'Erreur lors de la validation.'));
       },
     });
   }
 
   onValCommentaire(e: Event): void {
     this.valCommentaire.set((e.target as HTMLTextAreaElement).value);
-  }
-
-  // ── Types de demande (configuration : Paramètres › Circuits de validation) ──
-  loadTypes(): void {
-    this.api.getTypesDemande().subscribe({ next: (l) => this.typesDemande.set(l), error: () => {} });
   }
 
   // ── Détail d'une demande ──────────────────────────────────────────
