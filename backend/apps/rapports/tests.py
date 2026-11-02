@@ -83,3 +83,39 @@ class TableauDeBordTests(UtilisateursMixin, APITestCase):
         self.assertEqual([a['titre'] for a in d['alertes']['prioritaires']], ['C', 'H', 'N'])   # traitée exclue
         self.assertEqual((d['alertes']['total'], d['alertes']['critiques']), (3, 1))
         self.assertEqual(d['chauffeurs']['permis_expires'], 1)
+
+    def test_alertes_personnelles_assurances_budget(self):
+        import datetime
+        from django.utils import timezone
+        from apps.alertes.models import Alerte
+        from apps.budget.models import BudgetAnnuel, DepenseVehicule
+        from apps.sinistres.models import Assureur, ContratAssurance
+        from apps.vehicules.models import Vehicule
+        jour = timezone.localdate()
+        # Alerte adressée à un autre utilisateur : invisible ; à moi : visible
+        Alerte.objects.create(type_alerte='revision_due', titre='Autre', message='m',
+                              agence=self.agence_a, destinataire=self.gestionnaire)
+        Alerte.objects.create(type_alerte='revision_due', titre='Moi', message='m',
+                              agence=self.agence_a, destinataire=self.responsable_flotte)
+        # Assurance : v1 expire dans 10 j sans renouvellement, v2 déjà renouvelée
+        ass = Assureur.objects.create(nom='A')
+        v1 = Vehicule.objects.create(immatriculation='AS-1', agence=self.agence_a, annee=2020)
+        v2 = Vehicule.objects.create(immatriculation='AS-2', agence=self.agence_a, annee=2020)
+        fin = jour + datetime.timedelta(days=10)
+        for v in (v1, v2):
+            ContratAssurance.objects.create(vehicule=v, assureur=ass, numero_police=f'P-{v.immatriculation}',
+                                            date_debut=jour - datetime.timedelta(days=355), date_fin=fin, prime_annuelle=1)
+        ContratAssurance.objects.create(vehicule=v2, assureur=ass, numero_police='P-AS-2-B',
+                                        date_debut=fin + datetime.timedelta(days=1),
+                                        date_fin=fin + datetime.timedelta(days=366), prime_annuelle=1)
+        DepenseVehicule.objects.all().delete()
+        DepenseVehicule.objects.create(agence=self.agence_a, categorie='divers', montant=500,
+                                       date_depense=jour.replace(day=1), description='x')
+        BudgetAnnuel.objects.create(agence=self.agence_a, annee=jour.year, budget_divers=2000)
+        self.client.force_authenticate(self.responsable_flotte)
+        d = self.client.get('/api/v1/rapports/dashboard/').data
+        self.assertEqual([a['titre'] for a in d['alertes']['prioritaires']], ['Moi'])
+        self.assertEqual(d['assurances_critiques'], 1)
+        self.assertEqual((d['couts']['mois'], d['couts']['budget_annee']), (500.0, 2000.0))
+        self.assertGreaterEqual(d['couts']['annee'], 500.0)
+        self.assertEqual(self.client.get('/api/v1/rapports/dashboard/', {'mois': 'x'}).status_code, 400)

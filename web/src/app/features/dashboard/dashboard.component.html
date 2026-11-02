@@ -81,8 +81,9 @@
         <div class="kpi-value">{{ dashStore.nbVehicules() }}</div>
         <div class="kpi-label">Véhicules actifs</div>
         <div class="kpi-sub">
-          <span class="dot green"></span>{{ dashStore.nbEnService() }} en service &nbsp;
-          <span class="dot orange"></span>{{ dashStore.nbEnRevision() }} en révision
+          @for (st of statutsPrincipaux(); track st.code) {
+            <span class="kpi-sub-item"><span class="dot" [class]="st.couleur"></span>{{ st.nb }} {{ st.libelle | lowercase }}</span>
+          }
         </div>
       </div>
       <div class="kpi-arrow"><i class="fas fa-chevron-right"></i></div>
@@ -97,8 +98,8 @@
         <div class="kpi-value">{{ formatFCFA(dashStore.montantCarburant()) }}</div>
         <div class="kpi-label">Carburant (FCFA)</div>
         <div class="kpi-sub">
-          {{ dashStore.volumeCarburant() | number:'1.0-0' }} L &nbsp;&bull;&nbsp;
-          {{ dashStore.consoMoyenne() | number:'1.1-1' }} L/100km moy.
+          {{ dashStore.volumeCarburant() | number:'1.0-0' }} L
+          @if (dashStore.consoMoyenne()) { &nbsp;&bull;&nbsp; {{ dashStore.consoMoyenne() | number:'1.1-1' }} L/100 km moy. }
         </div>
       </div>
       @if (dashStore.nbAnomaliesCarb() > 0) {
@@ -114,12 +115,15 @@
       </div>
       <div class="kpi-body">
         <div class="kpi-value">{{ dashStore.nbEntretiensPlani() }}</div>
-        <div class="kpi-label">Entretiens planifiés</div>
+        <div class="kpi-label">Entretiens du mois</div>
         <div class="kpi-sub">
-          {{ dashStore.nbEntretiensTermi() }} terminés &nbsp;&bull;&nbsp;
+          {{ dashStore.nbEntretiensTermi() }} terminé(s) &nbsp;&bull;&nbsp;
           Coût : {{ formatFCFA(dashStore.coutEntretien()) }} FCFA
         </div>
       </div>
+      @if (entretiensEnRetard() > 0) {
+        <span class="kpi-badge warning">{{ entretiensEnRetard() }} en retard</span>
+      }
       <div class="kpi-arrow"><i class="fas fa-chevron-right"></i></div>
     </div>
 
@@ -132,12 +136,10 @@
         <div class="kpi-value">{{ dashStore.nbAlertesActives() }}</div>
         <div class="kpi-label">Alertes à traiter</div>
         <div class="kpi-sub">
-          <span class="dot red"></span>{{ dashStore.nbAlertesCritiques() }} critique(s)
+          <span class="kpi-sub-item"><span class="dot red"></span>{{ dashStore.nbAlertesCritiques() }} critique(s)</span>
+          <span class="kpi-sub-item"><span class="dot blue"></span>{{ alertesNonLues() }} non lue(s)</span>
         </div>
       </div>
-      @if (dashStore.nbAlertesCritiques() > 0) {
-        <span class="kpi-badge danger">{{ dashStore.nbAlertesCritiques() }} critique(s)</span>
-      }
       <div class="kpi-arrow"><i class="fas fa-chevron-right"></i></div>
     </div>
 
@@ -153,7 +155,31 @@
           <div class="card-title">Évolution des coûts</div>
           <div class="card-subtitle">12 mois jusqu'à {{ dashStore.periodLabel() }} — toutes les dépenses</div>
         </div>
+        <a routerLink="/budget" class="card-link">Budget</a>
       </div>
+      @if (couts(); as c) {
+        <div class="couts-resume">
+          <div class="cr-item">
+            <span class="cr-label">{{ dashStore.periodLabel() }}</span>
+            <span class="cr-val">{{ c.mois | number:'1.0-0' }} <small>FCFA</small></span>
+            @if (variationCouts() !== null) {
+              <span class="cr-var" [class.hausse]="variationCouts()! > 0" [class.baisse]="variationCouts()! < 0">
+                {{ variationCouts()! > 0 ? '▲ +' : variationCouts()! < 0 ? '▼ ' : '' }}{{ variationCouts() }} % vs mois précédent
+              </span>
+            } @else { <span class="cr-var">mois précédent : {{ c.mois_precedent | number:'1.0-0' }}</span> }
+          </div>
+          <div class="cr-item">
+            <span class="cr-label">Cumul {{ dashStore.periode().annee }}</span>
+            <span class="cr-val">{{ c.annee | number:'1.0-0' }} <small>FCFA</small></span>
+            @if (tauxBudget() !== null) {
+              <span class="cr-var" [class.hausse]="tauxBudget()! > 100">{{ tauxBudget() }} % du budget ({{ formatFCFA(c.budget_annee) }})</span>
+            } @else { <span class="cr-var">aucun budget saisi pour {{ dashStore.periode().annee }}</span> }
+          </div>
+          @if (tauxBudget() !== null) {
+            <div class="cr-jauge"><div class="cr-jauge-fill" [class.depasse]="tauxBudget()! > 100" [style.width.%]="tauxBudget()! > 100 ? 100 : tauxBudget()"></div></div>
+          }
+        </div>
+      }
       <div class="card-body">
         <div class="chart-wrapper">
           @if (dashStore.coutMensuelChart().length > 0) {
@@ -329,13 +355,19 @@
         @if (dashStore.chauffeurs(); as ch) {
           <a class="metric-row metric-lien" routerLink="/chauffeurs">
             <i class="fas fa-id-card metric-icon"
-               [class.danger]="ch.permis_expires + ch.documents_expires > 0"
-               [class.green]="ch.permis_expires + ch.permis_a_renouveler + ch.documents_expires === 0"></i>
+               [class.danger]="ch.permis_expires > 0" [class.green]="ch.permis_expires + ch.permis_a_renouveler === 0"></i>
             <div class="metric-info">
-              <span class="metric-label">Chauffeurs : permis expirés / à renouveler · documents expirés</span>
-              <span class="metric-value" [class.text-danger]="ch.permis_expires + ch.documents_expires > 0">
-                {{ ch.permis_expires }} / {{ ch.permis_a_renouveler }} · {{ ch.documents_expires }}
+              <span class="metric-label">Permis expirés · à renouveler (60 j)</span>
+              <span class="metric-value">
+                <span [class.text-danger]="ch.permis_expires > 0">{{ ch.permis_expires }}</span> · {{ ch.permis_a_renouveler }}
               </span>
+            </div>
+          </a>
+          <a class="metric-row metric-lien" routerLink="/chauffeurs">
+            <i class="fas fa-file-alt metric-icon" [class.danger]="ch.documents_expires > 0" [class.green]="ch.documents_expires === 0"></i>
+            <div class="metric-info">
+              <span class="metric-label">Documents chauffeur expirés</span>
+              <span class="metric-value" [class.text-danger]="ch.documents_expires > 0">{{ ch.documents_expires }}</span>
             </div>
           </a>
         }

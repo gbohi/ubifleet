@@ -153,7 +153,8 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: 2px 10px;
+  .kpi-sub-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 }
 
 .kpi-badge {
@@ -168,6 +169,10 @@
   &.danger {
     background: var(--danger-light);
     color: var(--danger);
+  }
+  &.warning {
+    background: var(--warning-light, #fef3c7);
+    color: var(--warning, #b45309);
   }
 }
 
@@ -388,3 +393,20 @@
 .metric-lien { text-decoration: none; color: inherit; &:hover .metric-label { color: var(--navy); } }
 .dot.gray, .progress-bar.gray { background: var(--gray-400, #9ca3af); }
 .dot.blue, .progress-bar.blue { background: #3b82f6; }
+
+// Synthèse des coûts (carte « Évolution des coûts »)
+.couts-resume {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px;
+  padding: 0 20px 6px; align-items: start;
+  .cr-item { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .cr-label { font-size: 11px; color: var(--gray-400); text-transform: uppercase; letter-spacing: .4px; }
+  .cr-val { font-size: 18px; font-weight: 700; color: var(--navy); small { font-size: 11px; font-weight: 500; color: var(--gray-400); } }
+  .cr-var { font-size: 11px; color: var(--gray-500); &.hausse { color: var(--danger); } &.baisse { color: var(--green-dark); } }
+  .cr-jauge { grid-column: 2; height: 5px; background: var(--gray-100); border-radius: 3px; overflow: hidden; }
+  .cr-jauge-fill { height: 100%; background: var(--green-dark); border-radius: 3px; &.depasse { background: var(--danger); } }
+  @media (max-width: 600px) { grid-template-columns: 1fr; .cr-jauge { grid-column: 1; } }
+}
+.chart-main .card-link {
+  font-size: 12px; color: var(--green-dark); font-weight: 500; text-decoration: none;
+  &:hover { text-decoration: underline; }
+}

@@ -34,8 +34,12 @@ class DashboardDGView(APIView):
         from apps.alertes.models import Alerte
         from apps.budget.models import DepenseVehicule
 
-        mois = int(request.query_params.get('mois', timezone.now().month))
-        annee = int(request.query_params.get('annee', timezone.now().year))
+        try:
+            mois = int(request.query_params.get('mois', timezone.now().month))
+            annee = int(request.query_params.get('annee', timezone.now().year))
+            datetime.date(annee, mois, 1)
+        except (TypeError, ValueError):
+            return Response({'detail': 'Période invalide.'}, status=400)
         agence_id = agence_autorisee(request)
 
         agence_filter = {}
@@ -88,9 +92,13 @@ class DashboardDGView(APIView):
             **agence_filter
         )
         entretien = {
-            'planifiees': interventions.count(),
+            'planifiees': interventions.exclude(statut='annule').count(),
             'terminees': interventions.filter(statut='termine').count(),
             'en_cours': interventions.filter(statut='en_cours').count(),
+            # Toutes périodes : interventions planifiées dont la date est dépassée
+            'en_retard': Intervention.objects.filter(
+                statut__in=['planifie', 'attente_piece'], date_planifiee__lt=timezone.localdate(),
+                **agence_filter).count(),
             # Coût des interventions terminées dans le mois (date de fin, sinon date planifiée)
             'cout': Intervention.objects.filter(statut='termine', **agence_filter).annotate(
                 fin=Coalesce('date_fin', 'date_planifiee')).filter(fin__month=mois, fin__year=annee)
@@ -108,13 +116,15 @@ class DashboardDGView(APIView):
 
         # Alertes à traiter (actives ou lues) de l'agence, les plus prioritaires d'abord
         from django.db.models import Case, IntegerField, Value, When
-        alertes_qs = Alerte.objects.filter(statut__in=['active', 'lue'], **agence_filter)
+        from apps.alertes.views import alertes_visibles
+        alertes_qs = alertes_visibles(request.user).filter(statut__in=['active', 'lue'], **agence_filter)
         rang = Case(When(priorite='critique', then=Value(0)), When(priorite='haute', then=Value(1)),
                     When(priorite='normale', then=Value(2)), default=Value(3), output_field=IntegerField())
         alertes = {
             'total': alertes_qs.count(),
             'critiques': alertes_qs.filter(priorite='critique').count(),
             'hautes': alertes_qs.filter(priorite='haute').count(),
+            'non_lues': alertes_qs.filter(statut='active').count(),
             'prioritaires': [{
                 'id': str(a.id), 'titre': a.titre, 'priorite': a.priorite, 'priorite_display': a.get_priorite_display(),
                 'type_alerte': a.type_alerte, 'vehicule_immat': a.vehicule.immatriculation if a.vehicule else None,
@@ -149,6 +159,20 @@ class DashboardDGView(APIView):
                   .order_by().values('date_depense__year', 'date_depense__month').annotate(t=Sum('montant'))}
         cout_mensuel = [{'mois': m, 'annee': a, 'total': totaux.get((a, m), 0.0)} for a, m in mois_liste]
 
+        # Coûts du mois, du mois précédent, cumul de l'année et budget prévu de l'année
+        from apps.budget.models import BudgetAnnuel
+        budgets = BudgetAnnuel.objects.filter(annee=annee, **agence_filter).aggregate(
+            t=Sum(F('budget_carburant') + F('budget_entretien') + F('budget_reparations')
+                  + F('budget_assurances') + F('budget_pneumatiques') + F('budget_divers')))
+        couts = {
+            'mois': cout_mensuel[-1]['total'],
+            'mois_precedent': cout_mensuel[-2]['total'],
+            'annee': float(DepenseVehicule.objects.filter(
+                date_depense__year=annee, date_depense__lte=fin_fenetre, **agence_filter)
+                .aggregate(t=Sum('montant'))['t'] or 0),
+            'budget_annee': float(budgets['t'] or 0),
+        }
+
         # Consommation top 10 véhicules
         top_conso = list(
             pleins.values('vehicule__immatriculation', 'vehicule__marque__libelle', 'vehicule__modele__libelle')
@@ -180,8 +204,13 @@ class DashboardDGView(APIView):
         aujourd_hui = timezone.localdate()
         contrats = ContratAssurance.objects.filter(is_active=True, vehicule__in=vehicules)
         # Contrat expiré : sans contrat plus récent sur le même véhicule
-        assurances_critiques = contrats.filter(
-            date_fin__range=(aujourd_hui, aujourd_hui + datetime.timedelta(days=30))).count()
+        # Véhicules dont l'assurance expire dans 30 jours sans contrat déjà renouvelé
+        dans_30j = aujourd_hui + datetime.timedelta(days=30)
+        from django.db.models import Exists, OuterRef
+        renouvele = ContratAssurance.objects.filter(
+            vehicule=OuterRef('vehicule'), is_active=True, date_fin__gt=dans_30j)
+        assurances_critiques = contrats.filter(date_fin__range=(aujourd_hui, dans_30j)).exclude(
+            Exists(renouvele)).values('vehicule').distinct().count()
         assurances_expirees = contrats.filter(date_fin__lt=aujourd_hui).exclude(
             vehicule__contrats_assurance__date_fin__gte=aujourd_hui).values('vehicule').distinct().count()
 
@@ -194,6 +223,7 @@ class DashboardDGView(APIView):
             'alertes': alertes,
             'chauffeurs': chauffeurs,
             'cout_mensuel': cout_mensuel,
+            'couts': couts,
             'top_consommation': top_conso,
             'top_ecart_conso': top_ecart_conso,
             'repartition_couts': repartition_couts,

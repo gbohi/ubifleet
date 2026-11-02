@@ -1,10 +1,10 @@
 // UbiFleet — Dashboard Component (Angular 18 + NgRx Signals Store)
 import {
   Component, inject, OnInit,
-  ChangeDetectionStrategy, signal
+  ChangeDetectionStrategy, signal, computed
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, LowerCasePipe } from '@angular/common';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
 
@@ -12,12 +12,15 @@ import { DashboardStore } from '../../store/dashboard/dashboard.store';
 import { AgenceApiService } from '../../core/services/api.service';
 import { Agence } from '../../core/models';
 
+const MOIS_COURTS = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'];
+
 @Component({
   selector: 'ubi-dashboard',
   standalone: true,
   imports: [
     RouterLink,
     DecimalPipe,
+    LowerCasePipe,
     BaseChartDirective,
   ],
   templateUrl: './dashboard.component.html',
@@ -58,10 +61,7 @@ export class DashboardComponent implements OnInit {
     const data = this.dashStore.coutMensuelChart();
     return {
       // « Déc 25 », « Jan 26 » : les 12 mois se terminent au mois choisi
-      labels: data.map((c: any) => {
-        const m = this.moisList.find(x => x.val === c.mois);
-        return `${m ? m.label.substring(0, 3) : 'M' + c.mois} ${String(c.annee).slice(-2)}`;
-      }),
+      labels: data.map((c: any) => `${MOIS_COURTS[c.mois - 1] ?? 'M' + c.mois} ${String(c.annee).slice(-2)}`),
       datasets: [{
         label: 'Coûts totaux (FCFA)',
         data: data.map((c: any) => c.total ?? c),
@@ -70,7 +70,7 @@ export class DashboardComponent implements OnInit {
         pointBackgroundColor: '#5bd988',
         pointRadius: 4,
         pointHoverRadius: 6,
-        tension: 0.4,
+        tension: 0.3,
         fill: true,
       }]
     };
@@ -100,11 +100,12 @@ export class DashboardComponent implements OnInit {
         ticks: { font: { family: 'DM Sans', size: 11 }, color: '#94a3b8' }
       },
       y: {
+        beginAtZero: true,
         grid: { color: 'rgba(0,0,0,0.04)' },
         ticks: {
           font: { family: 'DM Sans', size: 11 },
           color: '#94a3b8',
-          callback: (v) => `${Number(v) / 1_000_000}M`
+          callback: (v) => this.formatFCFA(Number(v))
         }
       }
     }
@@ -217,7 +218,7 @@ export class DashboardComponent implements OnInit {
     scales: {
       x: {
         grid: { color: 'rgba(0,0,0,0.04)' },
-        ticks: { font: { family: 'DM Sans', size: 11 }, color: '#94a3b8' }
+        ticks: { font: { family: 'DM Sans', size: 11 }, color: '#94a3b8', callback: (v) => `${Number(v) > 0 ? '+' : ''}${v} %` }
       },
       y: {
         grid: { display: false },
@@ -261,6 +262,23 @@ export class DashboardComponent implements OnInit {
     this.dashStore.loadDashboard();
   }
 
+  /** Deux statuts les plus fréquents, pour la carte « Véhicules actifs ». */
+  statutsPrincipaux = computed(() => this.dashStore.parStatut().slice(0, 2));
+
+  /** Coûts : mois, évolution vs mois précédent, cumul annuel et budget. */
+  couts = computed(() => (this.dashStore.data() as any)?.couts ?? null);
+  variationCouts = computed((): number | null => {
+    const c = this.couts();
+    if (!c || !c.mois_precedent) return null;
+    return Math.round(((c.mois - c.mois_precedent) / c.mois_precedent) * 100);
+  });
+  tauxBudget = computed((): number | null => {
+    const c = this.couts();
+    return c?.budget_annee ? Math.round((c.annee / c.budget_annee) * 100) : null;
+  });
+  entretiensEnRetard = computed(() => (this.dashStore.data() as any)?.entretien?.en_retard ?? 0);
+  alertesNonLues = computed(() => (this.dashStore.data() as any)?.alertes?.non_lues ?? 0);
+
   /** Couleur d'un statut véhicule (Paramètres › Statuts véhicule) → classe de la barre. */
   classeStatut(couleur: string): string {
     return ({ green: 'green', orange: 'warning', red: 'danger', blue: 'blue', gray: 'gray' } as Record<string, string>)[couleur] ?? 'gray';
@@ -280,8 +298,11 @@ export class DashboardComponent implements OnInit {
       l('Véhicules actifs', d.parc.total), ...d.parc.par_statut.map((s: any) => l(`  ${s.libelle}`, s.nb)),
       l('Carburant — montant (FCFA)', n(d.carburant.montant)), l('Carburant — volume (L)', n(d.carburant.volume)),
       l('Consommation moyenne (L/100 km)', n(d.carburant.conso_moy)), l('Anomalies de consommation', d.carburant.anomalies),
-      l('Entretiens planifiés', d.entretien.planifiees), l('Entretiens terminés', d.entretien.terminees),
+      l('Entretiens du mois', d.entretien.planifiees), l('Entretiens terminés', d.entretien.terminees),
+      l('Entretiens en retard', d.entretien.en_retard ?? 0),
       l('Coût des entretiens terminés (FCFA)', n(d.entretien.cout)),
+      ...(d.couts ? [l('Coûts du mois (FCFA)', n(d.couts.mois)), l('Coûts du mois précédent (FCFA)', n(d.couts.mois_precedent)),
+        l(`Coûts cumulés ${this.dashStore.periode().annee} (FCFA)`, n(d.couts.annee)), l('Budget annuel prévu (FCFA)', n(d.couts.budget_annee))] : []),
       l('Alertes à traiter', d.alertes.total), l('dont critiques', d.alertes.critiques),
       l('Sinistres en cours', d.sinistres.en_cours),
       l('Assurances expirant dans 30 jours', d.assurances_critiques), l('Véhicules avec assurance expirée', d.assurances_expirees ?? 0),

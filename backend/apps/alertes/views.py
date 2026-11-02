@@ -13,6 +13,18 @@ from .models import Alerte
 from .serializers import AlerteSerializer
 
 
+def alertes_visibles(user, qs=None):
+    """Alertes qu'un utilisateur voit : les alertes générales de son agence
+    (toutes s'il voit toutes les agences) et celles qui lui sont adressées
+    personnellement — jamais celles adressées à un autre utilisateur."""
+    from django.db.models import Q
+    qs = Alerte.objects.all() if qs is None else qs
+    filtre_general = Q(destinataire__isnull=True)
+    if not voit_toutes_agences(user):
+        filtre_general &= Q(agence_id=user.agence_id)
+    return qs.filter(filtre_general | Q(destinataire=user))
+
+
 class AlerteViewSet(viewsets.ModelViewSet):
     """
     Centre d'alertes UbiFleet.
@@ -47,21 +59,9 @@ class AlerteViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        from django.db.models import Q
-        qs = Alerte.objects.select_related(
+        return alertes_visibles(self.request.user).select_related(
             'vehicule', 'chauffeur', 'agence', 'traitee_par', 'destinataire'
         )
-        user = self.request.user
-
-        # Alertes générales (existantes) : filtrées par agence comme avant
-        filtre_general = Q(destinataire__isnull=True)
-        if not voit_toutes_agences(user):
-            filtre_general &= Q(agence_id=user.agence_id)
-
-        # Alertes personnelles (nouvelles) : ciblées vers cet utilisateur
-        filtre_personnel = Q(destinataire=user)
-
-        return qs.filter(filtre_general | filtre_personnel)
 
     def perform_create(self, serializer):
         controler_agence(self.request.user, serializer.validated_data)
