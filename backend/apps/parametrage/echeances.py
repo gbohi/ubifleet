@@ -29,6 +29,9 @@ ECHEANCES = {e.code: e for e in [
     Echeance('carte_transport', 'Carte de transport', JOURS, 30, 7),
     Echeance('vignette',        'Vignette',           JOURS, 30, 7),
     Echeance('permis',          'Permis de conduire', JOURS, 60, 15),
+    # Documents chauffeur (onglet Documents) : date d'expiration du plus récent
+    Echeance('visite_medicale', 'Visite médicale',    JOURS, 30, 7),
+    Echeance('contrat',         'Contrat de travail', JOURS, 30, 7),
     Echeance('revision',        'Révision',           KM,  2000, 500),
     Echeance('pneus',           'Pneus',              KM,  2000, 500),
 ]}

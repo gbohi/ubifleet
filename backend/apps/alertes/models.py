@@ -20,6 +20,10 @@ class Alerte(UbiFleetBaseModel):
         SINISTRE_OUVERT = 'sinistre_ouvert', 'Sinistre en attente de traitement'
         DEMANDE_A_VALIDER = 'demande_a_valider', 'Demande à valider'
         TOURNEE_OUVERTE = 'tournee_ouverte', 'Tournée non clôturée'
+        VISITE_MEDICALE_EXPIRATION = 'visite_med_exp', 'Visite médicale expirant bientôt'
+        VISITE_MEDICALE_EXPIREE = 'visite_med_expiree', 'Visite médicale expirée'
+        CONTRAT_EXPIRATION = 'contrat_exp', 'Contrat de travail expirant bientôt'
+        CONTRAT_EXPIRE = 'contrat_expire', 'Contrat de travail expiré'
 
     class Priorite(models.TextChoices):
         CRITIQUE = 'critique', 'Critique'

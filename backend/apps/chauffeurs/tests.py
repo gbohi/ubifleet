@@ -108,3 +108,55 @@ class ChauffeurDocumentsTests(UtilisateursMixin, APITestCase):
         r = self.client.post('/api/v1/chauffeurs/', {**base, 'matricule': 'CH-3', 'date_obtention_permis': '2020-01-01',
                                                      'date_expiration_permis': '2019-01-01'}, format='json')
         self.assertEqual(r.status_code, 400)
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class AlertesDocumentsChauffeurTests(UtilisateursMixin, APITestCase):
+    """Échéances visite médicale et contrat de travail (onglet Documents)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.c = Chauffeur.objects.create(matricule='AL-1', nom='Toure', prenom='Awa', numero_permis='P9',
+                                         categories_permis='B', agence=cls.agence_a)
+
+    def setUp(self):
+        self.client.force_authenticate(self.responsable_flotte)
+
+    def doc(self, type_document, jours):
+        from django.utils import timezone
+        r = self.client.post('/api/v1/chauffeurs/documents/', {
+            'chauffeur': str(self.c.id), 'type_document': type_document,
+            'date_expiration': (timezone.localdate() + datetime.timedelta(days=jours)).isoformat(),
+            'fichier': SimpleUploadedFile('d.pdf', b'%PDF-1.4', 'application/pdf')}, format='multipart')
+        self.assertEqual(r.status_code, 201, r.data)
+        return r.data
+
+    def ouvertes(self):
+        from apps.alertes.models import Alerte
+        return Alerte.objects.filter(chauffeur=self.c, statut__in=['active', 'lue'])
+
+    def test_visite_medicale_et_contrat(self):
+        self.doc('visite_medicale', 5)          # seuil urgent (7 j) : priorité haute
+        self.doc('contrat', -2)                 # expiré : critique
+        self.doc('identite', -100)              # pas d'échéance pour ce type
+        a = {x.type_alerte: x for x in self.ouvertes()}
+        self.assertEqual(set(a), {'visite_med_exp', 'contrat_expire'})
+        self.assertEqual((a['visite_med_exp'].priorite, a['contrat_expire'].priorite), ('haute', 'critique'))
+        self.assertIn('J-5', a['visite_med_exp'].titre)
+        # Contrat renouvelé : l'alerte se clôture (le document le plus récent compte)
+        self.doc('contrat', 365)
+        self.assertEqual(set(self.ouvertes().values_list('type_alerte', flat=True)), {'visite_med_exp'})
+        # Chauffeur archivé : ses alertes documents se clôturent
+        self.client.delete(f'/api/v1/chauffeurs/{self.c.id}/')
+        self.assertFalse(self.ouvertes().exists())
+
+    def test_seuil_parametrable_et_tache_globale(self):
+        from apps.alertes.tasks import run_all_checks_sync
+        from apps.parametrage.models import Parametre
+        self.doc('visite_medicale', 45)                       # au-delà du seuil « attention » (30 j)
+        self.assertFalse(self.ouvertes().exists())
+        Parametre.objects.update_or_create(cle='echeance_visite_medicale_attention',
+                                           defaults={'valeur': '60', 'type_valeur': 'int'})
+        run_all_checks_sync()
+        self.assertEqual(self.ouvertes().get().priorite, 'normale')

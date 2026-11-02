@@ -359,7 +359,8 @@ export type TypeAlerte =
   | 'revision_due' | 'assurance_exp' | 'assurance_expiree'
   | 'conso_anormale' | 'ct_exp' | 'ct_expiree'
   | 'permis_exp' | 'permis_expire'
-  | 'budget_depasse' | 'pneu_usure' | 'plein_anomalie' | 'sinistre_ouvert';
+  | 'budget_depasse' | 'pneu_usure' | 'plein_anomalie' | 'sinistre_ouvert'
+  | 'visite_med_exp' | 'visite_med_expiree' | 'contrat_exp' | 'contrat_expire' | 'tournee_ouverte';
 
 export type PrioriteAlerte = 'critique' | 'haute' | 'normale' | 'basse';
 export type StatutAlerte   = 'active' | 'lue' | 'traitee' | 'ignoree';

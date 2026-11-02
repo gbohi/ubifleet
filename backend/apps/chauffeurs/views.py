@@ -74,6 +74,8 @@ class ChauffeurViewSet(viewsets.ModelViewSet):
             Vehicule.objects.filter(chauffeur_attitré=chauffeur).update(chauffeur_attitré=None)
             chauffeur.statut = Chauffeur.Statut.DEPART
             chauffeur.save(update_fields=['statut', 'updated_at'])
+            from apps.alertes.tasks import _check_documents_chauffeurs
+            _check_documents_chauffeurs(chauffeur)   # ses alertes documents se clôturent
         return Response({'detail': f"{chauffeur.nom_complet} archivé (statut « Départ »)."}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'])
@@ -197,18 +199,27 @@ class DocumentChauffeurViewSet(viewsets.ModelViewSet):
         if not filtrer_par_agence(Chauffeur.objects.filter(pk=chauffeur.pk), self.request.user).exists():
             raise PermissionDenied("Ce chauffeur n'est pas de votre agence.")
 
+    @staticmethod
+    def _echeances(chauffeur):
+        """Alertes visite médicale / contrat du chauffeur mises à jour aussitôt."""
+        from apps.alertes.tasks import _check_documents_chauffeurs
+        _check_documents_chauffeurs(chauffeur)
+
     def perform_create(self, serializer):
         self._controler(serializer.validated_data['chauffeur'])
-        serializer.save(created_by=self.request.user)
+        doc = serializer.save(created_by=self.request.user)
+        self._echeances(doc.chauffeur)
 
     def perform_update(self, serializer):
         ancien = serializer.instance.fichier.name
         doc = serializer.save()
         if 'fichier' in serializer.validated_data and ancien and ancien != doc.fichier.name:
             doc.fichier.storage.delete(ancien)
+        self._echeances(doc.chauffeur)
 
     def perform_destroy(self, instance):
-        nom = instance.fichier.name
+        nom, chauffeur = instance.fichier.name, instance.chauffeur
         instance.delete()
         if nom:
             instance.fichier.storage.delete(nom)
+        self._echeances(chauffeur)

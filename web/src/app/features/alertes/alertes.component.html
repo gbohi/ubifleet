@@ -90,6 +90,11 @@
           <option value="ct_expiree">CT expiré</option>
           <option value="permis_exp">Permis expirant</option>
           <option value="permis_expire">Permis expiré</option>
+          <option value="visite_med_exp">Visite médicale expirant</option>
+          <option value="visite_med_expiree">Visite médicale expirée</option>
+          <option value="contrat_exp">Contrat expirant</option>
+          <option value="contrat_expire">Contrat expiré</option>
+          <option value="tournee_ouverte">Tournée non clôturée</option>
           <option value="conso_anormale">Conso anormale</option>
           <option value="pneu_usure">Pneu à changer</option>
           <option value="plein_anomalie">Anomalie prise de carburant</option>
@@ -137,7 +142,7 @@
                 <span class="meta-item"><i class="fas fa-car"></i> {{ a.vehicule_immat }}</span>
               }
               @if (a.chauffeur_nom) {
-                <span class="meta-item"><i class="fas fa-user"></i> {{ a.chauffeur_nom }}</span>
+                <a class="meta-item meta-lien" [routerLink]="['/chauffeurs', a.chauffeur]"><i class="fas fa-user"></i> {{ a.chauffeur_nom }}</a>
               }
               <span class="meta-item"><i class="fas fa-building"></i> {{ a.agence_nom }}</span>
               <span class="meta-item"><i class="fas fa-clock"></i> {{ a.created_at | date:'dd/MM/yyyy HH:mm' }}</span>

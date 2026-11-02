@@ -167,6 +167,74 @@ def _check_permis():
         })
 
 
+def _check_documents_chauffeurs(chauffeur=None):
+    """Visite médicale et contrat de travail des chauffeurs en poste (onglet
+    Documents) : échéance sur la date d'expiration du document le plus récent
+    de chaque type (Paramètres › Échéances). L'alerte se clôture d'elle-même
+    quand le document est renouvelé, supprimé ou le chauffeur parti."""
+    from apps.alertes.models import Alerte
+    from apps.chauffeurs.models import Chauffeur, DocumentChauffeur
+    from apps.parametrage.echeances import DEPASSE, OK, NC, niveau, seuils
+
+    T = Alerte.TypeAlerte
+    TYPES = {
+        'visite_medicale': (T.VISITE_MEDICALE_EXPIRATION, T.VISITE_MEDICALE_EXPIREE, 'Visite médicale'),
+        'contrat':         (T.CONTRAT_EXPIRATION, T.CONTRAT_EXPIRE, 'Contrat de travail'),
+    }
+    today = timezone.localdate()
+    docs = (DocumentChauffeur.objects
+            .filter(type_document__in=TYPES, date_expiration__isnull=False)
+            .exclude(chauffeur__statut=Chauffeur.Statut.DEPART)
+            .select_related('chauffeur', 'chauffeur__agence'))
+    if chauffeur is not None:
+        docs = docs.filter(chauffeur=chauffeur)
+    # Document le plus récent (expiration la plus lointaine) par (chauffeur, type)
+    derniers = {}
+    for d in docs:
+        k = (d.chauffeur_id, d.type_document)
+        if k not in derniers or d.date_expiration > derniers[k].date_expiration:
+            derniers[k] = d
+
+    signalees = set()
+    for (_, code), d in derniers.items():
+        type_exp, type_expire, label = TYPES[code]
+        jours = (d.date_expiration - today).days
+        niv = niveau(jours, *seuils(code))
+        if niv in (OK, NC):
+            continue
+        c = d.chauffeur
+        expire = niv == DEPASSE
+        type_alerte = type_expire if expire else type_exp
+        # Une seule alerte ouverte par chauffeur et document : l'autre type se clôture
+        Alerte.objects.filter(chauffeur=c, type_alerte=type_exp if expire else type_expire,
+                              statut__in=[Alerte.Statut.ACTIVE, Alerte.Statut.LUE]).update(
+            statut=Alerte.Statut.TRAITEE, date_traitement=timezone.now(),
+            notes_traitement="Remplacée par l'alerte de l'échéance suivante.")
+        _signaler(niv, {'chauffeur': c}, type_alerte, {
+            'titre': (f'{label} EXPIRÉ(E) — {c.nom_complet}' if expire
+                      else f'{label} expire J-{jours} — {c.nom_complet}'),
+            'message': (f"{label} du chauffeur {c.nom_complet} ({c.matricule}) "
+                        + (f"expiré(e) depuis le {d.date_expiration:%d/%m/%Y}." if expire
+                           else f"expire le {d.date_expiration:%d/%m/%Y} (dans {jours} jour(s)).")
+                        + " Ajoutez le document renouvelé dans l'onglet Documents de la fiche du chauffeur."),
+            'agence': c.agence, 'date_echeance': d.date_expiration,
+        })
+        signalees.add((c.pk, type_alerte))
+
+    # Alertes devenues sans objet : document renouvelé, supprimé, ou chauffeur parti
+    ouvertes = Alerte.objects.filter(
+        type_alerte__in=[t for paire in TYPES.values() for t in paire[:2]],
+        statut__in=[Alerte.Statut.ACTIVE, Alerte.Statut.LUE])
+    if chauffeur is not None:
+        ouvertes = ouvertes.filter(chauffeur=chauffeur)
+    for a in ouvertes:
+        if (a.chauffeur_id, a.type_alerte) not in signalees:
+            a.statut = Alerte.Statut.TRAITEE
+            a.date_traitement = timezone.now()
+            a.notes_traitement = "Clôturée automatiquement : document renouvelé ou retiré, ou chauffeur parti."
+            a.save(update_fields=['statut', 'date_traitement', 'notes_traitement', 'updated_at'])
+
+
 def _check_tournees_ouvertes():
     """Tournée effectuée ouverte depuis plus de N jours (Paramètres › Seuils) :
     alerte « Tournée non clôturée » ; clôturée d'office quand la tournée ne
@@ -211,6 +279,7 @@ def run_all_checks_sync():
     _check_vehicule_km()
     _check_pneus()
     _check_permis()
+    _check_documents_chauffeurs()
 
 
 # ── Wrappers Celery (optionnels si Celery est installé) ──────────────
@@ -228,6 +297,7 @@ try:
     @shared_task
     def check_permis_alerts():
         _check_permis()
+        _check_documents_chauffeurs()
 
     @shared_task
     def check_pneus_alerts():
