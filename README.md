@@ -16,9 +16,9 @@ Système de gestion de flotte automobile — Ubipharm.
 
 ```
 ubifleet/
-├── ubifleet_backend/     API Django
-├── ubifleet-angular/     Interface Angular
-└── docker-ubifleet/      Fichiers de déploiement
+├── backend/       API Django
+├── web/           Interface Angular
+└── deploiement/   Docker Compose, nginx, procédure de déploiement
 ```
 
 ## Modules
@@ -32,7 +32,7 @@ Contrôle véhicule · Alertes · Budget · Rapports · Paramétrage
 ### Backend
 
 ```bash
-cd ubifleet_backend
+cd backend
 python -m venv venv
 source venv/bin/activate        # Windows : venv\Scripts\activate
 pip install -r requirements.txt
@@ -46,7 +46,7 @@ DEBUG=True python manage.py runserver
 ### Frontend
 
 ```bash
-cd ubifleet-angular
+cd web
 npm install
 ng serve
 ```
@@ -94,8 +94,10 @@ sortie standard.
 
 ### Commandes
 
+Procédure complète (sauvegarde, migrations, restauration) : `deploiement/DEPLOIEMENT.md`.
+
 ```bash
-cd docker-ubifleet
+cd deploiement
 docker compose build --no-cache backend frontend
 docker compose run --rm --entrypoint "" backend python manage.py migrate --plan
 docker compose run --rm --entrypoint "" backend python manage.py migrate

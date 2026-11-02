@@ -13,11 +13,15 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 # Clé secrète : obligatoire hors mode debug (signature des jetons de connexion)
 SECRET_KEY = config('SECRET_KEY', default='')
+if not DEBUG and SECRET_KEY.startswith('django-insecure'):
+    # Clé de démonstration publiée dans le code : n'importe qui pourrait
+    # fabriquer des jetons de connexion valides.
+    SECRET_KEY = ''
 if not SECRET_KEY:
     if not DEBUG:
         from django.core.exceptions import ImproperlyConfigured
         raise ImproperlyConfigured(
-            "SECRET_KEY doit être défini dans .env (générer avec : "
+            "SECRET_KEY doit être défini dans .env, et pas avec la clé de démonstration (générer avec : "
             "python -c \"import secrets; print(secrets.token_urlsafe(50))\").")
     SECRET_KEY = 'django-insecure-dev-uniquement'
 
@@ -142,6 +146,9 @@ REST_FRAMEWORK = {
     'COERCE_DECIMAL_TO_STRING': True,
     # Limite les tentatives de connexion (mots de passe devinés)
     'DEFAULT_THROTTLE_RATES': {'connexion': config('THROTTLE_CONNEXION', default='10/min')},
+    # Derrière nginx, l'adresse du client est dans X-Forwarded-For : sans cela,
+    # tous les utilisateurs partageraient la limite de connexion de nginx.
+    'NUM_PROXIES': config('NUM_PROXIES', default=1, cast=int),
 }
 
 # ── JWT ──

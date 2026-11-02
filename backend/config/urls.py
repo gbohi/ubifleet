@@ -9,7 +9,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 API = 'api/v1/'
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # Administration Django (même adresse que dans nginx)
+    path('django-admin/', admin.site.urls),
 
     # Auth
     path(API + 'auth/', include('apps.accounts.urls')),

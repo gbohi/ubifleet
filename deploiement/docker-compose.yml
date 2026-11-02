@@ -1,0 +1,117 @@
+# UbiFleet — Déploiement (Docker Compose)
+# Les images sont construites directement depuis le code du dépôt
+# (../backend et ../web) : une mise à jour = git pull + docker compose up --build.
+# Variables : fichier .env à côté de ce fichier (modèle : ../backend/.env.example).
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: ubifleet_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_NAME}
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ubifleet_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ubifleet_redis
+    restart: unless-stopped
+    networks:
+      - ubifleet_net
+
+  backend:
+    build:
+      context: ../backend
+    container_name: ubifleet_backend
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - ubifleet_net
+    expose:
+      - "8000"
+
+  celery:
+    build:
+      context: ../backend
+    container_name: ubifleet_celery
+    restart: unless-stopped
+    entrypoint: []
+    command: celery -A config worker --loglevel=info --concurrency=2
+    env_file: .env
+    volumes:
+      - media_data:/app/media
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - ubifleet_net
+
+  # Tâches planifiées (vérification quotidienne des alertes à 7 h) :
+  # sans ce service, elles ne se déclenchaient jamais.
+  celery-beat:
+    build:
+      context: ../backend
+    container_name: ubifleet_celery_beat
+    restart: unless-stopped
+    entrypoint: []
+    command: celery -A config beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    env_file: .env
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - ubifleet_net
+
+  frontend:
+    build:
+      context: ../web
+    container_name: ubifleet_frontend
+    restart: unless-stopped
+    networks:
+      - ubifleet_net
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:alpine
+    container_name: ubifleet_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - media_data:/app/media:ro
+      - static_data:/app/staticfiles:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - ubifleet_net
+
+volumes:
+  postgres_data:
+  media_data:
+  static_data:
+
+networks:
+  ubifleet_net:
+    driver: bridge
