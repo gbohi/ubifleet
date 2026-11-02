@@ -24,6 +24,7 @@ class Alerte(UbiFleetBaseModel):
         VISITE_MEDICALE_EXPIREE = 'visite_med_expiree', 'Visite médicale expirée'
         CONTRAT_EXPIRATION = 'contrat_exp', 'Contrat de travail expirant bientôt'
         CONTRAT_EXPIRE = 'contrat_expire', 'Contrat de travail expiré'
+        CONTROLE_NON_CONFORME = 'controle_non_conforme', 'Contrôle véhicule non conforme'
 
     class Priorite(models.TextChoices):
         CRITIQUE = 'critique', 'Critique'

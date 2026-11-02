@@ -5,6 +5,7 @@ import {
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe, KeyValuePipe, TitleCasePipe } from '@angular/common';
 import { ControleApiService } from '../../../core/services/api.service';
+import { messageErreurApi } from '../../../core/services/fenetre-saisie.service';
 
 interface PointEdit { statut: string; gravite: string; remarque: string; }
 
@@ -33,8 +34,7 @@ export class ControleDetailComponent implements OnInit {
   saveError   = signal('');
 
   get isValidee(): boolean {
-    const s = this.fiche()?.statut_global;
-    return s === 'conforme' || s === 'non_conforme' || s === 'partiel';
+    return !!this.fiche()?.est_validee;
   }
 
   get categoriesGroupes(): Record<string, any[]> {
@@ -132,17 +132,22 @@ export class ControleDetailComponent implements OnInit {
         this.loadFiche();
         setTimeout(() => this.saveSuccess.set(''), 3000);
       },
-      error: () => {
+      error: (err) => {
         this.saving.set(false);
-        this.saveError.set('Erreur lors de la sauvegarde.');
+        this.saveError.set(messageErreurApi(err, 'Erreur lors de la sauvegarde.'));
       },
     });
   }
 
   validerFiche(): void {
+    this.saveError.set('');
     this.api.validerFiche(this.ficheId).subscribe({
-      next: () => this.loadFiche(),
-      error: () => {},
+      next: (r: any) => {
+        this.saveSuccess.set(`Fiche validée : ${r.statut_display}.`);
+        setTimeout(() => this.saveSuccess.set(''), 4000);
+        this.loadFiche();
+      },
+      error: (err) => this.saveError.set(messageErreurApi(err, 'Validation impossible.')),
     });
   }
 

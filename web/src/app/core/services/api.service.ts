@@ -734,14 +734,20 @@ export class ControleApiService extends ApiBaseService {
   createFiche(data: any): Observable<any> {
     return this.http.post(`${API}/controle/fiches/`, data);
   }
+  updateFiche(id: string, data: any): Observable<any> {
+    return this.http.patch(`${API}/controle/fiches/${id}/`, data);
+  }
+  deleteFiche(id: string): Observable<any> {
+    return this.http.delete(`${API}/controle/fiches/${id}/`);
+  }
   validerFiche(id: string): Observable<any> {
     return this.http.post(`${API}/controle/fiches/${id}/valider/`, {});
   }
   getRapportFiche(id: string): Observable<any> {
     return this.http.get(`${API}/controle/fiches/${id}/rapport/`);
   }
-  getStatsFiches(): Observable<any> {
-    return this.http.get(`${API}/controle/fiches/stats/`);
+  getStatsFiches(params?: Record<string, any>): Observable<any> {
+    return this.http.get(`${API}/controle/fiches/stats/`, { params: params ? this.buildParams(params) : undefined });
   }
   bulkSavePoints(ficheId: string, points: any[]): Observable<any> {
     return this.http.post(`${API}/controle/points/bulk_save/`, { fiche_id: ficheId, points });

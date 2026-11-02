@@ -73,6 +73,13 @@ class FicheControle(UbiFleetBaseModel):
     signature_controleur = models.ImageField(
         upload_to='controle/signatures/', null=True, blank=True
     )
+    # Une fiche validée est figée : ses points, photos et informations ne
+    # sont plus modifiables.
+    validee_le  = models.DateTimeField(null=True, blank=True, verbose_name="Validée le")
+    validee_par = models.ForeignKey(
+        'accounts.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='fiches_controle_validees'
+    )
 
     class Meta:
         verbose_name        = "Fiche de contrôle"
@@ -84,22 +91,20 @@ class FicheControle(UbiFleetBaseModel):
                 f"{self.vehicule.immatriculation} — "
                 f"{self.date_heure.strftime('%d/%m/%Y %H:%M')}")
 
+    @property
+    def est_validee(self):
+        return self.validee_le is not None
+
     def calculer_statut_global(self):
-        """Recalcule le statut global selon les points non conformes."""
-        details = self.points.all()
-        if not details.exists():
-            return self.StatutGlobal.EN_COURS
-        nc = details.filter(statut='non_conforme')
+        """Statut à la validation : non conforme si un point est bloquant ou
+        si un point obligatoire est non conforme ; partiellement conforme
+        s'il reste des non-conformités mineures ou majeures ; sinon conforme."""
+        nc = self.points.filter(statut='non_conforme')
         if not nc.exists():
             return self.StatutGlobal.CONFORME
-        if nc.filter(gravite='bloquant').exists():
+        if nc.filter(models.Q(gravite='bloquant') | models.Q(element__obligatoire=True)).exists():
             return self.StatutGlobal.NON_CONFORME
         return self.StatutGlobal.PARTIEL
-
-    def save(self, *args, **kwargs):
-        if self.pk and self.statut_global != self.StatutGlobal.EN_COURS:
-            self.statut_global = self.calculer_statut_global()
-        super().save(*args, **kwargs)
 
 
 class PointControleDetail(models.Model):
