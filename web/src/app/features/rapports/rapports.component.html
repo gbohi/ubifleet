@@ -14,43 +14,85 @@
     }
   </nav>
 
-  <!-- Filtres de période (rapports mensuels / annuels ; les autres ont leurs propres filtres) -->
-  @if (avecFiltresPeriode()) {
-  <div class="global-filters card">
-    <div class="filters-row">
-      @if (activeTab() === 'dashboard' || activeTab() === 'carburant') {
-      <div class="filter-item">
-        <i class="fas fa-calendar"></i>
-        <select (change)="onFiltre('mois',$event)">
-          @for (m of [1,2,3,4,5,6,7,8,9,10,11,12]; track m) {
-            <option [value]="m" [selected]="m === filtreMois()">{{ moisNoms[m-1] }}</option>
-          }
-        </select>
-      </div>
+  <!-- Filtres : période (rapports mensuels / annuels) ou dates (sinistres, interventions, pneus) -->
+  @if (avecFiltresPeriode() || avecFiltresDates()) {
+  <div class="card filtres-rapport">
+    <div class="filtres-rp">
+      @if (avecFiltresPeriode()) {
+        @if (activeTab() === 'dashboard' || activeTab() === 'carburant') {
+          <div class="filter-group">
+            <label class="filter-label" for="rp-mois"><i class="fas fa-calendar"></i> Mois</label>
+            <select id="rp-mois" class="form-control" (change)="onFiltre('mois',$event)">
+              @for (m of [1,2,3,4,5,6,7,8,9,10,11,12]; track m) {
+                <option [value]="m" [selected]="m === filtreMois()">{{ moisLongs[m-1] }}</option>
+              }
+            </select>
+          </div>
+        }
+        <div class="filter-group">
+          <label class="filter-label" for="rp-annee"><i class="fas fa-calendar-alt"></i> Année</label>
+          <select id="rp-annee" class="form-control" (change)="onFiltre('annee',$event)">
+            @for (a of annees; track a) { <option [value]="a" [selected]="a === filtreAnnee()">{{ a }}</option> }
+          </select>
+        </div>
+        @if (activeTab() !== 'multiagences' && agences().length > 1) {
+          <div class="filter-group">
+            <label class="filter-label" for="rp-agence"><i class="fas fa-building"></i> Agence</label>
+            <select id="rp-agence" class="form-control" (change)="onFiltre('agence',$event)">
+              <option value="" [selected]="!filtreAgence()">Toutes</option>
+              @for (a of agences(); track a.id) { <option [value]="a.id" [selected]="a.id === filtreAgence()">{{ a.nom }}</option> }
+            </select>
+          </div>
+        }
+      } @else {
+        <div class="filter-group fr-periode">
+          <label class="filter-label" for="rp-du"><i class="fas fa-calendar"></i>
+            {{ activeTab() === 'pneus' ? 'Montage' : activeTab() === 'sinistres' ? 'Date du sinistre' : 'Date planifiée' }}</label>
+          <div class="fr-dates">
+            <input id="rp-du" type="date" class="form-control" title="Du" [value]="filtreDebut()" (change)="onFiltre2('debut',$event)" />
+            <span>→</span>
+            <input id="rp-au" type="date" class="form-control" title="Au" [value]="filtreFin()" (change)="onFiltre2('fin',$event)" />
+          </div>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label"><i class="fas fa-car"></i> Véhicule</label>
+          <ubi-select-recherche [options]="vehiculesImmat()" placeholder="Immatriculation…"
+                                [selection]="filtreImmat() || null" (choix)="choisirImmat($event)" />
+        </div>
+        @if (agences().length > 1) {
+          <div class="filter-group">
+            <label class="filter-label" for="rp-agence2"><i class="fas fa-building"></i> Agence</label>
+            <select id="rp-agence2" class="form-control" (change)="onFiltre2('agence',$event)">
+              <option value="" [selected]="!filtreAgence2()">Toutes</option>
+              @for (a of agences(); track a.id) { <option [value]="a.id" [selected]="a.id === filtreAgence2()">{{ a.nom }}</option> }
+            </select>
+          </div>
+        }
+        @if (activeTab() === 'sinistres') {
+          <div class="filter-group">
+            <label class="filter-label"><i class="fas fa-user"></i> Chauffeur</label>
+            <ubi-select-recherche [options]="chauffeursOptions()" placeholder="Nom ou matricule…"
+                                  [selection]="filtreChauff() || null" (choix)="choisirChauffeur($event)" />
+          </div>
+        }
+        @if (activeTab() === 'interventions') {
+          <div class="filter-group">
+            <label class="filter-label" for="rp-cat"><i class="fas fa-layer-group"></i> Catégorie</label>
+            <select id="rp-cat" class="form-control" (change)="onFiltre2('categ',$event)">
+              <option value="" [selected]="!filtreCateg()">Toutes</option>
+              @for (c of categoriesIntervention; track c.value) {
+                <option [value]="c.value" [selected]="filtreCateg() === c.value">{{ c.label }}</option>
+              }
+            </select>
+          </div>
+        }
       }
-      <div class="filter-item">
-        <i class="fas fa-calendar-alt"></i>
-        <select (change)="onFiltre('annee',$event)">
-          @for (a of annees; track a) {
-            <option [value]="a" [selected]="a === filtreAnnee()">{{ a }}</option>
-          }
-        </select>
-      </div>
-      @if (activeTab() !== 'multiagences') {
-      <div class="filter-item">
-        <i class="fas fa-building"></i>
-        <select (change)="onFiltre('agence',$event)">
-          <option value="">Toutes les agences</option>
-          @for (a of agences(); track a.id) {
-            <option [value]="a.id" [selected]="a.id === filtreAgence()">{{ a.nom }}</option>
-          }
-        </select>
-      </div>
-      }
-      <button class="btn btn-green btn-sm" (click)="refreshCurrent()">
-        <i class="fas fa-sync-alt"></i> Actualiser
-      </button>
     </div>
+    @if (avecFiltresDates() && nbFiltresDates() > 0) {
+      <div class="filtres-pied">
+        <button class="btn btn-outline btn-sm" (click)="reinitialiserDates()"><i class="fas fa-times"></i> Réinitialiser ({{ nbFiltresDates() }})</button>
+      </div>
+    }
   </div>
   }
 
@@ -72,14 +114,13 @@
             <div class="kpi-icon blue"><i class="fas fa-car"></i></div>
             <div class="kpi-info"><div class="kpi-val">{{ d.parc.total }}</div><div class="kpi-label">Véhicules actifs</div></div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-icon green"><i class="fas fa-check-circle"></i></div>
-            <div class="kpi-info"><div class="kpi-val">{{ d.parc.en_service }}</div><div class="kpi-label">En service</div></div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-icon orange"><i class="fas fa-wrench"></i></div>
-            <div class="kpi-info"><div class="kpi-val">{{ d.parc.en_revision }}</div><div class="kpi-label">En révision</div></div>
-          </div>
+          @for (st of $any(d.parc).par_statut?.slice(0, 2) ?? []; track st.code) {
+            <div class="kpi-card">
+              <div class="kpi-icon" [class.green]="st.couleur === 'green'" [class.orange]="st.couleur === 'orange'"
+                   [class.red]="st.couleur === 'red'" [class.blue]="st.couleur === 'blue' || st.couleur === 'gray'"><i class="fas fa-flag"></i></div>
+              <div class="kpi-info"><div class="kpi-val">{{ st.nb }}</div><div class="kpi-label">{{ st.libelle }}</div></div>
+            </div>
+          }
           <div class="kpi-card">
             <div class="kpi-icon red"><i class="fas fa-car-crash"></i></div>
             <div class="kpi-info"><div class="kpi-val">{{ d.sinistres.en_cours }}</div><div class="kpi-label">Sinistres en cours</div></div>
@@ -487,49 +528,16 @@
 
   <!-- ══ SINISTRES ══ -->
   @if (activeTab() === 'sinistres') {
-    <div class="filters-avances card" style="margin-bottom:12px">
-      <div class="filters-grid-4">
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-calendar"></i> Date début</label>
-          <input type="date" class="form-control" [value]="filtreDebut()" (input)="onFiltre2('debut',$event)" />
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin</label>
-          <input type="date" class="form-control" [value]="filtreFin()" (input)="onFiltre2('fin',$event)" />
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-          <ubi-select-recherche [options]="vehiculesImmat()" placeholder="Immatriculation…"
-                                [selection]="filtreImmat() || null" (choix)="filtreImmat.set($event ?? '')" />
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-building"></i> Agence</label>
-          <select class="form-control" (change)="onFiltre2('agence',$event)">
-            <option value="">Toutes</option>
-            @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
-          </select>
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-user"></i> Chauffeur</label>
-          <select class="form-control" (change)="onFiltre2('chauff',$event)">
-            <option value="">Tous</option>
-            @for (c of chauffeurs(); track c.id) { <option [value]="c.id">{{ c.nom_complet }}</option> }
-          </select>
-        </div>
-        <div class="filter-group" style="align-self:flex-end">
-          <button class="btn btn-green btn-sm" (click)="loadSinistres()">
-            <i class="fas fa-sync-alt"></i> Appliquer
-          </button>
-        </div>
-      </div>
-    </div>
 
     @if (sinLoading()) {
       <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
     } @else if (sinError()) {
       <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ sinError() }}</div>
     } @else {
-      @if (sinData(); as d) {
+      @if (sinData()?.total === 0) {
+        <div class="card vide-rapport"><i class="fas fa-inbox"></i><p>Aucun sinistre pour ces filtres.</p></div>
+      }
+      @if (sinData()?.total ? sinData() : null; as d) {
         <div class="rapport-actions">
           <button class="btn btn-excel btn-sm" (click)="exporterSinistres()"><i class="fas fa-file-excel"></i> Excel</button>
         </div>
@@ -609,54 +617,16 @@
 
   <!-- ══ INTERVENTIONS ══ -->
   @if (activeTab() === 'interventions') {
-    <div class="filters-avances card" style="margin-bottom:12px">
-      <div class="filters-grid-4">
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-calendar"></i> Date début</label>
-          <input type="date" class="form-control" [value]="filtreDebut()" (input)="onFiltre2('debut',$event)" />
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-calendar-alt"></i> Date fin</label>
-          <input type="date" class="form-control" [value]="filtreFin()" (input)="onFiltre2('fin',$event)" />
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-          <ubi-select-recherche [options]="vehiculesImmat()" placeholder="Immatriculation…"
-                                [selection]="filtreImmat() || null" (choix)="filtreImmat.set($event ?? '')" />
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-building"></i> Agence</label>
-          <select class="form-control" (change)="onFiltre2('agence',$event)">
-            <option value="">Toutes</option>
-            @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
-          </select>
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-layer-group"></i> Catégorie</label>
-          <select class="form-control" (change)="onFiltre2('categ',$event)">
-            <option value="">Toutes catégories</option>
-            <option value="preventif">Entretien préventif</option>
-            <option value="curatif">Réparation curative</option>
-            <option value="pneus">Pneus</option>
-            <option value="carrosserie">Carrosserie</option>
-            <option value="controle">Contrôle réglementaire</option>
-            <option value="autre">Autre</option>
-          </select>
-        </div>
-        <div class="filter-group" style="align-self:flex-end">
-          <button class="btn btn-green btn-sm" (click)="loadInterventions()">
-            <i class="fas fa-sync-alt"></i> Appliquer
-          </button>
-        </div>
-      </div>
-    </div>
 
     @if (intLoading()) {
       <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
     } @else if (intError()) {
       <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ intError() }}</div>
     } @else {
-      @if (intData(); as d) {
+      @if (intData()?.total === 0) {
+        <div class="card vide-rapport"><i class="fas fa-inbox"></i><p>Aucune intervention pour ces filtres.</p></div>
+      }
+      @if (intData()?.total ? intData() : null; as d) {
         <div class="rapport-actions">
           <button class="btn btn-excel btn-sm" (click)="exporterInterventions()"><i class="fas fa-file-excel"></i> Excel</button>
         </div>
@@ -739,42 +709,16 @@
 
   <!-- ══ PNEUS ══ -->
   @if (activeTab() === 'pneus') {
-    <div class="filters-avances card" style="margin-bottom:12px">
-      <div class="filters-grid-4">
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-calendar"></i> Date montage début</label>
-          <input type="date" class="form-control" [value]="filtreDebut()" (input)="onFiltre2('debut',$event)" />
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-calendar-alt"></i> Date montage fin</label>
-          <input type="date" class="form-control" [value]="filtreFin()" (input)="onFiltre2('fin',$event)" />
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-car"></i> Immatriculation</label>
-          <ubi-select-recherche [options]="vehiculesImmat()" placeholder="Immatriculation…"
-                                [selection]="filtreImmat() || null" (choix)="filtreImmat.set($event ?? '')" />
-        </div>
-        <div class="filter-group">
-          <label class="form-label"><i class="fas fa-building"></i> Agence</label>
-          <select class="form-control" (change)="onFiltre2('agence',$event)">
-            <option value="">Toutes</option>
-            @for (a of agences(); track a.id) { <option [value]="a.id">{{ a.nom }}</option> }
-          </select>
-        </div>
-        <div class="filter-group" style="align-self:flex-end">
-          <button class="btn btn-green btn-sm" (click)="loadPneus()">
-            <i class="fas fa-sync-alt"></i> Appliquer
-          </button>
-        </div>
-      </div>
-    </div>
 
     @if (pnLoading()) {
       <div class="loading-state"><i class="fas fa-circle-notch fa-spin"></i></div>
     } @else if (pnError()) {
       <div class="alert-error"><i class="fas fa-exclamation-triangle"></i> {{ pnError() }}</div>
     } @else {
-      @if (pnData(); as d) {
+      @if (pnData()?.total === 0) {
+        <div class="card vide-rapport"><i class="fas fa-inbox"></i><p>Aucun pneu pour ces filtres.</p></div>
+      }
+      @if (pnData()?.total ? pnData() : null; as d) {
         <div class="rapport-actions">
           <button class="btn btn-excel btn-sm" (click)="exporterPneus()"><i class="fas fa-file-excel"></i> Excel</button>
         </div>

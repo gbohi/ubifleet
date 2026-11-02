@@ -147,9 +147,24 @@ export class RapportsComponent implements OnInit, OnDestroy {
   private options = inject(OptionsSaisieService);
   /** Rapports filtrés par mois / année / agence (les autres ont leurs propres filtres). */
   avecFiltresPeriode = computed(() => ['dashboard', 'carburant', 'couts', 'multiagences'].includes(this.activeTab() ?? ''));
+  /** Rapports filtrés par dates, véhicule, agence (+ chauffeur / catégorie). */
+  avecFiltresDates = computed(() => ['sinistres', 'interventions', 'pneus'].includes(this.activeTab() ?? ''));
+  chauffeursOptions = signal<OptionRecherche[]>([]);
+  moisLongs = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  readonly categoriesIntervention = [
+    { value: 'preventif', label: 'Entretien préventif' }, { value: 'curatif', label: 'Réparation curative' },
+    { value: 'pneus', label: 'Pneus' }, { value: 'carrosserie', label: 'Carrosserie' },
+    { value: 'controle', label: 'Contrôle réglementaire' }, { value: 'autre', label: 'Autre' },
+  ];
   filtreAgence2= signal('');
   filtreChauff = signal('');
   filtreCateg  = signal('');
+  nbFiltresDates = computed(() => {
+    const t = this.activeTab();
+    return [this.filtreDebut(), this.filtreFin(), this.filtreImmat(), this.filtreAgence2(),
+            t === 'sinistres' ? this.filtreChauff() : '', t === 'interventions' ? this.filtreCateg() : '']
+      .filter(v => !!v).length;
+  });
 
   // États données
   dashLoading  = signal(false); dashData  = signal<DashboardData | null>(null); dashError  = signal('');
@@ -164,7 +179,7 @@ export class RapportsComponent implements OnInit, OnDestroy {
 
   get annees(): number[] {
     const a = this.anneeActuelle;
-    return [a, a-1, a-2, a-3];
+    return [a, a-1, a-2, a-3, a-4];
   }
 
   ngOnInit(): void {
@@ -172,12 +187,8 @@ export class RapportsComponent implements OnInit, OnDestroy {
       next: (res: any) => this.agences.set(res.results ?? res ?? []),
       error: () => {},
     });
-    this.chauffeurApi.getAll({ page_size: 200, statut: 'actif' }).subscribe({
-      next: (res: any) => this.chauffeurs.set((res.results ?? []).map((c: any) => ({
-        id: c.id, nom_complet: c.nom_complet
-      }))),
-      error: () => {},
-    });
+    // Filtre chauffeur des sinistres : tous les chauffeurs (y compris partis)
+    this.options.chauffeurs(true).subscribe({ next: l => this.chauffeursOptions.set(l), error: () => {} });
     this.options.vehicules().subscribe({
       next: l => this.vehiculesImmat.set(l.map(v => ({ value: v.label, label: v.label }))),   // label = immatriculation
       error: () => {},
@@ -221,6 +232,23 @@ export class RapportsComponent implements OnInit, OnDestroy {
     if (field === 'agence')  this.filtreAgence2.set(val);
     if (field === 'chauff')  this.filtreChauff.set(val);
     if (field === 'categ')   this.filtreCateg.set(val);
+    this.rechargerDates();
+  }
+
+  choisirImmat(v: string | null): void { this.filtreImmat.set(v ?? ''); this.rechargerDates(); }
+  choisirChauffeur(v: string | null): void { this.filtreChauff.set(v ?? ''); this.rechargerDates(); }
+
+  reinitialiserDates(): void {
+    this.filtreDebut.set(''); this.filtreFin.set(''); this.filtreImmat.set('');
+    this.filtreAgence2.set(''); this.filtreChauff.set(''); this.filtreCateg.set('');
+    this.rechargerDates();
+  }
+
+  private rechargerDates(): void {
+    const t = this.activeTab();
+    if (t === 'sinistres')     this.loadSinistres();
+    if (t === 'interventions') this.loadInterventions();
+    if (t === 'pneus')         this.loadPneus();
   }
 
   refreshCurrent(): void {
@@ -243,8 +271,8 @@ export class RapportsComponent implements OnInit, OnDestroy {
     if (this.filtreFin())    p['date_fin']         = this.filtreFin();
     if (this.filtreImmat())  p['immatriculation']  = this.filtreImmat();
     if (this.filtreAgence2())p['agence']           = this.filtreAgence2();
-    if (this.filtreChauff()) p['chauffeur']        = this.filtreChauff();
-    if (this.filtreCateg())  p['categorie']        = this.filtreCateg();
+    if (this.filtreChauff() && this.activeTab() === 'sinistres')     p['chauffeur'] = this.filtreChauff();
+    if (this.filtreCateg()  && this.activeTab() === 'interventions') p['categorie'] = this.filtreCateg();
     return p;
   }
 
@@ -271,11 +299,11 @@ export class RapportsComponent implements OnInit, OnDestroy {
           labels: d.cout_mensuel.map((m: any) => `${MOIS[m.mois-1]} ${m.annee}`),
           datasets: [{ label: 'Coûts (FCFA)', data: d.cout_mensuel.map((m: any) => m.total),
             borderColor: '#092440', backgroundColor: '#09244015',
-            borderWidth: 2.5, pointRadius: 4, fill: true, tension: 0.35 }],
+            borderWidth: 2.5, pointRadius: 4, fill: true, tension: 0.2 }],
         },
         options: { responsive: true, maintainAspectRatio: false,
           plugins: { legend: { display: false } },
-          scales: { y: { ticks: { callback: (v: number) => v.toLocaleString('fr-FR') + ' F' } } } },
+          scales: { y: { beginAtZero: true, ticks: { callback: (v: number) => v.toLocaleString('fr-FR') + ' F' } } } },
       }));
     });
   }

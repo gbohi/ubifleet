@@ -215,3 +215,21 @@ select.form-control {
   height: 38px; width: 100%; box-sizing: border-box; padding: 0 12px; font-size: 13px;
   border: 1.5px solid var(--gray-200); border-radius: var(--radius-md, 8px); background: var(--white, #fff);
 }
+
+// ── Filtres (grille avec libellés, appliqués automatiquement) ─────────
+.filtres-rapport { padding: 14px 18px; margin-bottom: 14px; }
+.filtres-rp {
+  display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end;
+  .filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 160px; flex: 1 1 160px; max-width: 280px; }
+  .fr-periode { flex: 2 1 300px; max-width: 380px; }
+  .filter-label { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .5px;
+    display: flex; align-items: center; gap: 5px; i { font-size: 10px; color: var(--gray-400); } }
+  .form-control { height: 36px; padding: 0 10px; font-size: 13px; width: 100%; box-sizing: border-box; }
+  .fr-dates { display: flex; align-items: center; gap: 6px; span { color: var(--gray-400); } .form-control { flex: 1; min-width: 0; } }
+  ::ng-deep ubi-select-recherche .sr-champ { height: 36px; font-size: 13px; padding: 0 10px; border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-md); width: 100%; box-sizing: border-box; background: var(--white); }
+  @media (max-width: 600px) { .filter-group, .fr-periode { max-width: none; flex-basis: 100%; } }
+}
+.filtres-pied { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-100); }
+.vide-rapport { padding: 40px; text-align: center; color: var(--gray-400);
+  i { font-size: 32px; margin-bottom: 8px; display: block; } p { margin: 0; font-size: 14px; } }
