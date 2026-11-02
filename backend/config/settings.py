@@ -158,6 +158,8 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    # Date de dernière connexion mise à jour à chaque connexion (Administration › Utilisateurs)
+    'UPDATE_LAST_LOGIN': True,
 }
 
 # ── CORS ──
